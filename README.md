@@ -43,8 +43,8 @@
 ### 1. 클론
 
 ```bash
-git clone https://github.com/your-id/your-repo.git
-cd your-repo
+git clone https://github.com/versusmangho/versusmangho.git
+cd versusmangho
 ```
 
 index.html을 브라우저에서 열면 실행됩니다.
