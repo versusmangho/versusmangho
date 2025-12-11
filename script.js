@@ -312,7 +312,11 @@ function resetRoom() {
 // 이벤트 바인딩
 // -----------------------
 addBtn.onclick = () => addPlayer(nicknameInput.value.trim());
-nicknameInput.onkeydown = (e) => e.key === "Enter" && addPlayer(nicknameInput.value.trim());
+nicknameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    addPlayer(nicknameInput.value.trim());
+  }
+});
 
 undoBtn.onclick = undoMatch;
 resetBtn.onclick = resetRoom;
