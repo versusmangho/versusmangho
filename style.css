@@ -1,0 +1,231 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0f172a;
+  color: #e5e7eb;
+}
+header {
+  padding: 16px 24px;
+  border-bottom: 1px solid #1f2937;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  background: rgba(15,23,42,0.9);
+  backdrop-filter: blur(10px);
+  z-index: 10;
+}
+header h1 {
+  font-size: 20px;
+  margin: 0;
+}
+header span {
+  font-size: 12px;
+  color: #9ca3af;
+}
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px;
+}
+.card {
+  background: #020617;
+  border-radius: 12px;
+  border: 1px solid #1f2937;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 10px 25px rgba(15,23,42,0.6);
+}
+.card h2 {
+  margin-top: 0;
+  font-size: 16px;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-top: 8px;
+}
+.row > * {
+  flex: 1;
+  min-width: 120px;
+}
+input[type="text"] {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #374151;
+  background: #020617;
+  color: #e5e7eb;
+  font-size: 14px;
+}
+input[type="text"]::placeholder {
+  color: #6b7280;
+}
+button {
+  border-radius: 999px;
+  border: none;
+  padding: 8px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  background: #2563eb;
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 0.05s ease, box-shadow 0.05s ease, background 0.2s ease;
+  box-shadow: 0 8px 20px rgba(37,99,235,0.4);
+  white-space: nowrap;
+}
+button.secondary {
+  background: #111827;
+  color: #e5e7eb;
+  box-shadow: none;
+  border: 1px solid #374151;
+}
+button.danger {
+  background: #b91c1c;
+  box-shadow: 0 8px 20px rgba(185,28,28,0.4);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+  box-shadow: none;
+}
+button:hover:not(:disabled) {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 25px rgba(37,99,235,0.6);
+}
+button.secondary:hover:not(:disabled) {
+  background: #020617;
+  box-shadow: 0 6px 15px rgba(15,23,42,0.6);
+}
+button.danger:hover:not(:disabled) {
+  background: #991b1b;
+  box-shadow: 0 10px 25px rgba(185,28,28,0.6);
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 13px;
+}
+th, td {
+  padding: 6px 8px;
+  text-align: center;
+  border-bottom: 1px solid #111827;
+}
+th {
+  font-size: 12px;
+  color: #9ca3af;
+  background: #020617;
+}
+tr:nth-child(even) td {
+  background: rgba(15,23,42,0.7);
+}
+tr:nth-child(odd) td {
+  background: rgba(15,23,42,0.4);
+}
+tr.highlight td {
+  background: rgba(252,211,77,0.15);
+}
+.tag {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #111827;
+  border: 1px solid #374151;
+  color: #9ca3af;
+  display: inline-block;
+}
+.tag.danger {
+  border-color: #f97373;
+  color: #fecaca;
+}
+.status-line, p {
+  font-size: 13px;
+  color: #9ca3af;
+}
+.error {
+  font-size: 12px;
+  color: #fca5a5;
+  margin-top: 4px;
+  display: none;
+}
+.success {
+  font-size: 12px;
+  color: #6ee7b7;
+  margin-top: 4px;
+  display: none;
+}
+.small-delete {
+  padding: 2px 8px;
+  font-size: 11px;
+  margin-left: 6px;
+  border-radius: 999px;
+  border: 1px solid #4b5563;
+  background: #111827;
+  color: #fca5a5;
+  box-shadow: none;
+}
+.small-delete:hover {
+  background: #7f1d1d;
+  color: #fee2e2;
+  border-color: #b91c1c;
+}
+.toggle-row {
+  align-items: center;
+  gap: 8px;
+}
+/* 토글 스위치 */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 20px;
+}
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #4b5563;
+  transition: .2s;
+  border-radius: 999px;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .2s;
+  border-radius: 50%;
+}
+.switch input:checked + .slider {
+  background-color: #2563eb;
+}
+.switch input:checked + .slider:before {
+  transform: translateX(18px);
+}
+
+@media (max-width: 640px) {
+  header h1 { font-size: 16px; }
+  .card { padding: 12px; }
+  th { font-size: 11px; }
+  td { font-size: 12px; }
+  .row { flex-direction: column; }
+}
