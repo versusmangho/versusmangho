@@ -1,16 +1,50 @@
-## Hi there 👋
+# 버망호 도우미
 
-<!--
-**versusmangho/versusmangho** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+이 프로젝트는 **버망호 매칭 순서를 간편하게 관리**하기 위해 제작된 웹 애플리케이션입니다.  
+브라우저의 로컬 스토리지를 사용하여 **새로고침해도 데이터가 유지**되며,  
+우선순위 자동 분배, 매칭 로그, 되돌리기 기능 등을 포함하고 있습니다.
 
-Here are some ideas to get you started:
+---
 
-- 🔭 I’m currently working on ...
-- 🌱 I’m currently learning ...
-- 👯 I’m looking to collaborate on ...
-- 🤔 I’m looking for help with ...
-- 💬 Ask me about ...
-- 📫 How to reach me: ...
-- 😄 Pronouns: ...
-- ⚡ Fun fact: ...
--->
+## ✨ Features
+
+- 플레이어 등록/삭제
+- 2명 선택하여 매칭
+- 신입 우선권 옵션 제공
+- 매칭 로그 기록 및 “마지막 매칭 되돌리기”
+- 전체 초기화 기능
+- LocalStorage 기반 데이터 저장
+- 완전 클라이언트 기반 (서버 불필요)
+
+---
+
+## 🧱 Tech Stack
+
+- **HTML / CSS / JavaScript (Vanilla)**
+- **로컬 스토리지(LocalStorage)** 기반 상태 저장  
+- 외부 프레임워크 없음
+
+---
+
+## 📌 Disclaimer & Attribution
+
+이 프로젝트의 코드는  
+**OpenAI ChatGPT를 통해 생성·보정된 코드**입니다.
+
+- ChatGPT는 코드 구조 설계, UI 개선, 버그 수정, 정렬/레이아웃 개선 등에 활용되었습니다.
+
+※ ChatGPT는 코드 생성 지원 도구이며,  
+  최종 구현·테스트·배포 책임은 프로젝트 관리자인 본인에게 있습니다.
+
+---
+
+## 🚀 How to Run
+
+### 1. 클론
+
+```bash
+git clone https://github.com/your-id/your-repo.git
+cd your-repo
+```
+
+index.html을 브라우저에서 열면 실행됩니다.
