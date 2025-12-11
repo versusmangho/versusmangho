@@ -259,15 +259,34 @@ function undoMatch() {
   if (room.history.length === 0) return;
 
   const last = room.history.pop();
+
+  // 1) 라운드 되돌리기
   room.round = last.round;
 
-  const chooser = room.players.find((p) => p.nickname === last.chooserPrev.nickname);
-  const opponent = room.players.find((p) => p.nickname === last.opponentPrev.nickname);
+  // 2) 직전에 매칭된 두 명의 상태 복원
+  const chooser = room.players.find(
+    (p) => p.nickname === last.chooserPrev.nickname
+  );
+  const opponent = room.players.find(
+    (p) => p.nickname === last.opponentPrev.nickname
+  );
 
-  Object.assign(chooser, last.chooserPrev);
-  Object.assign(opponent, last.opponentPrev);
+  // 플레이어가 이미 삭제된 경우를 대비해서 안전하게 처리
+  if (chooser) Object.assign(chooser, last.chooserPrev);
+  if (opponent) Object.assign(opponent, last.opponentPrev);
 
+  // 3) 현재 round보다 lastPlay가 더 큰 플레이어가 있으면 보정
+  //    (round를 과거로 돌려도 대기가 음수가 안 나오도록)
+  room.players.forEach((p) => {
+    if (p.lastPlay > room.round) {
+      p.lastPlay = room.round;
+    }
+  });
+
+  // 4) 매칭 로그에서 마지막 한 줄 제거
   room.matchLog.pop();
+
+  // 5) UI 갱신 + 저장
   refreshUI();
 }
 
