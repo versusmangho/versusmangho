@@ -146,8 +146,20 @@ function refreshUI() {
     `;
     logTableBody.appendChild(tr);
   });
-
+  applySelectionHighlight();
   saveState();
+}
+function applySelectionHighlight() {
+  const rows = [...playerTableBody.querySelectorAll("tr")];
+
+  // 기존 강조 제거
+  rows.forEach((row) => row.classList.remove("highlight"));
+
+  // selected 배열에 있는 닉네임만 다시 강조
+  selected.forEach((name) => {
+    const row = rows.find((r) => r.dataset.nickname === name);
+    if (row) row.classList.add("highlight");
+  });
 }
 
 // -----------------------
@@ -300,10 +312,17 @@ playerTableBody.onclick = (e) => {
   const tr = e.target.closest("tr");
   if (!tr) return;
 
-  selected.push(tr.dataset.nickname);
-  if (selected.length === 2) tryMatch();
-  else refreshUI();
+  const nickname = tr.dataset.nickname;
+  selected.push(nickname);
+
+  // 선택 상태에 따라 강조 반영
+  applySelectionHighlight();
+
+  if (selected.length === 2) {
+    tryMatch();
+  }
 };
+
 
 // -----------------------
 // 초기 표시

@@ -2,14 +2,14 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <title>버망호 매칭 도우미 (프론트엔드 전용)</title>
+  <title>버망호 도우미</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
 <header>
-  <h1>버망호 매칭 도우미</h1>
+  <h1>버망호 도우미</h1>
   <span id="round-info">라운드: 0</span>
 </header>
 
@@ -17,7 +17,7 @@
   <!-- 플레이어 관리 -->
   <section class="card">
     <h2>플레이어 관리</h2>
-    <div class="row">
+    <div class="row player-add-row">
       <input id="nickname-input" type="text" placeholder="닉네임을 입력하세요" />
       <button id="add-btn">추가</button>
     </div>
@@ -26,25 +26,32 @@
 
   <!-- 매칭 & 초기화 -->
   <section class="card">
-    <h2>매칭</h2>
-    <p id="chooser-status">테이블에서 두 명을 클릭하세요. (첫 번째 = 선택자, 두 번째 = 피선택자)</p>
+  <h2>매칭</h2>
 
-    <div class="row toggle-row">
+  <!-- 문장 + 토글을 한 줄에 묶는 컨테이너 -->
+  <div class="row match-header">
+    <p id="chooser-status">
+      테이블에서 두 명을 클릭하세요. (첫 번째 = 선택자, 두 번째 = 피선택자)
+    </p>
+
+    <div class="toggle-row">
       <label class="switch">
         <input type="checkbox" id="newcomer-toggle" />
         <span class="slider"></span>
       </label>
       <span>신입에게 더 높은 우선권 부여하기</span>
     </div>
+  </div>
 
-    <div class="row">
-      <button id="undo-btn" class="secondary">마지막 매칭 되돌리기</button>
-      <button id="reset-btn" class="danger">전체 초기화</button>
-    </div>
+  <div class="row buttons-right">
+    <button id="undo-btn" class="secondary">마지막 매칭 되돌리기</button>
+    <button id="reset-btn" class="danger">전체 초기화</button>
+  </div>
 
-    <div id="match-msg" class="error"></div>
-    <div id="match-msg-success" class="success"></div>
-  </section>
+  <div id="match-msg" class="error"></div>
+  <div id="match-msg-success" class="success"></div>
+</section>
+
 
   <!-- 플레이어 현황 -->
   <section class="card">
@@ -53,7 +60,7 @@
       <thead>
         <tr>
           <th>#</th>
-          <th>닉네임</th>
+          <th>닉네임</th> 
           <th>원디골 수</th>
           <th>현재 대기</th>
           <th>평균 대기</th>

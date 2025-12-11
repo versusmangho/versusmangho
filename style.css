@@ -49,9 +49,67 @@ main {
   align-items: center;
   margin-top: 8px;
 }
+.player-add-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;      /* 줄바꿈 방지 */
+}
+
+.player-add-row input[type="text"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;            /* 전체 너비 차지하지 않게 */
+}
+
+.player-add-row button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+/* 기본값: 자동 크기. 필요할 때만 늘림 */
 .row > * {
-  flex: 1;
-  min-width: 120px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+/* 닉네임 입력칸은 넓게, 버튼은 내용만큼만 */
+.row > input[type="text"] {
+  flex: 1 1 auto;
+}
+.row > button {
+  flex: 0 0 auto;
+}
+.buttons-right {
+  justify-content: flex-end;   /* 오른쪽 정렬 */
+  gap: 12px;                   /* 버튼 간격 */
+}
+.match-header {
+  justify-content: space-between;   /* 좌측: 문장, 우측: 토글 */
+  align-items: center;
+  gap: 16px;
+}
+
+.match-header p {
+  margin: 0;
+  flex: 1 1 auto;                  /* 문장은 왼쪽에서 자연스럽게 늘어나기 */
+}
+
+/* 토글 스위치는 고정 폭, 설명 문장은 자연스럽게 */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;       /* 토글 전체가 내용만큼만: 오른쪽에 딱 붙음 */
+}
+
+.toggle-row > .switch {
+  flex: 0 0 auto;       /* 스위치는 고정 크기 */
+}
+
+.toggle-row > span {
+  flex: 0 0 auto;       /* 텍스트도 늘어나지 않음 */
+  white-space: nowrap;  /* 줄바꿈 방지 */
 }
 input[type="text"] {
   width: 100%;
@@ -228,4 +286,25 @@ tr.highlight td {
   th { font-size: 11px; }
   td { font-size: 12px; }
   .row { flex-direction: column; }
+}
+
+.match-desc {
+  margin-bottom: 8px;
+}
+
+.toggle-right {
+  display: flex;
+  justify-content: flex-end;   /* 오른쪽으로 보내기 */
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.toggle-right .switch {
+  flex: 0 0 auto;              /* 토글 크기 고정 */
+}
+
+.toggle-right .toggle-text {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
