@@ -65,35 +65,47 @@ function hideError(el) {
 // -----------------------
 // 우선순위 계산
 // -----------------------
+/**
+ * lastPlay: "마지막으로 매칭에 참여한 라운드" (room.round 기준)
+ * - room.round가 0일 때는 아직 0라운드(시작 상태)
+ * - 어떤 플레이어가 라운드 N에서 뛰었으면 lastPlay = N
+ * - 현재 대기 = room.round - lastPlay
+ */
 function computeIdle(p) {
   return room.round - p.lastPlay;
 }
 
+/**
+ * 평균 대기(표시용): 지금까지 확정된 대기(waitSum/matchCount)에
+ * "현재 진행 중인 대기"도 함께 포함해 보여준다.
+ * (유저 입장에서는 '지금 몇 판 기다리는 중인지'가 평균에 반영되는 쪽이 자연스럽기 때문)
+ */
 function avgWait(p) {
-  if (p.matchCount === 0) return computeIdle(p);
-  return p.waitSum / p.matchCount;
+  const idle = computeIdle(p);
+  if (p.matchCount === 0) return idle;
+
+  // 확정된 대기 + 진행 중 대기 / (완료된 매칭 수 + 현재 대기 구간 1개)
+  return (p.waitSum + idle) / (p.matchCount + 1);
 }
 
 function priorityOf(p) {
   const idle = computeIdle(p);
   const avg = avgWait(p);
 
-  let newcomerFlag = 1;
+  // 신입(아직 한 판도 안 뛴 사람) 우선권
+  // 단, 누군가가 '너무 오래' 기다리고 있으면(>=4) 신입 보정을 꺼서 방치 방지.
+  let newcomerFlag = 1; // 0이 더 우선
   if (room.newcomerPriority) {
-    const hasLongWait = room.players.some(
-      (x) => computeIdle(x) >= 4
-    );
-    if (!hasLongWait) {
-      if (p.matchCount === 0 && idle === 0) newcomerFlag = 0;
-    }
+    const hasLongWait = room.players.some((x) => computeIdle(x) >= 4);
+    if (!hasLongWait && p.matchCount === 0) newcomerFlag = 0;
   }
 
   return [
-    newcomerFlag,
-    -idle,
-    -avg,
-    p.chooserCount,
-    p.joinOrder,
+    newcomerFlag,   // 신입 우선
+    -idle,          // 더 오래 기다릴수록 우선
+    -avg,           // 평균 대기가 길수록 우선
+    p.chooserCount, // 원디골(선택자) 덜 한 사람 우선
+    p.joinOrder,    // 동률이면 먼저 들어온 사람 우선
   ];
 }
 
@@ -221,6 +233,7 @@ function tryMatch() {
     return;
   }
 
+  // 현재 라운드 기준으로 "이번 매칭 전까지 기다린 판 수"
   const waitChooser = computeIdle(chooser);
   const waitOpp = computeIdle(opponent);
 
@@ -230,16 +243,20 @@ function tryMatch() {
     opponentPrev: { ...opponent },
   });
 
+  // 누적 대기(확정)
   chooser.waitSum += waitChooser;
   chooser.matchCount++;
   chooser.chooserCount++;
-  chooser.lastPlay = room.round + 1;
 
   opponent.waitSum += waitOpp;
   opponent.matchCount++;
-  opponent.lastPlay = room.round + 1;
 
+  // 라운드 진행
   room.round++;
+
+  // 이번 라운드에 참여했으므로 lastPlay는 '현재 라운드'로 갱신
+  chooser.lastPlay = room.round;
+  opponent.lastPlay = room.round;
 
   room.matchLog.push({
     round: room.round,
@@ -251,6 +268,7 @@ function tryMatch() {
   chooserStatus.textContent = "매칭 완료! 다시 두 명을 선택하세요.";
   refreshUI();
 }
+
 
 // -----------------------
 // 되돌리기
