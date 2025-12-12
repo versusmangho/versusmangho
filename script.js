@@ -65,34 +65,49 @@ function hideError(el) {
 // -----------------------
 // 우선순위 계산
 // -----------------------
+/**
+ * lastPlay: "마지막으로 매칭에 참여한 라운드" (room.round 기준)
+ * - room.round가 0일 때는 아직 0라운드(시작 상태)
+ * - 어떤 플레이어가 라운드 N에서 뛰었으면 lastPlay = N
+ * - 현재 대기 = room.round - lastPlay
+ */
 function computeIdle(p) {
   return room.round - p.lastPlay;
 }
 
+/**
+ * 평균 대기(표시용): 지금까지 확정된 대기(waitSum/matchCount)에
+ * "현재 진행 중인 대기"도 함께 포함해 보여준다.
+ * (유저 입장에서는 '지금 몇 판 기다리는 중인지'가 평균에 반영되는 쪽이 자연스럽기 때문)
+ */
 function avgWait(p) {
-  if (p.matchCount === 0) return computeIdle(p);
-  return p.waitSum / p.matchCount;
+  const idle = computeIdle(p);
+  if (p.matchCount === 0) return idle;
+
+  // 확정된 대기 + 진행 중 대기 / (완료된 매칭 수 + 현재 대기 구간 1개)
+  return (p.waitSum + idle) / (p.matchCount + 1);
 }
 
 function priorityOf(p) {
   const idle = computeIdle(p);
+  const avg = avgWait(p);
 
-  // 1) 하드 캡: 현재 대기 4 이상인 플레이어는 무조건 최상위 그룹
-  const hardGroup = idle >= 4 ? 0 : 1;
+  // 신입(아직 한 판도 안 뛴 사람) 우선권
+  // 단, 누군가가 '너무 오래' 기다리고 있으면(>=4) 신입 보정을 꺼서 방치 방지.
+  let newcomerFlag = 1; // 0이 더 우선
+  if (room.newcomerPriority) {
+    const hasLongWait = room.players.some((x) => computeIdle(x) >= 4);
+    if (!hasLongWait && p.matchCount === 0) newcomerFlag = 0;
+  }
 
-  // 2) 소프트 가중치: 대기(기본) + 신입 보정(옵션 토글에 따름)
-  const A = 100; // 대기 1판 차이를 크게 반영
-  const B = 80;  // 신입(matchCount=0) 우선 보정
-  const isNewcomer = p.matchCount === 0;
-
-  const score =
-    idle * A + (room.newcomerPriority && isNewcomer ? B : 0);
-
-  // 정렬은 "작을수록 우선"이므로, score는 음수로 뒤집어 큰 점수가 먼저 오게 함
-  // 동률이면 먼저 들어온 사람이 우선
-  return [hardGroup, -score, p.joinOrder];
+  return [
+    newcomerFlag,   // 신입 우선
+    -idle,          // 더 오래 기다릴수록 우선
+    -avg,           // 평균 대기가 길수록 우선
+    p.chooserCount, // 원디골(선택자) 덜 한 사람 우선
+    p.joinOrder,    // 동률이면 먼저 들어온 사람 우선
+  ];
 }
-
 
 // -----------------------
 // UI 갱신
@@ -218,6 +233,46 @@ function tryMatch() {
     return;
   }
 
+  // -----------------------
+  // 하드 캡: "현재 대기"가 5 이상으로 넘어가는 상황 방지
+  // - 매칭이 성사되면 room.round가 +1 되므로,
+  //   이번 매칭에 참여하지 않는 플레이어의 대기는 +1 증가합니다.
+  // - 따라서 지금 idle >= 4 인 플레이어는 이번 매칭(두 명) 안에 반드시 포함되어야 합니다.
+  // -----------------------
+  const critical = room.players.filter((p) => computeIdle(p) >= 4);
+  if (critical.length >= 1) {
+    const pair = new Set([chooser.nickname, opponent.nickname]);
+    const notCovered = critical.filter((p) => !pair.has(p.nickname));
+
+    if (critical.length >= 3) {
+      // 두 명 매칭으로는 모두를 커버할 수 없음 (수학적으로 불가능)
+      showError(
+        matchMsg,
+        `현재 대기 4 이상인 플레이어가 ${critical.length}명이라 이번 라운드에 모두 포함할 수 없습니다. (5판 대기 방지를 위해 인원 조정 또는 연속 매칭이 필요)`
+      );
+      // 선택은 유지(첫 번째 선택자만 남김)
+      selected = [selected[0]];
+      applySelectionHighlight();
+      return;
+    }
+
+    if (notCovered.length > 0) {
+      // 1명(또는 2명)인 경우: 이번 매칭에 전부 포함되도록 강제
+      const names = notCovered.map((p) => p.nickname).join(", ");
+      showError(
+        matchMsg,
+        `다음 플레이어는 이번 매칭에 반드시 포함되어야 5판 대기를 막을 수 있어요: ${names}`
+      );
+      selected = [selected[0]];
+      applySelectionHighlight();
+      return;
+    }
+  }
+
+  hideError(matchMsg);
+  hideError(matchMsgSuccess);
+
+  // 현재 라운드 기준으로 "이번 매칭 전까지 기다린 판 수"
   const waitChooser = computeIdle(chooser);
   const waitOpp = computeIdle(opponent);
 
@@ -227,16 +282,20 @@ function tryMatch() {
     opponentPrev: { ...opponent },
   });
 
+  // 누적 대기(확정)
   chooser.waitSum += waitChooser;
   chooser.matchCount++;
   chooser.chooserCount++;
-  chooser.lastPlay = room.round + 1;
 
   opponent.waitSum += waitOpp;
   opponent.matchCount++;
-  opponent.lastPlay = room.round + 1;
 
+  // 라운드 진행
   room.round++;
+
+  // 이번 라운드에 참여했으므로 lastPlay는 '현재 라운드'로 갱신
+  chooser.lastPlay = room.round;
+  opponent.lastPlay = room.round;
 
   room.matchLog.push({
     round: room.round,
@@ -248,6 +307,7 @@ function tryMatch() {
   chooserStatus.textContent = "매칭 완료! 다시 두 명을 선택하세요.";
   refreshUI();
 }
+
 
 // -----------------------
 // 되돌리기
