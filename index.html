@@ -26,32 +26,31 @@
 
   <!-- 매칭 & 초기화 -->
   <section class="card">
-  <h2>매칭</h2>
+    <h2>매칭</h2>
 
-  <!-- 문장 + 토글을 한 줄에 묶는 컨테이너 -->
-  <div class="row match-header">
-    <p id="chooser-status">
-      테이블에서 두 명을 클릭하세요. (첫 번째 = 선택자, 두 번째 = 피선택자)
-    </p>
+    <div class="row match-header">
+      <p id="chooser-status">
+        테이블에서 두 명을 클릭하세요. (첫 번째 = 선택자, 두 번째 = 피선택자)
+      </p>
 
-    <div class="toggle-row">
-      <label class="switch">
-        <input type="checkbox" id="newcomer-toggle" />
-        <span class="slider"></span>
-      </label>
-      <span>신입에게 더 높은 우선권 부여하기</span>
+      <div class="toggle-row">
+        <label class="switch">
+          <input type="checkbox" id="newcomer-toggle" />
+          <span class="slider"></span>
+        </label>
+        <span>신입에게 더 높은 우선권 부여하기</span>
+      </div>
     </div>
-  </div>
 
-  <div class="row buttons-right">
-    <button id="undo-btn" class="secondary">마지막 매칭 되돌리기</button>
+    <div class="row buttons-right">
+    <button id="undo-btn" class="secondary">실행 취소</button>
+    <button id="redo-btn" class="secondary">다시 실행</button>
     <button id="reset-btn" class="danger">전체 초기화</button>
-  </div>
+    </div>
 
-  <div id="match-msg" class="error"></div>
-  <div id="match-msg-success" class="success"></div>
-</section>
-
+    <div id="match-msg" class="error"></div>
+    <div id="match-msg-success" class="success"></div>
+  </section>
 
   <!-- 플레이어 현황 -->
   <section class="card">
@@ -59,12 +58,11 @@
     <table>
       <thead>
         <tr>
-          <th>#</th>
-          <th>닉네임</th> 
-          <th>원디골 수</th>
+          <th>우선순위</th>
+          <th>닉네임</th>
+          <th>원디골 횟수</th>
           <th>현재 대기</th>
           <th>평균 대기</th>
-          <th>우선순위</th>
         </tr>
       </thead>
       <tbody id="player-table-body"></tbody>
@@ -85,7 +83,35 @@
       <tbody id="log-table-body"></tbody>
     </table>
   </section>
+
+  <!-- 하단 도움말 -->
+  <section class="card footer-help">
+    <div class="row buttons-right">
+      <button id="help-btn" class="secondary">도움말</button>
+    </div>
+  </section>
 </main>
+
+<!-- 도움말 모달 -->
+<div id="help-modal" class="modal" aria-hidden="true">
+  <div class="modal-backdrop" data-close="1"></div>
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="help-title">
+    <h2 id="help-title">사용방법</h2>
+    <div class="modal-body">
+      <ul class="help-list">
+        <li><b>플레이어 추가</b>: 상단 입력칸에 닉네임을 입력하고 <b>추가</b>를 누르세요. (활성 플레이어는 최대 8명)</li>
+        <li><b>보류/복귀</b>: 플레이어 행의 <b>보류</b> 버튼을 누르면 턴에서 제외됩니다. <b>복귀</b>하면 그 시점부터 대기를 다시 시작합니다.</li>
+        <li><b>매칭 기록</b>: 플레이어 표에서 <b>두 명을 순서대로 클릭</b>하면 매칭이 기록됩니다. (첫 번째=선택자, 두 번째=피선택자)</li>
+        <li><b>5판 대기 방지</b>: 누군가가 다음 라운드에 <b>대기 5</b>가 될 선택은 막습니다. (대기 4 이상이 3명 이상이면 완전 방지 불가)</li>
+        <li><b>신입 우선권</b>: <b>신입</b>에게 우선순위를 조금 더 줍니다. (동률이면 먼저 들어온 사람이 우선)</li>
+        <li><b>실행 취소/다시 실행</b>: 추가/삭제/보류/매칭/초기화/토글을 모두 되돌릴 수 있습니다.</li>
+      </ul>
+    </div>
+    <div class="row buttons-right">
+      <button id="help-close-btn" class="secondary">닫기</button>
+    </div>
+  </div>
+</div>
 
 <script src="script.js"></script>
 </body>

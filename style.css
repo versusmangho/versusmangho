@@ -54,257 +54,117 @@ main {
   flex-direction: row;
   align-items: center;
   gap: 12px;
-  flex-wrap: nowrap;      /* 줄바꿈 방지 */
+  flex-wrap: nowrap;
 }
-
 .player-add-row input[type="text"] {
   flex: 1 1 auto;
   min-width: 0;
-  width: auto;            /* 전체 너비 차지하지 않게 */
+  width: auto;
 }
-
 .player-add-row button {
   flex: 0 0 auto;
   white-space: nowrap;
 }
-/* 기본값: 자동 크기. 필요할 때만 늘림 */
-.row > * {
-  min-width: 0;
-  flex: 0 0 auto;
-}
+.row > * { min-width: 0; flex: 0 0 auto; }
+.row > input[type="text"] { flex: 1 1 auto; }
+.row > button { flex: 0 0 auto; }
 
-/* 닉네임 입력칸은 넓게, 버튼은 내용만큼만 */
-.row > input[type="text"] {
-  flex: 1 1 auto;
-}
-.row > button {
-  flex: 0 0 auto;
-}
-.buttons-right {
-  justify-content: flex-end;   /* 오른쪽 정렬 */
-  gap: 12px;                   /* 버튼 간격 */
-}
-.match-header {
-  justify-content: space-between;   /* 좌측: 문장, 우측: 토글 */
-  align-items: center;
-  gap: 16px;
-}
+.buttons-right { justify-content: flex-end; gap: 12px; }
 
-.match-header p {
-  margin: 0;
-  flex: 1 1 auto;                  /* 문장은 왼쪽에서 자연스럽게 늘어나기 */
-}
+.match-header { justify-content: space-between; align-items: center; gap: 16px; }
+.match-header p { margin: 0; flex: 1 1 auto; }
 
-/* 토글 스위치는 고정 폭, 설명 문장은 자연스럽게 */
-.toggle-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 0 0 auto;       /* 토글 전체가 내용만큼만: 오른쪽에 딱 붙음 */
-}
+.toggle-row { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.toggle-row > span { white-space: nowrap; }
 
-.toggle-row > .switch {
-  flex: 0 0 auto;       /* 스위치는 고정 크기 */
-}
-
-.toggle-row > span {
-  flex: 0 0 auto;       /* 텍스트도 늘어나지 않음 */
-  white-space: nowrap;  /* 줄바꿈 방지 */
-}
-input[type="text"] {
-  width: 100%;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #374151;
-  background: #020617;
-  color: #e5e7eb;
-  font-size: 14px;
-}
-input[type="text"]::placeholder {
-  color: #6b7280;
-}
-button {
-  border-radius: 999px;
-  border: none;
-  padding: 8px 14px;
-  font-size: 14px;
-  cursor: pointer;
-  background: #2563eb;
-  color: white;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: transform 0.05s ease, box-shadow 0.05s ease, background 0.2s ease;
-  box-shadow: 0 8px 20px rgba(37,99,235,0.4);
-  white-space: nowrap;
-}
-button.secondary {
-  background: #111827;
-  color: #e5e7eb;
-  box-shadow: none;
-  border: 1px solid #374151;
-}
-button.danger {
-  background: #b91c1c;
-  box-shadow: 0 8px 20px rgba(185,28,28,0.4);
-}
-button:disabled {
-  opacity: 0.5;
-  cursor: default;
-  box-shadow: none;
-}
-button:hover:not(:disabled) {
-  background: #1d4ed8;
-  transform: translateY(-1px);
-  box-shadow: 0 10px 25px rgba(37,99,235,0.6);
-}
-button.secondary:hover:not(:disabled) {
-  background: #020617;
-  box-shadow: 0 6px 15px rgba(15,23,42,0.6);
-}
-button.danger:hover:not(:disabled) {
-  background: #991b1b;
-  box-shadow: 0 10px 25px rgba(185,28,28,0.6);
-}
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 8px;
-  font-size: 13px;
-}
-th, td {
-  padding: 6px 8px;
-  text-align: center;
-  border-bottom: 1px solid #111827;
-}
-th {
-  font-size: 12px;
-  color: #9ca3af;
-  background: #020617;
-}
-tr:nth-child(even) td {
-  background: rgba(15,23,42,0.7);
-}
-tr:nth-child(odd) td {
-  background: rgba(15,23,42,0.4);
-}
-tr.highlight td {
-  background: rgba(252,211,77,0.15);
-}
-.tag {
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: #111827;
-  border: 1px solid #374151;
-  color: #9ca3af;
-  display: inline-block;
-}
-.tag.danger {
-  border-color: #f97373;
-  color: #fecaca;
-}
-.status-line, p {
-  font-size: 13px;
-  color: #9ca3af;
-}
-.error {
-  font-size: 12px;
-  color: #fca5a5;
-  margin-top: 4px;
-  display: none;
-}
-.success {
-  font-size: 12px;
-  color: #6ee7b7;
-  margin-top: 4px;
-  display: none;
-}
-.small-delete {
-  padding: 2px 8px;
-  font-size: 11px;
-  margin-left: 6px;
-  border-radius: 999px;
-  border: 1px solid #4b5563;
-  background: #111827;
-  color: #fca5a5;
-  box-shadow: none;
-}
-.small-delete:hover {
-  background: #7f1d1d;
-  color: #fee2e2;
-  border-color: #b91c1c;
-}
-.toggle-row {
-  align-items: center;
-  gap: 8px;
-}
-/* 토글 스위치 */
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 40px;
-  height: 20px;
-}
-.switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
+/* Switch */
+.switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+.switch input { opacity: 0; width: 0; height: 0; }
 .slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #4b5563;
-  transition: .2s;
-  border-radius: 999px;
+  position: absolute; cursor: pointer; inset: 0;
+  background: #334155; border-radius: 999px;
+  transition: 0.2s;
 }
 .slider:before {
-  position: absolute;
-  content: "";
-  height: 14px;
-  width: 14px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: .2s;
-  border-radius: 50%;
+  position: absolute; content: "";
+  height: 18px; width: 18px; left: 3px; top: 3px;
+  background: white; border-radius: 999px;
+  transition: 0.2s;
 }
-.switch input:checked + .slider {
-  background-color: #2563eb;
+.switch input:checked + .slider { background: #2563eb; }
+.switch input:checked + .slider:before { transform: translateX(20px); }
+
+/* Buttons */
+button {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid #334155;
+  background: #111827;
+  color: #e5e7eb;
+  cursor: pointer;
 }
-.switch input:checked + .slider:before {
-  transform: translateX(18px);
+button:hover { filter: brightness(1.08); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.secondary { background: #0b1220; }
+button.danger { background: #3f1d1d; border-color: #7f1d1d; }
+
+input[type="text"] {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #374151;
+  background: #020617;
+  color: #e5e7eb;
 }
 
-@media (max-width: 640px) {
-  header h1 { font-size: 16px; }
-  .card { padding: 12px; }
-  th { font-size: 11px; }
-  td { font-size: 12px; }
-  .row { flex-direction: column; }
-}
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+th, td { border-bottom: 1px solid #1f2937; padding: 10px 8px; text-align: left; font-size: 14px; }
+th { color: #cbd5e1; font-weight: 600; }
+tr.highlight { outline: 2px solid #2563eb; outline-offset: -2px; border-radius: 8px; }
 
-.match-desc {
-  margin-bottom: 8px;
+.error, .success {
+  display: none;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
 }
+.error { background: rgba(220,38,38,0.12); border: 1px solid rgba(220,38,38,0.35); color: #fecaca; }
+.success { background: rgba(34,197,94,0.12); border: 1px solid rgba(34,197,94,0.35); color: #bbf7d0; }
 
-.toggle-right {
-  display: flex;
-  justify-content: flex-end;   /* 오른쪽으로 보내기 */
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  font-size: 12px;
+  margin-right: 6px;
 }
+.tag.danger { border-color: rgba(220,38,38,0.6); color: #fecaca; }
 
-.toggle-right .switch {
-  flex: 0 0 auto;              /* 토글 크기 고정 */
+.small-delete, .small-hold{
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
 }
+.small-delete { border-color: rgba(220,38,38,0.5); background: rgba(220,38,38,0.12); }
+.small-hold.on { border-color: rgba(234,179,8,0.5); background: rgba(234,179,8,0.12); }
 
-.toggle-right .toggle-text {
-  flex: 0 0 auto;
-  white-space: nowrap;
+/* Modal */
+.modal { display: none; position: fixed; inset: 0; z-index: 999; }
+.modal.open { display: block; }
+.modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); }
+.modal-panel {
+  position: relative;
+  max-width: 720px;
+  margin: 10vh auto;
+  background: #020617;
+  border: 1px solid #1f2937;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.55);
 }
+.modal-panel h2 { margin: 0 0 10px 0; font-size: 16px; }
+.help-list { margin: 0; padding-left: 18px; }
+.help-list li { margin: 8px 0; color: #e5e7eb; }
