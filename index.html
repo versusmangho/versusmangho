@@ -14,77 +14,98 @@
 </header>
 
 <main>
-  <!-- 플레이어 관리 -->
   <section class="card">
     <h2>플레이어 관리</h2>
     <div class="row player-add-row">
-      <input id="nickname-input" type="text" placeholder="닉네임을 입력하세요" />
+      <input id="nickname-input" type="text" placeholder="닉네임 입력 (Enter로 추가)" />
       <button id="add-btn">추가</button>
     </div>
     <div id="manage-msg" class="error"></div>
   </section>
 
-  <!-- 매칭 & 초기화 -->
   <section class="card">
     <h2>매칭</h2>
-
     <div class="row match-header">
-      <p id="chooser-status">
-        테이블에서 두 명을 클릭하세요. (첫 번째 = 선택자, 두 번째 = 피선택자)
-      </p>
-
+      <p id="chooser-status">테이블에서 두 명을 클릭하세요.</p>
       <div class="toggle-row">
         <label class="switch">
-          <input type="checkbox" id="newcomer-toggle" />
+          <input type="checkbox" id="newcomer-toggle" checked />
           <span class="slider"></span>
         </label>
-        <span>신입에게 더 높은 우선권 부여하기</span>
+        <span>신입 우선권</span>
       </div>
     </div>
-
     <div class="row buttons-right">
-    <button id="undo-btn" class="secondary">실행 취소</button>
-    <button id="redo-btn" class="secondary">다시 실행</button>
-    <button id="reset-btn" class="danger">전체 초기화</button>
+      <button id="undo-btn" class="secondary">실행 취소</button>
+      <button id="redo-btn" class="secondary">다시 실행</button>
+      <button id="reset-btn" class="danger">전체 초기화</button>
     </div>
-
     <div id="match-msg" class="error"></div>
     <div id="match-msg-success" class="success"></div>
   </section>
 
-  <!-- 플레이어 현황 -->
   <section class="card">
     <h2>플레이어 현황</h2>
     <table>
       <thead>
-        <tr>
-          <th>우선순위</th>
-          <th>닉네임</th>
-          <th>원디골 횟수</th>
-          <th>현재 대기</th>
-          <th>평균 대기</th>
-        </tr>
+        <tr><th>우선순위</th><th>닉네임</th><th>원디골</th><th>현재 대기</th><th>평균 대기</th></tr>
       </thead>
       <tbody id="player-table-body"></tbody>
     </table>
   </section>
 
-  <!-- 매칭 로그 -->
   <section class="card">
     <h2>매칭 로그</h2>
     <table>
-      <thead>
-        <tr>
-          <th>라운드</th>
-          <th>선택자</th>
-          <th>피선택자</th>
-        </tr>
-      </thead>
+      <thead><tr><th>라운드</th><th>선택자</th><th>피선택자</th></tr></thead>
       <tbody id="log-table-body"></tbody>
     </table>
   </section>
 
-  <!-- 하단 도움말 -->
+  <section class="card analysis-card">
+    <div class="analysis-header" id="analysis-toggle-btn">
+      <h2>📸 입장/퇴장 분석 (클릭하여 열기)</h2>
+      <span class="toggle-icon">▼</span>
+    </div>
+    
+    <div class="analysis-body" id="analysis-content" style="display: none;">
+      <p class="guide-text">
+        페이지 아무 곳에서나 <b>Ctrl+V</b>를 누르세요. (자동 분석됨)
+      </p>
+      
+      <div class="analysis-controls">
+        <div class="paste-zone" id="zone-old">
+          <span class="placeholder">1. 이전 (Old)</span>
+          <img id="img-old" class="preview-img" style="display:none;">
+        </div>
+        <div class="paste-zone" id="zone-new">
+          <span class="placeholder">2. 현재 (New)</span>
+          <img id="img-new" class="preview-img" style="display:none;">
+        </div>
+      </div>
+      
+      <div class="result-columns">
+        <div class="col col-leave">
+          <h3>OUT (퇴장)</h3>
+          <div id="res-leave" class="col-content"></div>
+        </div>
+        <div class="col col-stay">
+          <h3>STAY (잔류)</h3>
+          <div id="res-stay" class="col-content"></div>
+        </div>
+        <div class="col col-enter">
+          <h3>IN (입장)</h3>
+          <div id="res-enter" class="col-content"></div>
+        </div>
+      </div>
+
+      <div id="analysis-msg" class="analysis-status">대기 중...</div>
+    </div>
+    
+    <canvas id="processCanvas" style="display:none;"></canvas>
+    <canvas id="thumbCanvas" width="16" height="16" style="display:none;"></canvas>
+  </section>
+
   <section class="card footer-help">
     <div class="row buttons-right">
       <button id="help-btn" class="secondary">도움말</button>
@@ -92,22 +113,47 @@
   </section>
 </main>
 
-<!-- 도움말 모달 -->
 <div id="help-modal" class="modal" aria-hidden="true">
   <div class="modal-backdrop" data-close="1"></div>
-  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="help-title">
-    <h2 id="help-title">사용방법</h2>
-    <div class="modal-body">
+  <div class="modal-panel">
+    <h2>사용 가이드</h2>
+    
+    <div class="help-section">
+      <h3>1. 플레이어 & 매칭</h3>
       <ul class="help-list">
-        <li><b>플레이어 추가</b>: 상단 입력칸에 닉네임을 입력하고 <b>추가</b>를 누르세요. (활성 플레이어는 최대 8명)</li>
-        <li><b>보류/복귀</b>: 플레이어 행의 <b>보류</b> 버튼을 누르면 턴에서 제외됩니다. <b>복귀</b>하면 그 시점부터 대기를 다시 시작합니다.</li>
-        <li><b>매칭 기록</b>: 플레이어 표에서 <b>두 명을 순서대로 클릭</b>하면 매칭이 기록됩니다. (첫 번째=선택자, 두 번째=피선택자)</li>
-        <li><b>5판 대기 방지</b>: 누군가가 다음 라운드에 <b>대기 5</b>가 될 선택은 막습니다. (대기 4 이상이 3명 이상이면 완전 방지 불가)</li>
-        <li><b>신입 우선권</b>: <b>신입</b>에게 우선순위를 조금 더 줍니다. (동률이면 먼저 들어온 사람이 우선)</li>
-        <li><b>실행 취소/다시 실행</b>: 추가/삭제/보류/매칭/초기화/토글을 모두 되돌릴 수 있습니다.</li>
+        <li><b>등록:</b> 닉네임을 입력하고 엔터를 누르세요. (최대 8명)</li>
+        <li><b>매칭:</b> 대기 목록에서 <b>두 명의 플레이어를 클릭</b>하면 매칭이 성사됩니다. 먼저 클릭한 플레이어가 선택자, 두 번째로 클릭한 플레이어가 피선택자가 됩니다.</li>
+        <li><b>우선순위:</b> 현재 대기 오래한 순 -> 평균 대기 오래한 순 -> 원디골 적게 한 순 -> 먼저 들어온 순으로 자동 정렬됩니다.</li>
+        <li><b>보류/복귀:</b> 한두 판 가량 차례를 넘기는 사람을 관리하기 위한 기능입니다.</li>
+        <li><b>신입 우선권:</b> 신입 우선권 옵션을 킨 경우 자체 매커니즘을 통해 게임을 오래 못 한 사람이 나오지 않는 선에서 신입에게 최대의 우선권을 부여합니다.</li>
       </ul>
     </div>
-    <div class="row buttons-right">
+
+    <div class="help-section" style="margin-top: 15px;">
+      <h3>2. 📸 입장/퇴장 분석기</h3>
+      <ul class="help-list">
+        <li><b>사용법:</b> 화면 아무 곳에나 스크린샷을 <b>Ctrl+V</b>로 붙여넣으세요.</li>
+        <li><b>작동 원리:</b> 두 장의 스크린샷(이전/현재)을 비교하여 자동으로 분석합니다.</li>
+        <li><b>*</b> 이미지 유사도를 기반으로 판단하기에, 가끔 오류가 날 수 있습니다. (특히 레디<->레디해제 중 스크린샷이 찍히는 경우)</li>
+        <li><b>분석 결과:</b>
+          <ul>
+            <li>🔴 <b>OUT:</b> 방을 나간 인원</li>
+            <li>🔵 <b>STAY/MOVE:</b> 자리를 지키거나 이동한 인원</li>
+            <li>🟢 <b>IN:</b> 새로 들어온 인원</li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+
+    <div class="help-section" style="margin-top: 15px;">
+      <h3>3. 기타</h3>
+      <ul class="help-list">
+        <li><b>자동 저장:</b> 모든 데이터는 브라우저에 자동 저장되어 새로고침해도 유지됩니다.</li>
+        <li><b>초기화:</b> '전체 초기화' 버튼을 누르면 모든 데이터가 삭제됩니다.</li>
+      </ul>
+    </div>
+
+    <div class="row buttons-right" style="margin-top: 20px;">
       <button id="help-close-btn" class="secondary">닫기</button>
     </div>
   </div>
