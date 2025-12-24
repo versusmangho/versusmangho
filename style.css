@@ -135,3 +135,26 @@ tr.highlight { background: rgba(37,99,235,0.15); }
     max-height: 85vh; /* 화면 세로가 작을 때를 대비 */
     overflow-y: auto; /* 내용이 넘치면 스크롤 */
 }
+
+/* 매칭 로그 접기/펼치기 헤더 정렬 */
+.collapsible-header{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* (선택) 매칭 로그 제목이 flex 안에서 잘 줄어들게 */
+.collapsible-header h2{
+  margin: 0;            /* 인라인 style로도 주고 있지만, 확실히 고정 */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* 토글 아이콘이 오른쪽에 붙고 줄바꿈 안 나게 */
+.collapsible-header .toggle-icon{
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
