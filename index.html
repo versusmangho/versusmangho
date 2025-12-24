@@ -52,14 +52,25 @@
       </thead>
       <tbody id="player-table-body"></tbody>
     </table>
+    <div class="row buttons-right" style="margin-top: 10px;">
+      <button id="priority-copy-btn" class="secondary">📋 현재 1순위 문구 복사</button>
+    </div>
+    <div id="priority-copy-msg" class="success" style="display:none; margin-top: 8px;"></div>
+
   </section>
 
-  <section class="card">
-    <h2>매칭 로그</h2>
-    <table>
-      <thead><tr><th>라운드</th><th>선택자</th><th>피선택자</th></tr></thead>
-      <tbody id="log-table-body"></tbody>
-    </table>
+  <section class="card log-card">
+    <div class="collapsible-header" id="log-toggle-btn" role="button" tabindex="0" aria-expanded="true">
+      <h2 style="border-bottom:0; padding-bottom:0; margin-bottom:0;">매칭 로그</h2>
+      <span class="toggle-icon" id="log-toggle-icon">▲</span>
+    </div>
+
+    <div class="collapsible-body" id="log-content">
+      <table>
+        <thead><tr><th>라운드</th><th>선택자</th><th>피선택자</th></tr></thead>
+        <tbody id="log-table-body"></tbody>
+      </table>
+    </div>
   </section>
 
   <section class="card analysis-card">
@@ -108,6 +119,7 @@
 
   <section class="card footer-help">
     <div class="row buttons-right">
+      <button id="info-btn" class="secondary">티어별 난이도</button>
       <button id="help-btn" class="secondary">도움말</button>
     </div>
   </section>
@@ -155,6 +167,26 @@
 
     <div class="row buttons-right" style="margin-top: 20px;">
       <button id="help-close-btn" class="secondary">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div id="info-modal" class="modal" aria-hidden="true">
+  <div class="modal-backdrop" data-close="1"></div>
+  <div class="modal-panel">
+    <h2>티어별 난이도</h2>
+    <p class="muted" style="margin-top:0;">
+      티어를 선택한 뒤, 복사 버튼을 누르면 채팅에 붙여넣기 좋게 티어별 난이도가 클립보드에 복사됩니다.
+    </p>
+    <div class="row" style="gap: 10px; flex-wrap: wrap;">
+      <select id="tier-select" style="flex: 1; min-width: 220px; padding: 8px; border-radius: 6px; border: 1px solid #334155; background: #020617; color: white;"></select>
+      <button id="tier-copy-btn" class="secondary">📋 난이도 문구 복사</button>
+    </div>
+    <div id="tier-preview" class="muted" style="margin-top: 10px;"></div>
+    <div id="tier-copy-msg" class="success" style="display:none; margin-top: 8px;"></div>
+
+    <div class="row buttons-right" style="margin-top: 20px;">
+      <button id="info-close-btn" class="secondary">닫기</button>
     </div>
   </div>
 </div>

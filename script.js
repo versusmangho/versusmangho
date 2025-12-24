@@ -476,7 +476,8 @@ function saveState() {
         imgOldSrc: ui.imgOld.getAttribute('src') || "",
         imgNewSrc: ui.imgNew.getAttribute('src') || ""
     };
-    const data = { room, analysis };
+    const logCollapsed = (document.getElementById("log-content")?.style.display === "none");
+    const data = { room, analysis, logCollapsed };
     try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
 }
 function loadState() {
@@ -493,6 +494,17 @@ function loadState() {
             document.getElementById('analysis-msg').innerText = a.msg || "대기 중...";
             if (a.oldVisible && a.imgOldSrc) { ui.imgOld.src = a.imgOldSrc; ui.imgOld.style.display = 'block'; ui.phOld.style.display = 'none'; }
             if (a.newVisible && a.imgNewSrc) { ui.imgNew.src = a.imgNewSrc; ui.imgNew.style.display = 'block'; ui.phNew.style.display = 'none'; }
+        }
+
+        // 매칭 로그 접힘 상태 복원
+        if (typeof parsed.logCollapsed === "boolean") {
+            const logContent = document.getElementById("log-content");
+            const logIcon = document.getElementById("log-toggle-icon");
+            if (logContent && logIcon) {
+                const hide = parsed.logCollapsed;
+                logContent.style.display = hide ? "none" : "block";
+                logIcon.innerText = hide ? "▼" : "▲";
+            }
         }
         return parsed;
     } catch (e) { return null; }
@@ -636,4 +648,212 @@ const helpCloseBtn = document.getElementById('help-close-btn');
 const helpBackdrop = document.querySelector('.modal-backdrop');
 if (helpBtn) helpBtn.onclick = () => helpModal.classList.add('open');
 if (helpCloseBtn) helpCloseBtn.onclick = () => helpModal.classList.remove('open');
-if (helpBackdrop) helpBackdrop.onclick = () => helpModal.classList.remove('open');
+if (helpBackdrop) helpBackdrop.onclick = () => { document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); };
+
+// 버망호 안내(이미지) 모달
+const infoModal = document.getElementById('info-modal');
+const infoBtn = document.getElementById('info-btn');
+const infoCloseBtn = document.getElementById('info-close-btn');
+if (infoBtn && infoModal) infoBtn.onclick = () => { infoModal.classList.add('open'); updateTierPreviewByIndex(parseInt(document.getElementById('tier-select')?.value || '0', 10)); };
+if (infoCloseBtn && infoModal) infoCloseBtn.onclick = () => infoModal.classList.remove('open');
+// 같은 backdrop를 공유하므로, 클릭 시 열린 모달만 닫히게 처리
+document.querySelectorAll('.modal-backdrop').forEach(bd => {
+    bd.addEventListener('click', () => {
+        document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open'));
+    });
+});
+
+// 매칭 로그 접기/펼치기
+(function initLogToggle(){
+    const btn = document.getElementById('log-toggle-btn');
+    const content = document.getElementById('log-content');
+    const icon = document.getElementById('log-toggle-icon');
+    if(!btn || !content || !icon) return;
+
+    const toggle = () => {
+        const hide = content.style.display !== 'none' ? true : false;
+        content.style.display = hide ? 'none' : 'block';
+        icon.innerText = hide ? '▼' : '▲';
+        saveState();
+    };
+
+    btn.addEventListener('click', toggle);
+    btn.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
+})();
+
+
+/**
+ * =========================================================================
+ * [버망호 공유용 복사 기능]
+ * 1) 현재 1순위 문구 복사: "현재 1순위 : n판째 대기 중, 평균 n판 기다림."
+ * 2) 티어 난이도 문구 복사: "(티어명)(티어 등급): 패드 n1~n2레벨, 스시 n3~n4레벨"
+ *   - 패드: NM/HD/MX, 스시: SC
+ * =========================================================================
+ */
+
+function showInlineMsg(el, text) {
+  if (!el) return;
+  el.textContent = text;
+  el.style.display = "block";
+  clearTimeout(el.__hideTimer);
+  el.__hideTimer = setTimeout(() => { el.style.display = "none"; }, 1500);
+}
+
+function fallbackCopyText(text) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.setAttribute("readonly", "");
+  ta.style.position = "fixed";
+  ta.style.left = "-9999px";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); } catch (e) {}
+  document.body.removeChild(ta);
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text);
+  }
+  // file:// 로 열었거나 일부 환경에서 권한 문제 시 대비
+  fallbackCopyText(text);
+  return Promise.resolve();
+}
+
+function getSortedPlayersForPriority() {
+  const sorted = [...room.players].sort((a,b) => {
+    if (a.onHold !== b.onHold) return a.onHold ? 1 : -1;
+
+    const waitA = room.round - (a.lastPlay || 0);
+    const waitB = room.round - (b.lastPlay || 0);
+
+    const urgencyA = waitA >= 4;
+    const urgencyB = waitB >= 4;
+    if (urgencyA !== urgencyB) return urgencyA ? -1 : 1;
+
+    const newcomerMode = document.getElementById("newcomer-toggle")?.checked;
+    if (newcomerMode && !urgencyA && !urgencyB) {
+      const isNewA = a.matchCount === 0;
+      const isNewB = b.matchCount === 0;
+      if (isNewA !== isNewB) return isNewA ? -1 : 1;
+    }
+
+    if (waitA !== waitB) return waitB - waitA;
+
+    const avgA = (room.round - (a.joinedAt||0)) / ((a.matchCount||0) + 1);
+    const avgB = (room.round - (b.joinedAt||0)) / ((b.matchCount||0) + 1);
+    if (Math.abs(avgA - avgB) > 0.01) return avgB - avgA;
+
+    if ((a.chooserCount||0) !== (b.chooserCount||0)) return (a.chooserCount||0) - (b.chooserCount||0);
+    return (a.joinOrder||0) - (b.joinOrder||0);
+  });
+
+  return sorted.filter(p => !p.onHold);
+}
+
+function copyCurrentTopPriorityText() {
+  const msg = document.getElementById("priority-copy-msg");
+  const list = getSortedPlayersForPriority();
+  if (list.length === 0) {
+    showInlineMsg(msg, "대기 중인 플레이어가 없습니다.");
+    return;
+  }
+  const p = list[0];
+  const currentWait = room.round - (p.lastPlay || 0);
+  const avgWait = ((room.round - (p.joinedAt||0)) / ((p.matchCount||0) + 1)).toFixed(1);
+  const text = `현재 1순위 : ${currentWait}판째 대기 중, 평균 ${avgWait}판 기다림.`;
+
+  copyToClipboard(text).then(() => showInlineMsg(msg, "클립보드에 복사되었습니다."));
+}
+const TIER_DIFFICULTY = [
+  { tier: "GRAND MASTER", div: "", pad: [15,15], sc: [12,15] },
+  { tier: "MASTER", div: "", pad: [15,15], sc: [10,15] },
+
+  { tier: "DIAMOND", div: "I",  pad: [14,15], sc: [7,15] },
+  { tier: "DIAMOND", div: "II", pad: [13,15], sc: [4,11] },
+  { tier: "DIAMOND", div: "III", pad: [13,15], sc: [4,11] },
+  { tier: "DIAMOND", div: "IV", pad: [13,15], sc: [4,11] },
+
+  { tier: "PLATINUM", div: "I",  pad: [12,15], sc: [4,11] },
+  { tier: "PLATINUM", div: "II", pad: [12,14], sc: [4,11] },
+  { tier: "PLATINUM", div: "III", pad: [12,14], sc: [4,9] },
+  { tier: "PLATINUM", div: "IV", pad: [11,14], sc: [2,9] },
+
+  { tier: "GOLD", div: "I",  pad: [11,14], sc: [2,7] },
+  { tier: "GOLD", div: "II", pad: [9,13],  sc: [1,5] },
+  { tier: "GOLD", div: "III", pad: [9,13], sc: [1,5] },
+  { tier: "GOLD", div: "IV", pad: [9,12],  sc: [1,3] },
+
+  { tier: "SILVER", div: "I",  pad: [8,12], sc: [1,3] },
+  { tier: "SILVER", div: "II", pad: [7,11], sc: null },
+  { tier: "SILVER", div: "III", pad: [7,11], sc: null },
+  { tier: "SILVER", div: "IV", pad: [7,11], sc: null },
+
+  { tier: "BRONZE", div: "I",  pad: [6,11], sc: null },
+  { tier: "BRONZE", div: "II", pad: [6,11], sc: null },
+  { tier: "BRONZE", div: "III", pad: [5,10], sc: null },
+  { tier: "BRONZE", div: "IV", pad: [5,10], sc: null },
+
+  { tier: "IRON", div: "I",  pad: [5,9], sc: null },
+  { tier: "IRON", div: "II", pad: [4,8], sc: null },
+  { tier: "IRON", div: "III", pad: [4,7], sc: null },
+  { tier: "IRON", div: "IV", pad: [1,6], sc: null },
+];
+
+
+function formatTierLabel(x) {
+  return x.div ? `${x.tier} ${x.div}` : x.tier;
+}
+function formatTierCopyText(x) {
+  const head = x.div ? `${x.tier}(${x.div})` : x.tier;
+  const [p1,p2] = x.pad;
+  const padText = (p1 === p2) ? `패드 ${p1}레벨` : `패드 ${p1}~${p2}레벨`;
+  const sushiText = x.sc ? ((x.sc[0]===x.sc[1]) ? `스시 ${x.sc[0]}레벨` : `스시 ${x.sc[0]}~${x.sc[1]}레벨`) : `스시 -`;
+  return `${head}: ${padText}, ${sushiText}`;
+}
+
+function updateTierPreviewByIndex(idx) {
+  const preview = document.getElementById("tier-preview");
+  if (!preview) return;
+  if (Number.isNaN(idx) || idx < 0 || idx >= TIER_DIFFICULTY.length) {
+    preview.textContent = "";
+    return;
+  }
+  preview.textContent = formatTierCopyText(TIER_DIFFICULTY[idx]);
+}
+
+function initTierCopyUI() {
+  const sel = document.getElementById("tier-select");
+  const btn = document.getElementById("tier-copy-btn");
+  const msg = document.getElementById("tier-copy-msg");
+  if (!sel || !btn) return;
+
+  sel.innerHTML = "";
+  TIER_DIFFICULTY.forEach((x, idx) => {
+    const opt = document.createElement("option");
+    opt.value = String(idx);
+    opt.textContent = formatTierLabel(x);
+    sel.appendChild(opt);
+  });
+
+  
+  // 선택 즉시 난이도 표시
+  updateTierPreviewByIndex(parseInt(sel.value, 10));
+  sel.addEventListener("change", () => {
+    updateTierPreviewByIndex(parseInt(sel.value, 10));
+  });
+btn.addEventListener("click", () => {
+    const idx = parseInt(sel.value, 10);
+    const x = TIER_DIFFICULTY[idx];
+    const text = formatTierCopyText(x);
+    copyToClipboard(text).then(() => showInlineMsg(msg, "클립보드에 복사되었습니다."));
+  });
+}
+
+(function initCopyButtons(){
+  const priBtn = document.getElementById("priority-copy-btn");
+  if (priBtn) priBtn.addEventListener("click", copyCurrentTopPriorityText);
+  initTierCopyUI();
+})();
