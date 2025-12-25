@@ -803,15 +803,23 @@ const TIER_DIFFICULTY = [
 ];
 
 
-
 function formatTierLabel(x) {
   return x.div ? `${x.tier} ${x.div}` : x.tier;
 }
 function formatTierCopyText(x) {
   const head = x.div ? `${x.tier}(${x.div})` : x.tier;
-  const [p1,p2] = x.pad;
-  const padText = (p1 === p2) ? `패드 ${p1}레벨` : `패드 ${p1}~${p2}레벨`;
-  const sushiText = x.sc ? ((x.sc[0]===x.sc[1]) ? `스시 ${x.sc[0]}레벨` : `스시 ${x.sc[0]}~${x.sc[1]}레벨`) : `스시 -`;
+
+  // Defensive formatting: allow null / undefined / malformed ranges
+  const fmtRange = (label, range) => {
+    if (!Array.isArray(range) || range.length < 2) return `${label} -`;
+    const a = range[0], b = range[1];
+    if (a == null || b == null) return `${label} -`;
+    return (a === b) ? `${label} ${a}레벨` : `${label} ${a}~${b}레벨`;
+  };
+
+  const padText = fmtRange("패드", x.pad);
+  const sushiText = fmtRange("스시", x.sc);
+
   return `${head}: ${padText}, ${sushiText}`;
 }
 
