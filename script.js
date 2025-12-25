@@ -768,39 +768,40 @@ function copyCurrentTopPriorityText() {
   copyToClipboard(text).then(() => showInlineMsg(msg, "클립보드에 복사되었습니다."));
 }
 const TIER_DIFFICULTY = [
-  { tier: "GRAND MASTER", div: "", pad: [15,15], sc: [12,15] },
-  { tier: "MASTER", div: "", pad: [15,15], sc: [10,15] },
+  { tier: "GRAND MASTER", div: "",   pad: null,      sc: [10, 15] },
+  { tier: "MASTER",       div: "",   pad: null,      sc: [8, 15] },
 
-  { tier: "DIAMOND", div: "I",  pad: [14,15], sc: [7,15] },
-  { tier: "DIAMOND", div: "II", pad: [13,15], sc: [4,11] },
-  { tier: "DIAMOND", div: "III", pad: [13,15], sc: [4,11] },
-  { tier: "DIAMOND", div: "IV", pad: [13,15], sc: [4,11] },
+  { tier: "DIAMOND",      div: "I",  pad: null,      sc: [8, 15] },
+  { tier: "DIAMOND",      div: "II", pad: [15, 15],  sc: [8, 15] },
+  { tier: "DIAMOND",      div: "III",pad: [15, 15],  sc: [8, 15] },
+  { tier: "DIAMOND",      div: "IV", pad: [15, 15],  sc: [6, 11] },
 
-  { tier: "PLATINUM", div: "I",  pad: [12,15], sc: [4,11] },
-  { tier: "PLATINUM", div: "II", pad: [12,14], sc: [4,11] },
-  { tier: "PLATINUM", div: "III", pad: [12,14], sc: [4,9] },
-  { tier: "PLATINUM", div: "IV", pad: [11,14], sc: [2,9] },
+  { tier: "PLATINUM",     div: "I",  pad: [14, 15],  sc: [6, 9] },
+  { tier: "PLATINUM",     div: "II", pad: [13, 15],  sc: [4, 9] },
+  { tier: "PLATINUM",     div: "III",pad: [13, 15],  sc: [4, 7] },
+  { tier: "PLATINUM",     div: "IV", pad: [12, 15],  sc: [2, 7] },
 
-  { tier: "GOLD", div: "I",  pad: [11,14], sc: [2,7] },
-  { tier: "GOLD", div: "II", pad: [9,13],  sc: [1,5] },
-  { tier: "GOLD", div: "III", pad: [9,13], sc: [1,5] },
-  { tier: "GOLD", div: "IV", pad: [9,12],  sc: [1,3] },
+  { tier: "GOLD",         div: "I",  pad: [12, 14],  sc: [2, 7] },
+  { tier: "GOLD",         div: "II", pad: [11, 13],  sc: [1, 5] },
+  { tier: "GOLD",         div: "III",pad: [11, 13],  sc: [1, 5] },
+  { tier: "GOLD",         div: "IV", pad: [10, 12],  sc: [1, 3] },
 
-  { tier: "SILVER", div: "I",  pad: [8,12], sc: [1,3] },
-  { tier: "SILVER", div: "II", pad: [7,11], sc: null },
-  { tier: "SILVER", div: "III", pad: [7,11], sc: null },
-  { tier: "SILVER", div: "IV", pad: [7,11], sc: null },
+  { tier: "SILVER",       div: "I",  pad: [9, 12],   sc: [1, 3] },
+  { tier: "SILVER",       div: "II", pad: [8, 11],   sc: [1, 1] },
+  { tier: "SILVER",       div: "III",pad: [7, 11],   sc: [1, 1] },
+  { tier: "SILVER",       div: "IV", pad: [7, 11],   sc: [1, 1] },
 
-  { tier: "BRONZE", div: "I",  pad: [6,11], sc: null },
-  { tier: "BRONZE", div: "II", pad: [6,11], sc: null },
-  { tier: "BRONZE", div: "III", pad: [5,10], sc: null },
-  { tier: "BRONZE", div: "IV", pad: [5,10], sc: null },
+  { tier: "BRONZE",       div: "I",  pad: [7, 11],   sc: [1, 1] },
+  { tier: "BRONZE",       div: "II", pad: [7, 10],   sc: null },
+  { tier: "BRONZE",       div: "III",pad: [7, 10],   sc: null },
+  { tier: "BRONZE",       div: "IV", pad: [6, 10],   sc: null },
 
-  { tier: "IRON", div: "I",  pad: [5,9], sc: null },
-  { tier: "IRON", div: "II", pad: [4,8], sc: null },
-  { tier: "IRON", div: "III", pad: [4,7], sc: null },
-  { tier: "IRON", div: "IV", pad: [1,6], sc: null },
+  { tier: "IRON",         div: "I",  pad: [5, 9],    sc: null },
+  { tier: "IRON",         div: "II", pad: [4, 8],    sc: null },
+  { tier: "IRON",         div: "III",pad: [3, 7],    sc: null },
+  { tier: "IRON",         div: "IV", pad: [1, 6],    sc: null },
 ];
+
 
 
 function formatTierLabel(x) {
