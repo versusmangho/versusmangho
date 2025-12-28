@@ -457,6 +457,29 @@ const SafeStorage={available:false,getItem:function(k){try{return window.localSt
 try{const k="__t";window.localStorage.setItem(k,"1");window.localStorage.removeItem(k);SafeStorage.available=true;}catch{}
 const STORAGE_KEY = "roomStateV3";
 let room = { round: 0, players: [], matchLog: [], seen: [], newcomerPriority: true };
+
+// 평균 대기(매치 간 대기) 계산을 위한 필드/헬퍼
+function normalizePlayer(p) {
+    if (!p) return p;
+    if (typeof p.matchCount !== "number") p.matchCount = p.matchCount || 0;
+    if (typeof p.chooserCount !== "number") p.chooserCount = p.chooserCount || 0;
+    if (typeof p.lastPlay !== "number") p.lastPlay = p.lastPlay || 0;
+    if (typeof p.joinedAt !== "number") p.joinedAt = p.joinedAt || 0;
+    if (typeof p.waitSum !== "number") p.waitSum = p.waitSum || 0; // 누적 대기 판수
+    return p;
+}
+function avgWaitValue(p) {
+    if (!p || p.onHold) return null;
+    const mc = p.matchCount || 0;
+    if (mc <= 0) return null;
+    const ws = p.waitSum || 0;
+    return ws / mc;
+}
+function avgWaitText(p) {
+    const v = avgWaitValue(p);
+    return (v === null) ? "-" : v.toFixed(1);
+}
+
 let undoStack = [], redoStack = [], selected = [];
 
 function pushUndo() {
@@ -485,7 +508,10 @@ function loadState() {
     if (!r) return null;
     try {
         const parsed = JSON.parse(r);
-        if (parsed.room) room = parsed.room;
+        if (parsed.room) {
+            room = parsed.room;
+            if (Array.isArray(room.players)) room.players.forEach(normalizePlayer);
+        }
         if (parsed.analysis) {
             const a = parsed.analysis;
             document.getElementById('res-leave').innerHTML = a.resLeave || "";
@@ -511,6 +537,7 @@ function loadState() {
 }
 
 function refreshUI() {
+    if (Array.isArray(room.players)) room.players.forEach(normalizePlayer);
     if(ui.round) ui.round.textContent = `라운드: ${room.round}`;
     if(ui.pTable) ui.pTable.innerHTML = "";
     if(ui.lTable) ui.lTable.innerHTML = "";
@@ -531,9 +558,11 @@ function refreshUI() {
         }
         if (waitA !== waitB) return waitB - waitA;
         
-        const avgA = (room.round - (a.joinedAt||0)) / ((a.matchCount||0) + 1);
-        const avgB = (room.round - (b.joinedAt||0)) / ((b.matchCount||0) + 1);
-        if (Math.abs(avgA - avgB) > 0.01) return avgB - avgA;
+        const avgA = avgWaitValue(a);
+        const avgB = avgWaitValue(b);
+        if (avgA === null && avgB !== null) return 1;
+        if (avgA !== null && avgB === null) return -1;
+        if (avgA !== null && avgB !== null && Math.abs(avgA - avgB) > 0.01) return avgB - avgA;
         if ((a.chooserCount||0) !== (b.chooserCount||0)) return (a.chooserCount||0) - (b.chooserCount||0);
         return (a.joinOrder||0) - (b.joinOrder||0);
     });
@@ -543,7 +572,7 @@ function refreshUI() {
         const tr = document.createElement("tr");
         const hold = !!p.onHold;
         const idle = hold ? "-" : (room.round - (p.lastPlay||0));
-        const avgWait = hold ? "-" : ((room.round - (p.joinedAt||0)) / ((p.matchCount||0) + 1)).toFixed(1);
+        const avgWait = hold ? "-" : avgWaitText(p);
 
         tr.innerHTML = `
             <td>${hold?"보류":++rank+"순위"}</td>
@@ -574,7 +603,7 @@ function addPlayer(n) {
     if(room.players.filter(p=>!p.onHold).length >= 8) { ui.manageMsg.textContent="최대 8명"; ui.manageMsg.style.display="block"; return; }
     pushUndo();
     const isRejoin = room.seen.includes(n);
-    room.players.push({ nickname: n, joinOrder: room.seen.length, lastPlay: room.round, joinedAt: room.round, matchCount: 0, chooserCount: 0, onHold: false, holdStart: null, rejoined: isRejoin });
+    room.players.push({ nickname: n, joinOrder: room.seen.length, lastPlay: room.round, joinedAt: room.round, matchCount: 0, chooserCount: 0, waitSum: 0, onHold: false, holdStart: null, rejoined: isRejoin });
     if(!isRejoin) room.seen.push(n);
     ui.input.value=""; refreshUI();
 }
@@ -591,7 +620,7 @@ if(ui.pTable) ui.pTable.onclick = (e) => {
         const p = room.players.find(x=>x.nickname===nick); 
         if(p) { 
             if (!p.onHold) { p.onHold = true; p.holdStart = room.round; selected = selected.filter(x=>x!==nick); } 
-            else { p.onHold = false; if (p.holdStart !== null) { const d = room.round - p.holdStart; if (d > 0) { p.lastPlay += d; p.joinedAt += d; } p.holdStart = null; } }
+            else { p.onHold = false; if (p.holdStart !== null) { const d = room.round - p.holdStart; if (d > 0) { p.lastPlay += d; } p.holdStart = null; } }
         }
         refreshUI(); return; 
     }
@@ -601,7 +630,23 @@ if(ui.pTable) ui.pTable.onclick = (e) => {
         const [cName, oName] = selected;
         const c = room.players.find(p=>p.nickname===cName); const o = room.players.find(p=>p.nickname===oName);
         if(c && o && c!==o) {
-            pushUndo(); room.round++; c.lastPlay=room.round; o.lastPlay=room.round; c.matchCount = (c.matchCount||0)+1; o.matchCount = (o.matchCount||0)+1; c.chooserCount = (c.chooserCount||0)+1;
+            pushUndo();
+            const nextRound = room.round + 1;
+
+            // 이번 매치에서 실제로 기다린 판수(직전 플레이 이후 공백 라운드)를 누적
+            const cPrev = (c.lastPlay || 0);
+            const oPrev = (o.lastPlay || 0);
+            const cWait = Math.max(0, nextRound - cPrev - 1);
+            const oWait = Math.max(0, nextRound - oPrev - 1);
+            c.waitSum = (c.waitSum || 0) + cWait;
+            o.waitSum = (o.waitSum || 0) + oWait;
+
+            room.round = nextRound;
+            c.lastPlay = room.round;
+            o.lastPlay = room.round;
+            c.matchCount = (c.matchCount || 0) + 1;
+            o.matchCount = (o.matchCount || 0) + 1;
+            c.chooserCount = (c.chooserCount || 0) + 1;
             room.matchLog.push({round:room.round, chooser:c.nickname, opponent:o.nickname}); selected=[]; refreshUI();
         } else { selected=[]; refreshUI(); }
     } else refreshUI();
@@ -742,9 +787,11 @@ function getSortedPlayersForPriority() {
 
     if (waitA !== waitB) return waitB - waitA;
 
-    const avgA = (room.round - (a.joinedAt||0)) / ((a.matchCount||0) + 1);
-    const avgB = (room.round - (b.joinedAt||0)) / ((b.matchCount||0) + 1);
-    if (Math.abs(avgA - avgB) > 0.01) return avgB - avgA;
+    const avgA = avgWaitValue(a);
+        const avgB = avgWaitValue(b);
+        if (avgA === null && avgB !== null) return 1;
+        if (avgA !== null && avgB === null) return -1;
+        if (avgA !== null && avgB !== null && Math.abs(avgA - avgB) > 0.01) return avgB - avgA;
 
     if ((a.chooserCount||0) !== (b.chooserCount||0)) return (a.chooserCount||0) - (b.chooserCount||0);
     return (a.joinOrder||0) - (b.joinOrder||0);
@@ -762,7 +809,7 @@ function copyCurrentTopPriorityText() {
   }
   const p = list[0];
   const currentWait = room.round - (p.lastPlay || 0);
-  const avgWait = ((room.round - (p.joinedAt||0)) / ((p.matchCount||0) + 1)).toFixed(1);
+  const avgWait = avgWaitText(p);
   const text = `현재 1순위 : ${currentWait}판째 대기 중, 평균 ${avgWait}판 기다림.`;
 
   copyToClipboard(text).then(() => showInlineMsg(msg, "클립보드에 복사되었습니다."));
