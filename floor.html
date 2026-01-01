@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>층수 측정기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+KR:wght@300;500;700&display=swap');
+        
+        body {
+            background: #0f172a;
+            color: #f1f5f9;
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        .header-font { font-family: 'Orbitron', sans-serif; }
+        .track-row {
+            background: rgba(30, 41, 59, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+        .track-row:hover {
+            border-color: #3b82f6;
+            background: rgba(30, 41, 59, 1);
+        }
+        .floor-value {
+            font-family: 'Orbitron', sans-serif;
+            text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+        .loading-shimmer {
+            background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <header class="text-center mb-10">
+            <h1 class="header-font text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500 mb-2">
+                FLOOR METER
+            </h1>
+            <p class="text-gray-400 font-light uppercase tracking-widest text-sm">층수 측정기 (v-archive 기반)</p>
+        </header>
+
+        <!-- Main Interaction Area -->
+        <div id="dropZone" class="mb-8 border-2 border-dashed border-slate-700 rounded-2xl p-8 text-center cursor-pointer hover:border-blue-500 transition-colors bg-slate-900/50">
+            <p class="text-slate-400 mb-2">스크린샷을 복사한 후 <kbd class="bg-slate-800 px-2 py-1 rounded text-white">Ctrl + V</kbd>를 누르세요</p>
+            <p class="text-xs text-slate-500">16:9 비율의 스크린샷만 인식할 수 있습니다.</p>
+        </div>
+
+        <!-- Message Area -->
+        <div id="messageZone" class="text-center text-yellow-400 mb-4 h-6"></div>
+
+        <!-- Result List -->
+        <div id="resultList" class="space-y-4">
+            <div class="text-center py-20 text-slate-600 italic">페이지 로딩 중...</div>
+        </div>
+    </div>
+    
+    <script>
+        const resultList = document.getElementById('resultList');
+
+        // --- 설정값 (2560x1440 기준 비율) ---
+        const BASE_W = 2560, BASE_H = 1440;
+        const RATIO_X_START = 307 / BASE_W;
+        const RATIO_THUMB_W = 240 / BASE_W;
+        const RATIO_GAP = 186 / BASE_W;
+        const RATIO_Y_START = 545 / BASE_H;
+        const RATIO_THUMB_H = 240 / BASE_H;
+        const RATIO_BAR_H = 43 / BASE_H;
+
+        const BAR_SPLIT = 0.5;
+        const W_AHASH = 1.0;
+        const W_DHASH = 1.0;
+
+        // 레퍼런스 해시 저장소
+        const thumbRefs = [];
+        const buttonRefs = {};
+        const diffRefs = {};
+
+        // 기능 개선을 위한 변수
+        let isProcessing = false;
+        let lastImageHash = null;
+        const COOLDOWN_MS = 3000;
+
+        // ------------------------------
+        // Canvas 유틸
+        // ------------------------------
+        function cropToCanvas(sourceImg, x, y, w, h) {
+            const c = document.createElement('canvas');
+            c.width = Math.max(1, Math.round(w));
+            c.height = Math.max(1, Math.round(h));
+            const ctx = c.getContext('2d', { willReadFrequently: true });
+            ctx.drawImage(sourceImg, x, y, w, h, 0, 0, c.width, c.height);
+            return c;
+        }
+
+        // ------------------------------
+        // 해시 구현 (aHash / dHash / pHash)
+        // ------------------------------
+        function getGrayscaleFromCanvas(canvas, w, h) {
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            const data = ctx.getImageData(0, 0, w, h).data;
+            const gray = new Float32Array(w * h);
+            for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+                gray[p] = (data[i] + data[i + 1] + data[i + 2]) / 3.0;
+            }
+            return gray;
+        }
+
+        function aHashFromCanvas(canvas) {
+            const w = 8, h = 8;
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            c.getContext('2d').drawImage(canvas, 0, 0, w, h);
+            const gray = getGrayscaleFromCanvas(c, w, h);
+            let avg = 0;
+            for (let i = 0; i < gray.length; i++) avg += gray[i];
+            avg /= gray.length;
+            let hi = 0, lo = 0;
+            for (let i = 0; i < 64; i++) {
+                const bit = gray[i] >= avg ? 1 : 0;
+                if (i < 32) hi = (hi << 1) | bit;
+                else lo = (lo << 1) | bit;
+            }
+            return { hi, lo };
+        }
+
+        function dHashFromCanvas(canvas) {
+            const w = 9, h = 8;
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            c.getContext('2d').drawImage(canvas, 0, 0, w, h);
+            const gray = getGrayscaleFromCanvas(c, w, h);
+            let hi = 0, lo = 0;
+            let bitIndex = 0;
+            for (let y = 0; y < 8; y++) {
+                for (let x = 0; x < 8; x++) {
+                    const left = gray[y * 9 + x];
+                    const right = gray[y * 9 + x + 1];
+                    const bit = left < right ? 1 : 0;
+                    if (bitIndex < 32) hi = (hi << 1) | bit;
+                    else lo = (lo << 1) | bit;
+                    bitIndex++;
+                }
+            }
+            return { hi, lo };
+        }
+
+        function popcnt32(v) {
+            v = v - ((v >>> 1) & 0x55555555);
+            v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
+            return (((v + (v >>> 4)) & 0x0F0F0F0F) * 0x01010101) >>> 24;
+        }
+
+        function ham64(a, b) {
+            if (!a || !b) return Infinity;
+            return popcnt32((a.hi ^ b.hi) >>> 0) + popcnt32((a.lo ^ b.lo) >>> 0);
+        }
+
+        function dct1D(vec, N) {
+            const out = new Float32Array(N);
+            const factor = Math.PI / N;
+            for (let u = 0; u < N; u++) {
+                let sum = 0;
+                for (let x = 0; x < N; x++) {
+                    sum += vec[x] * Math.cos((x + 0.5) * u * factor);
+                }
+                const c = (u === 0) ? Math.sqrt(1 / N) : Math.sqrt(2 / N);
+                out[u] = c * sum;
+            }
+            return out;
+        }
+
+        function pHashFromCanvas(canvas) {
+            const N = 32;
+            const c = document.createElement('canvas');
+            c.width = N; c.height = N;
+            c.getContext('2d').drawImage(canvas, 0, 0, N, N);
+            const gray = getGrayscaleFromCanvas(c, N, N);
+            const tmp = new Array(N);
+            for (let y = 0; y < N; y++) {
+                const row = new Float32Array(N);
+                for (let x = 0; x < N; x++) row[x] = gray[y * N + x];
+                tmp[y] = dct1D(row, N);
+            }
+            const dct = new Array(N);
+            for (let x = 0; x < N; x++) {
+                const col = new Float32Array(N);
+                for (let y = 0; y < N; y++) col[y] = tmp[y][x];
+                const colD = dct1D(col, N);
+                for (let y = 0; y < N; y++) {
+                    if (!dct[y]) dct[y] = new Float32Array(N);
+                    dct[y][x] = colD[y];
+                }
+            }
+            const vals = [];
+            for (let y = 0; y < 8; y++) {
+                for (let x = 0; x < 8; x++) {
+                    if (x === 0 && y === 0) continue;
+                    vals.push(dct[y][x]);
+                }
+            }
+            const sorted = vals.slice().sort((a, b) => a - b);
+            const med = sorted[Math.floor(sorted.length / 2)];
+            let hi = 0, lo = 0;
+            let i = 0;
+            for (let y = 0; y < 8; y++) {
+                for (let x = 0; x < 8; x++) {
+                    if (x === 0 && y === 0) continue;
+                    const bit = dct[y][x] > med ? 1 : 0;
+                    if (i < 32) hi = (hi << 1) | bit;
+                    else lo = (lo << 1) | bit;
+                    i++;
+                }
+            }
+            if (i < 64) {
+                const pad = 64 - i;
+                if (pad <= 32) lo = (lo << pad) >>> 0;
+                else { hi = (hi << (pad - 32)) >>> 0; lo = 0; }
+            }
+            return { hi: hi >>> 0, lo: lo >>> 0 };
+        }
+
+        // ------------------------------
+        // 레퍼런스 로드 (hashes.json)
+        // ------------------------------
+        async function loadHashes() {
+            try {
+                const response = await fetch('hashes.json');
+                if (!response.ok) {
+                    throw new Error(`hashes.json 로딩 실패: ${response.statusText}`);
+                }
+                const data = await response.json();
+                Object.assign(buttonRefs, data.trackinfo.buttons);
+                Object.assign(diffRefs, data.trackinfo.diffs);
+                thumbRefs.push(...data.thumbnails);
+            } catch (error) {
+                console.error("해시 데이터 로딩 오류:", error);
+                resultList.innerHTML = `<div class="text-center py-20 text-red-500">오류: hashes.json 파일을 불러올 수 없습니다.</div>`;
+                throw error;
+            }
+        }
+
+        async function init() {
+            resultList.innerHTML = `<div class="text-center py-20 text-slate-600 italic">레퍼런스 데이터 로딩 중...</div>`;
+            await loadHashes();
+            resultList.innerHTML = `<div class="text-center py-20 text-slate-600 italic">준비 완료! 스크린샷을 복사한 뒤 Ctrl+V로 붙여넣으세요.</div>`;
+            console.log("레퍼런스 데이터 로드 완료:", { thumbnails: thumbRefs.length, buttons: Object.keys(buttonRefs).length, diffs: Object.keys(diffRefs).length });
+        }
+
+        // ------------------------------
+        // 매칭 로직
+        // ------------------------------
+        function bestMatchThumbnail(hashA, hashD) {
+            let best = { id: null, score: Infinity };
+            for (const ref of thumbRefs) {
+                const dA = ham64(hashA, ref.ah);
+                const dD = ham64(hashD, ref.dh);
+                const score = dA * W_AHASH + dD * W_DHASH;
+                if (score < best.score) best = { id: ref.id, score };
+            }
+            return best;
+        }
+
+        function bestMatchPhash(targetPh, refMap) {
+            let best = { key: null, dist: Infinity };
+            for (const key of Object.keys(refMap)) {
+                const dist = ham64(targetPh, refMap[key].ph);
+                if (dist < best.dist) best = { key, dist };
+            }
+            return best;
+        }
+
+        // ------------------------------
+        // 이벤트 핸들러 및 메인 로직
+        // ------------------------------
+        function showTemporaryMessage(message, duration = 2500) {
+            const msgZone = document.getElementById('messageZone');
+            if (!msgZone) return;
+            msgZone.textContent = message;
+            setTimeout(() => {
+                if (msgZone.textContent === message) {
+                    msgZone.textContent = '';
+                }
+            }, duration);
+        }
+        
+        window.addEventListener('paste', async (e) => {
+            const now = Date.now();
+            if (isProcessing) {
+                showTemporaryMessage("분석이 이미 진행 중입니다.");
+                return;
+            }
+            if (now - (window.lastProcessTime || 0) < COOLDOWN_MS) {
+                const remaining = ((window.lastProcessTime + COOLDOWN_MS) - now) / 1000;
+                showTemporaryMessage(`쿨다운 중입니다. ${remaining.toFixed(1)}초 후에 시도하세요.`);
+                return;
+            }
+
+            const items = e.clipboardData.items;
+            for (let item of items) {
+                if (item.type.indexOf('image') !== -1) {
+                    const blob = item.getAsFile();
+                    const img = new Image();
+                    img.src = URL.createObjectURL(blob);
+                    img.onload = () => {
+                        const fullImageCanvas = document.createElement('canvas');
+                        fullImageCanvas.width = img.width;
+                        fullImageCanvas.height = img.height;
+                        fullImageCanvas.getContext('2d').drawImage(img, 0, 0);
+
+                        const currentHash = dHashFromCanvas(fullImageCanvas);
+                        if (lastImageHash && ham64(lastImageHash, currentHash) === 0) {
+                            showTemporaryMessage("이전과 동일한 이미지입니다.");
+                            return;
+                        }
+                        
+                        isProcessing = true;
+                        lastImageHash = currentHash;
+                        window.lastProcessTime = Date.now();
+
+                        processImage(img).finally(() => {
+                            isProcessing = false;
+                        });
+                    };
+                }
+            }
+        });
+
+        async function processImage(img) {
+            resultList.innerHTML = '';
+            const W = img.width;
+            const H = img.height;
+
+            for (let i = 0; i < 5; i++) {
+                const row = createLoadingRow(i + 1);
+                resultList.appendChild(row);
+
+                const x = (RATIO_X_START + (RATIO_THUMB_W + RATIO_GAP) * i) * W;
+                const y = RATIO_Y_START * H;
+                const tw = RATIO_THUMB_W * W;
+                const th = RATIO_THUMB_H * H;
+                const by = (RATIO_Y_START + RATIO_THUMB_H) * H;
+                const bh = RATIO_BAR_H * H;
+
+                const thumbCanvas = cropToCanvas(img, x, y, tw, th);
+                const ah = aHashFromCanvas(thumbCanvas);
+                const dh = dHashFromCanvas(thumbCanvas);
+                const thumbMatch = bestMatchThumbnail(ah, dh);
+
+                const barCanvas = cropToCanvas(img, x, by, tw, bh);
+                const leftCanvas = cropToCanvas(barCanvas, 0, 0, barCanvas.width * BAR_SPLIT, barCanvas.height);
+                const rightCanvas = cropToCanvas(barCanvas, leftCanvas.width, 0, barCanvas.width * (1 - BAR_SPLIT), barCanvas.height);
+
+                const btnPh = pHashFromCanvas(leftCanvas);
+                const diffPh = pHashFromCanvas(rightCanvas);
+                const btnMatch = bestMatchPhash(btnPh, buttonRefs);
+                const diffMatch = bestMatchPhash(diffPh, diffRefs);
+
+                const button = btnMatch.key || "?B";
+                const difficulty = diffMatch.key || "??";
+
+                try {
+                    const titleId = thumbMatch.id ?? 0;
+                    const response = await fetchWithRetry(`https://v-archive.net/api/archive/DEV/title/${titleId}`);
+                    const data = await response.json();
+
+                    if (data && data.success) {
+                        const patternData = data.patterns?.[button]?.[difficulty];
+                        updateRow(row, {
+                            titleId,
+                            name: data.name ?? `ID ${titleId}`,
+                            button,
+                            difficulty,
+                            floor: patternData?.floor || "NO DATA",
+                            rating: patternData?.rating || "-",
+                            thumbScore: thumbMatch.score
+                        });
+                    } else {
+                         updateRow(row, { titleId, name: `ID ${titleId} (API 실패)`, button, difficulty, floor: "NO DATA", rating: "-", thumbScore: thumbMatch.score });
+                    }
+                } catch (err) {
+                    updateRow(row, { titleId: thumbMatch.id ?? 0, name: `ID ${thumbMatch.id ?? 0} (API 오류)`, button, difficulty, floor: "NO DATA", rating: "-", thumbScore: thumbMatch.score });
+                }
+            }
+        }
+
+        async function fetchWithRetry(url, options = {}, retries = 3, backoff = 500) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const res = await fetch(url, options);
+                    if (res.ok) return res;
+                } catch (err) {
+                    if (i === retries - 1) throw err;
+                }
+                await new Promise(r => setTimeout(r, backoff * Math.pow(2, i)));
+            }
+            throw new Error(`Failed to fetch ${url} after ${retries} attempts`);
+        }
+        
+        // ------------------------------
+        // UI 렌더링
+        // ------------------------------
+        function createLoadingRow(index) {
+            const div = document.createElement('div');
+            div.className = 'track-row p-4 rounded-xl flex items-center justify-between opacity-50';
+            div.innerHTML = `
+                <div class="flex items-center space-x-4 w-full">
+                    <div class="w-20 h-20 rounded-lg bg-slate-800 loading-shimmer"></div>
+                    <div class="flex-grow">
+                        <div class="h-5 w-3/4 bg-slate-800 mb-2 loading-shimmer rounded"></div>
+                        <div class="h-4 w-1/2 bg-slate-800 loading-shimmer rounded"></div>
+                    </div>
+                    <div class="text-right">
+                        <div class="h-8 w-20 bg-slate-800 loading-shimmer rounded"></div>
+                    </div>
+                </div>
+            `;
+            return div;
+        }
+
+        function updateRow(row, info) {
+            row.className = 'track-row p-4 rounded-xl flex items-center justify-between opacity-100 shadow-lg';
+            row.innerHTML = `
+                <div class="flex items-center space-x-4">
+                    <img src="thumbnails/${info.titleId}.jpg" onerror="this.src='https://placehold.co/240x240/1e293b/white?text=No+Img'" class="w-20 h-20 rounded-lg object-cover border border-slate-700">
+                    <div>
+                        <h3 class="font-bold text-white text-lg">${info.name}</h3>
+                        <div class="flex items-center space-x-2">
+                            <span class="px-2 py-0.5 ${getButtonColor(info.button)} rounded text-[10px] font-bold header-font">${info.button}</span>
+                            <span class="px-2 py-0.5 ${getDiffColor(info.difficulty)} rounded text-[10px] font-bold header-font">${info.difficulty}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs text-slate-500 uppercase font-bold tracking-tighter">Unofficial Floor</p>
+                    <p class="floor-value text-3xl font-black text-blue-400">${info.floor}</p>
+                </div>
+            `;
+        }
+
+        function getButtonColor(button) {
+            switch(button) {
+                case '4B': return 'bg-green-600';
+                case '5B': return 'bg-sky-600';
+                case '6B': return 'bg-orange-600';
+                case '8B': return 'bg-indigo-600';
+                default: return 'bg-slate-600';
+            }
+        }
+
+        function getDiffColor(diff) {
+            switch(diff) {
+                case 'SC': return 'bg-purple-600';
+                case 'MX': return 'bg-red-600';
+                case 'HD': return 'bg-orange-600';
+                case 'NM': return 'bg-yellow-600';
+                default: return 'bg-slate-600';
+            }
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
