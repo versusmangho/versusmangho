@@ -1,31 +1,26 @@
 /**
  * =========================================================================
- * [E7 RTA Analyzer] - Refactored & pHash Optimized (Clean Version)
- * * Logic:
- * 1. Analyze Icon (Structure + Brightness) -> General Shape
- * 2. Detect Ready State (Fixed Position) -> Determine Background Mode
- * 3. Analyze Text (DCT pHash) -> Robust against pixel shifts
- * 4. Match Logic: Filter by Thresholds (Text <= 20 & Icon <= 60) -> Pick Best Text Match
+ * [E7 RTA Analyzer]
+ *  * Logic:
+ *  1. Analyze Icon (Structure + Brightness) -> General Shape
+ *  2. Analyze Text (Structure + Brightness) -> Nickname
+ *  3. Match Logic: Filter by Thresholds -> Pick Best Match
  * =========================================================================
  */
 
-// 1. 기준 이미지 (ISREADY_STANDARD.png)
 const ANALYZER_CONFIG = {
     SLOT_COUNT: 8,
     START_X: 0.767, START_Y: 0.165,
     GAP_X: 0, GAP_Y: 0.0740,
     CROP_RATIO: 0.15, 
-    // 매칭 임계값 (이 점수 이하여야 동일인으로 인정)
-    THRESHOLD_ICON: 120,  // aHash + dHash
-    THRESHOLD_TEXT: 24,  // pHash (DCT)
+    THRESHOLD_ICON: 60,
+    THRESHOLD_PLATE: 75,
     
     // 오프셋 설정 (화면 비율 기준)
     OFFSET_ICON: { x: 0.0, y: 0.0, w: 0.032, h: 0.06 },
-    OFFSET_PLATE: { x: 0.032, y: 0.0, w: 0.032, h: 0.06 }, // 닉네임 시작점
-    OFFSET_ISREADY: { x: 0.083, y: 0.022, w: 0.048, h: 0.038 } // Ready 배지 위치
+    OFFSET_PLATE: { x: 0.032, y: 0.0, w: 0.128, h: 0.06 }
 };
 
-let STANDARD_READY_HASH = [1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,1,0,1,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,1,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,1,1,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,1,1,1,1,1,1,1,0,0,1,0,0,1,1,0,1,0,0,0,0,0,0,1,0,0,1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,1,1,0,1,0,1,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,1,1,0,1,0];
 
 /**
  * [UTILS] 이미지 처리 및 수학 연산
@@ -40,79 +35,6 @@ const Utils = {
         return document.getElementById('thumbCanvas').getContext('2d', { willReadFrequently: true });
     },
     getLum: (r, g, b) => 0.299*r + 0.587*g + 0.114*b,
-
-    // DCT 기반 pHash (32x32 -> 8x8 DCT)
-    computePHash: (imgData) => {
-        const size = 32; 
-        const data = imgData.data;
-        const vals = new Float64Array(size * size);
-        for(let i=0; i < data.length; i+=4) {
-            vals[i/4] = Utils.getLum(data[i], data[i+1], data[i+2]);
-        }
-        
-        const dctSize = 8;
-        const dct = [];
-        for(let v=0; v < dctSize; v++) {
-            for(let u=0; u < dctSize; u++) {
-                let sum = 0;
-                for(let i=0; i < size; i++) {
-                    for(let j=0; j < size; j++) {
-                        sum += vals[j*size + i] * Math.cos(((2*i+1)/(2*size)) * u * Math.PI) * Math.cos(((2*j+1)/(2*size)) * v * Math.PI);
-                    }
-                }
-                if (u === 0) sum *= 1/Math.sqrt(2);
-                if (v === 0) sum *= 1/Math.sqrt(2);
-                dct.push(sum / 4);
-            }
-        }
-        
-        const acValues = dct.slice(1); // DC 성분 제외
-        const avg = acValues.reduce((a,b) => a+b, 0) / acValues.length;
-        return dct.map(val => val >= avg ? 1 : 0);
-    },
-
-    // 일반 Hash 계산 (Raw ImageData -> 16x16 -> dHash)
-    computeHashFromRaw: (imgData, w, h) => {
-        const tempCvs = document.createElement('canvas');
-        tempCvs.width = w; tempCvs.height = h;
-        const tempCtx = tempCvs.getContext('2d');
-        tempCtx.putImageData(imgData, 0, 0);
-        
-        const tCtx = Utils.getThumbCtx();
-        tCtx.clearRect(0, 0, 16, 16);
-        tCtx.drawImage(tempCvs, 0, 0, 16, 16);
-        
-        const thumbData = tCtx.getImageData(0, 0, 16, 16);
-        const hash = Utils.computeDHash(thumbData.data, 16);
-        return { hash, thumbData };
-    },
-
-    // 상태에 따른 필터링 (글자 추출)
-    applyStateFilter: (rgbaData, width, height, isReady, dist) => {
-        const len = width * height;
-        const data = rgbaData.data;
-        const output = new Uint8ClampedArray(len * 4); 
-        const stateText = isReady ? `READY(유사도:${dist})` : `NORMAL(유사도:${dist})`;
-        
-        for (let i = 0; i < len; i++) {
-            const r = data[i*4], g = data[i*4+1], b = data[i*4+2];
-            const idx = i * 4;
-            let isText = false;
-            
-            if (isReady) {
-                // Ready(밝은 배경) -> 검은 글자 추출
-                if (r < 60 && g < 60 && b < 60) isText = true;
-            } else {
-                // Normal(어두운 배경) -> 흰 글자 추출
-                if (r > 210 && g > 210 && b > 210) isText = true;
-            }
-            
-            const val = isText ? 255 : 0;
-            output[idx] = val; output[idx+1] = val; output[idx+2] = val; output[idx+3] = 255;  
-        }
-        return { data: new ImageData(output, width, height), state: stateText };
-    },
-
     computeAHash: (data) => {
         let sum = 0, len = data.length/4, lums = [];
         for(let i=0; i<data.length; i+=4) {
@@ -160,7 +82,7 @@ class SlotAnalyzer {
         // 2. 카드 시각적 이미지 추출 (결과창 표시용)
         this.extractCardImage(W, H);
 
-        // 3. 상태(Ready) 판별 및 닉네임(Plate) 분석 실행
+        // 3. 닉네임(Plate) 분석 실행
         this.analyzePlate(W, H);
     }
 
@@ -192,8 +114,8 @@ class SlotAnalyzer {
         tCtx.drawImage(cropIcon, 0, 0, 16, 16);
         const iconThumbData = tCtx.getImageData(0, 0, 16, 16).data;
         
-        this.aHash = Utils.computeAHash(iconThumbData);
-        this.dHash = Utils.computeDHash(iconThumbData, 16);
+        this.iconAHash = Utils.computeAHash(iconThumbData);
+        this.iconDHash = Utils.computeDHash(iconThumbData, 16);
     }
 
     extractCardImage(W, H) {
@@ -210,61 +132,54 @@ class SlotAnalyzer {
     }
 
     analyzePlate(W, H) {
-        const { OFFSET_ISREADY, OFFSET_PLATE, CROP_RATIO } = ANALYZER_CONFIG;
-
-        // [2-1] Ready 상태 판별
-        let isReady = false;
-        let dist = -1;
-
-        const rx = this.x + OFFSET_ISREADY.x * W;
-        const ry = this.y + OFFSET_ISREADY.y * H;
-        const rw = OFFSET_ISREADY.w * W;
-        const rh = OFFSET_ISREADY.h * H;
-
-        if (STANDARD_READY_HASH && rw > 0 && rh > 0) {
-            const readyData = this.ctx.getImageData(rx, ry, rw, rh);
-            const result = Utils.computeHashFromRaw(readyData, rw, rh);
-            dist = Utils.hammingDist(result.hash, STANDARD_READY_HASH);
-            isReady = dist <= 50; // 넉넉한 기준
-        }
-
-        // [2-2] 닉네임 추출 및 pHash 계산
+        const { OFFSET_PLATE, CROP_RATIO } = ANALYZER_CONFIG;
         const px = this.x + OFFSET_PLATE.x * W;
         const py = this.y + OFFSET_PLATE.y * H;
         const pw = OFFSET_PLATE.w * W;
         const ph = OFFSET_PLATE.h * H;
 
-        const px_c = px + (pw * CROP_RATIO);
-        const py_c = py + (ph * CROP_RATIO);
-        const pw_c = pw * (1 - CROP_RATIO * 2);
-        const ph_c = (ph * (1 - CROP_RATIO * 2)) * 0.55;
+        const rawPlateData = this.ctx.getImageData(px, py, pw, ph);
+        
+        // 글자만 남기도록 이진화 (밝은 글자 기준)
+        const binarized = this.getBinarized(rawPlateData, 200);
 
-        if (pw_c > 0 && ph_c > 0) {
-            const rawPlateData = this.ctx.getImageData(px_c, py_c, pw_c, ph_c);
-            const realW = rawPlateData.width;
-            const realH = rawPlateData.height;
-            
-            // 이진화 필터 적용
-            const result = Utils.applyStateFilter(rawPlateData, realW, realH, isReady, dist);
-            const filteredImg = result.data;
-            
-            // pHash 생성을 위해 32x32로 리사이징
-            const pHashCanvas = document.createElement('canvas');
-            pHashCanvas.width = 32; pHashCanvas.height = 32;
-            const pCtx = pHashCanvas.getContext('2d');
-            
-            const tempBinarized = document.createElement('canvas');
-            tempBinarized.width = realW; tempBinarized.height = realH;
-            tempBinarized.getContext('2d').putImageData(filteredImg, 0, 0);
-            
-            pCtx.drawImage(tempBinarized, 0, 0, 32, 32);
-            const pHashData = pCtx.getImageData(0, 0, 32, 32);
-            
-            this.pHash = Utils.computePHash(pHashData);
+        // 중앙부 크롭
+        const tCtx = Utils.getThumbCtx();
+        const cx = pw * CROP_RATIO;
+        const cy = ph * CROP_RATIO;
+        const cw = pw * (1 - CROP_RATIO*2);
+        const ch = ph * (1 - CROP_RATIO*2);
 
-        } else {
-            this.pHash = []; 
+        const cropPlate = document.createElement('canvas');
+        cropPlate.width = cw; cropPlate.height = ch;
+        cropPlate.getContext('2d').putImageData(this.ctx.getImageData(px+cx, py+cy, cw, ch), 0, 0);
+
+        tCtx.clearRect(0, 0, 16, 16);
+        tCtx.drawImage(cropPlate, 0, 0, 16, 16);
+        const plateThumbData = tCtx.getImageData(0, 0, 16, 16).data;
+
+        this.plateAHash = Utils.computeAHash(plateThumbData);
+        this.plateDHash = Utils.computeDHash(plateThumbData, 16);
+    }
+
+    getBinarized(rgbaData, threshold) {
+        const len = rgbaData.data.length / 4;
+        const output = new Uint8ClampedArray(len * 4);
+        
+        for (let i = 0; i < len; i++) {
+            const r = rgbaData.data[i*4];
+            const g = rgbaData.data[i*4+1];
+            const b = rgbaData.data[i*4+2];
+            const lum = Utils.getLum(r, g, b);
+            
+            const val = lum > threshold ? 255 : 0;
+            const idx = i * 4;
+            output[idx] = val;
+            output[idx+1] = val;
+            output[idx+2] = val;
+            output[idx+3] = 255;
         }
+        return new ImageData(output, rgbaData.width, rgbaData.height);
     }
 
     checkEmpty(imgData) {
@@ -317,25 +232,16 @@ async function runAnalysis() {
             if (oldS.isEmpty) return;
             
             let bestIdx = -1;
-            let minScore = Infinity; // 점수가 낮을수록 유사함
+            let minScore = Infinity;
 
             newSlots.forEach((newS, idx) => {
                 if (usedNew[idx] || newS.isEmpty) return;
                 
-                // 1. 유사도 거리 계산
-                const iconDist = Utils.hammingDist(oldS.aHash, newS.aHash) + Utils.hammingDist(oldS.dHash, newS.dHash);
-                const textDist = Utils.hammingDist(oldS.pHash, newS.pHash);
+                const iconDist = Utils.hammingDist(oldS.iconAHash, newS.iconAHash) + Utils.hammingDist(oldS.iconDHash, newS.iconDHash);
+                const plateDist = Utils.hammingDist(oldS.plateAHash, newS.plateAHash) + Utils.hammingDist(oldS.plateDHash, newS.plateDHash);
 
-                // 2. 필터링 (엄격한 기준 적용)
-                // - 아이콘 거리 60 이하 (기본 형태 유사)
-                // - 텍스트 거리 20 이하 (글자 확실히 유사)
-                if (iconDist <= ANALYZER_CONFIG.THRESHOLD_ICON && textDist <= ANALYZER_CONFIG.THRESHOLD_TEXT) {
-                    
-                    // 3. 점수 산정 (타이브레이크)
-                    // 우선순위: 텍스트 거리(textDist) > 아이콘 거리(iconDist)
-                    // textDist를 정수부로, iconDist를 소수부로 두어 텍스트 우선 비교
-                    const currentScore = textDist + (iconDist * 0.001);
-
+                if (iconDist <= ANALYZER_CONFIG.THRESHOLD_ICON && plateDist <= ANALYZER_CONFIG.THRESHOLD_PLATE) {
+                    const currentScore = plateDist + iconDist * 0.1; // 텍스트에 더 높은 가중치
                     if (currentScore < minScore) {
                         minScore = currentScore;
                         bestIdx = idx;
@@ -668,6 +574,8 @@ if(ui.redoBtn) ui.redoBtn.onclick = () => {
     undoStack.push(JSON.parse(JSON.stringify(room))); room = redoStack.pop(); selected = []; refreshUI();
 };
 
+loadState(); refreshUI();
+
 // 도움말 모달
 const helpModal = document.getElementById('help-modal');
 const helpBtn = document.getElementById('help-btn');
@@ -895,8 +803,6 @@ btn.addEventListener("click", () => {
   if (priBtn) priBtn.addEventListener("click", copyCurrentTopPriorityText);
   initTierCopyUI();
 })();
-
-loadState(); refreshUI();
 
 document.addEventListener('DOMContentLoaded', function() {
     const floorMeterBtn = document.getElementById('floor-meter-btn');
