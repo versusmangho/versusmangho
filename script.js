@@ -1,26 +1,33 @@
 /**
  * =========================================================================
- * [E7 RTA Analyzer]
- *  * Logic:
- *  1. Analyze Icon (Structure + Brightness) -> General Shape
- *  2. Analyze Text (Structure + Brightness) -> Nickname
- *  3. Match Logic: Filter by Thresholds -> Pick Best Match
+ * [E7 RTA Analyzer] - Refactored & pHash Optimized (Clean Version)
+ * * Logic:
+ * 1. Analyze Icon (Structure + Brightness) -> General Shape
+ * 2. Detect Ready State (Fixed Position) -> Determine Background Mode
+ * 3. Analyze Text (DCT pHash) -> Robust against pixel shifts
+ * 4. Match Logic: Filter by Thresholds (Text <= 20 & Icon <= 60) -> Pick Best Text Match
  * =========================================================================
  */
+
+// 1. 기준 이미지 (ISREADY_STANDARD.png)
+const READY_BASE64 = "data:image/png;base64,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";
 
 const ANALYZER_CONFIG = {
     SLOT_COUNT: 8,
     START_X: 0.767, START_Y: 0.165,
     GAP_X: 0, GAP_Y: 0.0740,
     CROP_RATIO: 0.15, 
-    THRESHOLD_ICON: 60,
-    THRESHOLD_PLATE: 75,
+    // 매칭 임계값 (이 점수 이하여야 동일인으로 인정)
+    THRESHOLD_ICON: 120,  // aHash + dHash
+    THRESHOLD_TEXT: 24,  // pHash (DCT)
     
     // 오프셋 설정 (화면 비율 기준)
     OFFSET_ICON: { x: 0.0, y: 0.0, w: 0.032, h: 0.06 },
-    OFFSET_PLATE: { x: 0.032, y: 0.0, w: 0.128, h: 0.06 }
+    OFFSET_PLATE: { x: 0.032, y: 0.0, w: 0.032, h: 0.06 }, // 닉네임 시작점
+    OFFSET_ISREADY: { x: 0.083, y: 0.022, w: 0.048, h: 0.038 } // Ready 배지 위치
 };
 
+let STANDARD_READY_HASH = null;
 
 /**
  * [UTILS] 이미지 처리 및 수학 연산
@@ -35,6 +42,79 @@ const Utils = {
         return document.getElementById('thumbCanvas').getContext('2d', { willReadFrequently: true });
     },
     getLum: (r, g, b) => 0.299*r + 0.587*g + 0.114*b,
+
+    // DCT 기반 pHash (32x32 -> 8x8 DCT)
+    computePHash: (imgData) => {
+        const size = 32; 
+        const data = imgData.data;
+        const vals = new Float64Array(size * size);
+        for(let i=0; i < data.length; i+=4) {
+            vals[i/4] = Utils.getLum(data[i], data[i+1], data[i+2]);
+        }
+        
+        const dctSize = 8;
+        const dct = [];
+        for(let v=0; v < dctSize; v++) {
+            for(let u=0; u < dctSize; u++) {
+                let sum = 0;
+                for(let i=0; i < size; i++) {
+                    for(let j=0; j < size; j++) {
+                        sum += vals[j*size + i] * Math.cos(((2*i+1)/(2*size)) * u * Math.PI) * Math.cos(((2*j+1)/(2*size)) * v * Math.PI);
+                    }
+                }
+                if (u === 0) sum *= 1/Math.sqrt(2);
+                if (v === 0) sum *= 1/Math.sqrt(2);
+                dct.push(sum / 4);
+            }
+        }
+        
+        const acValues = dct.slice(1); // DC 성분 제외
+        const avg = acValues.reduce((a,b) => a+b, 0) / acValues.length;
+        return dct.map(val => val >= avg ? 1 : 0);
+    },
+
+    // 일반 Hash 계산 (Raw ImageData -> 16x16 -> dHash)
+    computeHashFromRaw: (imgData, w, h) => {
+        const tempCvs = document.createElement('canvas');
+        tempCvs.width = w; tempCvs.height = h;
+        const tempCtx = tempCvs.getContext('2d');
+        tempCtx.putImageData(imgData, 0, 0);
+        
+        const tCtx = Utils.getThumbCtx();
+        tCtx.clearRect(0, 0, 16, 16);
+        tCtx.drawImage(tempCvs, 0, 0, 16, 16);
+        
+        const thumbData = tCtx.getImageData(0, 0, 16, 16);
+        const hash = Utils.computeDHash(thumbData.data, 16);
+        return { hash, thumbData };
+    },
+
+    // 상태에 따른 필터링 (글자 추출)
+    applyStateFilter: (rgbaData, width, height, isReady, dist) => {
+        const len = width * height;
+        const data = rgbaData.data;
+        const output = new Uint8ClampedArray(len * 4); 
+        const stateText = isReady ? `READY(유사도:${dist})` : `NORMAL(유사도:${dist})`;
+        
+        for (let i = 0; i < len; i++) {
+            const r = data[i*4], g = data[i*4+1], b = data[i*4+2];
+            const idx = i * 4;
+            let isText = false;
+            
+            if (isReady) {
+                // Ready(밝은 배경) -> 검은 글자 추출
+                if (r < 60 && g < 60 && b < 60) isText = true;
+            } else {
+                // Normal(어두운 배경) -> 흰 글자 추출
+                if (r > 210 && g > 210 && b > 210) isText = true;
+            }
+            
+            const val = isText ? 255 : 0;
+            output[idx] = val; output[idx+1] = val; output[idx+2] = val; output[idx+3] = 255;  
+        }
+        return { data: new ImageData(output, width, height), state: stateText };
+    },
+
     computeAHash: (data) => {
         let sum = 0, len = data.length/4, lums = [];
         for(let i=0; i<data.length; i+=4) {
@@ -82,7 +162,7 @@ class SlotAnalyzer {
         // 2. 카드 시각적 이미지 추출 (결과창 표시용)
         this.extractCardImage(W, H);
 
-        // 3. 닉네임(Plate) 분석 실행
+        // 3. 상태(Ready) 판별 및 닉네임(Plate) 분석 실행
         this.analyzePlate(W, H);
     }
 
@@ -114,8 +194,8 @@ class SlotAnalyzer {
         tCtx.drawImage(cropIcon, 0, 0, 16, 16);
         const iconThumbData = tCtx.getImageData(0, 0, 16, 16).data;
         
-        this.iconAHash = Utils.computeAHash(iconThumbData);
-        this.iconDHash = Utils.computeDHash(iconThumbData, 16);
+        this.aHash = Utils.computeAHash(iconThumbData);
+        this.dHash = Utils.computeDHash(iconThumbData, 16);
     }
 
     extractCardImage(W, H) {
@@ -132,54 +212,61 @@ class SlotAnalyzer {
     }
 
     analyzePlate(W, H) {
-        const { OFFSET_PLATE, CROP_RATIO } = ANALYZER_CONFIG;
+        const { OFFSET_ISREADY, OFFSET_PLATE, CROP_RATIO } = ANALYZER_CONFIG;
+
+        // [2-1] Ready 상태 판별
+        let isReady = false;
+        let dist = -1;
+
+        const rx = this.x + OFFSET_ISREADY.x * W;
+        const ry = this.y + OFFSET_ISREADY.y * H;
+        const rw = OFFSET_ISREADY.w * W;
+        const rh = OFFSET_ISREADY.h * H;
+
+        if (STANDARD_READY_HASH && rw > 0 && rh > 0) {
+            const readyData = this.ctx.getImageData(rx, ry, rw, rh);
+            const result = Utils.computeHashFromRaw(readyData, rw, rh);
+            dist = Utils.hammingDist(result.hash, STANDARD_READY_HASH);
+            isReady = dist <= 50; // 넉넉한 기준
+        }
+
+        // [2-2] 닉네임 추출 및 pHash 계산
         const px = this.x + OFFSET_PLATE.x * W;
         const py = this.y + OFFSET_PLATE.y * H;
         const pw = OFFSET_PLATE.w * W;
         const ph = OFFSET_PLATE.h * H;
 
-        const rawPlateData = this.ctx.getImageData(px, py, pw, ph);
-        
-        // 글자만 남기도록 이진화 (밝은 글자 기준)
-        const binarized = this.getBinarized(rawPlateData, 200);
+        const px_c = px + (pw * CROP_RATIO);
+        const py_c = py + (ph * CROP_RATIO);
+        const pw_c = pw * (1 - CROP_RATIO * 2);
+        const ph_c = (ph * (1 - CROP_RATIO * 2)) * 0.55;
 
-        // 중앙부 크롭
-        const tCtx = Utils.getThumbCtx();
-        const cx = pw * CROP_RATIO;
-        const cy = ph * CROP_RATIO;
-        const cw = pw * (1 - CROP_RATIO*2);
-        const ch = ph * (1 - CROP_RATIO*2);
-
-        const cropPlate = document.createElement('canvas');
-        cropPlate.width = cw; cropPlate.height = ch;
-        cropPlate.getContext('2d').putImageData(this.ctx.getImageData(px+cx, py+cy, cw, ch), 0, 0);
-
-        tCtx.clearRect(0, 0, 16, 16);
-        tCtx.drawImage(cropPlate, 0, 0, 16, 16);
-        const plateThumbData = tCtx.getImageData(0, 0, 16, 16).data;
-
-        this.plateAHash = Utils.computeAHash(plateThumbData);
-        this.plateDHash = Utils.computeDHash(plateThumbData, 16);
-    }
-
-    getBinarized(rgbaData, threshold) {
-        const len = rgbaData.data.length / 4;
-        const output = new Uint8ClampedArray(len * 4);
-        
-        for (let i = 0; i < len; i++) {
-            const r = rgbaData.data[i*4];
-            const g = rgbaData.data[i*4+1];
-            const b = rgbaData.data[i*4+2];
-            const lum = Utils.getLum(r, g, b);
+        if (pw_c > 0 && ph_c > 0) {
+            const rawPlateData = this.ctx.getImageData(px_c, py_c, pw_c, ph_c);
+            const realW = rawPlateData.width;
+            const realH = rawPlateData.height;
             
-            const val = lum > threshold ? 255 : 0;
-            const idx = i * 4;
-            output[idx] = val;
-            output[idx+1] = val;
-            output[idx+2] = val;
-            output[idx+3] = 255;
+            // 이진화 필터 적용
+            const result = Utils.applyStateFilter(rawPlateData, realW, realH, isReady, dist);
+            const filteredImg = result.data;
+            
+            // pHash 생성을 위해 32x32로 리사이징
+            const pHashCanvas = document.createElement('canvas');
+            pHashCanvas.width = 32; pHashCanvas.height = 32;
+            const pCtx = pHashCanvas.getContext('2d');
+            
+            const tempBinarized = document.createElement('canvas');
+            tempBinarized.width = realW; tempBinarized.height = realH;
+            tempBinarized.getContext('2d').putImageData(filteredImg, 0, 0);
+            
+            pCtx.drawImage(tempBinarized, 0, 0, 32, 32);
+            const pHashData = pCtx.getImageData(0, 0, 32, 32);
+            
+            this.pHash = Utils.computePHash(pHashData);
+
+        } else {
+            this.pHash = []; 
         }
-        return new ImageData(output, rgbaData.width, rgbaData.height);
     }
 
     checkEmpty(imgData) {
@@ -232,16 +319,25 @@ async function runAnalysis() {
             if (oldS.isEmpty) return;
             
             let bestIdx = -1;
-            let minScore = Infinity;
+            let minScore = Infinity; // 점수가 낮을수록 유사함
 
             newSlots.forEach((newS, idx) => {
                 if (usedNew[idx] || newS.isEmpty) return;
                 
-                const iconDist = Utils.hammingDist(oldS.iconAHash, newS.iconAHash) + Utils.hammingDist(oldS.iconDHash, newS.iconDHash);
-                const plateDist = Utils.hammingDist(oldS.plateAHash, newS.plateAHash) + Utils.hammingDist(oldS.plateDHash, newS.plateDHash);
+                // 1. 유사도 거리 계산
+                const iconDist = Utils.hammingDist(oldS.aHash, newS.aHash) + Utils.hammingDist(oldS.dHash, newS.dHash);
+                const textDist = Utils.hammingDist(oldS.pHash, newS.pHash);
 
-                if (iconDist <= ANALYZER_CONFIG.THRESHOLD_ICON && plateDist <= ANALYZER_CONFIG.THRESHOLD_PLATE) {
-                    const currentScore = plateDist + iconDist * 0.1; // 텍스트에 더 높은 가중치
+                // 2. 필터링 (엄격한 기준 적용)
+                // - 아이콘 거리 60 이하 (기본 형태 유사)
+                // - 텍스트 거리 20 이하 (글자 확실히 유사)
+                if (iconDist <= ANALYZER_CONFIG.THRESHOLD_ICON && textDist <= ANALYZER_CONFIG.THRESHOLD_TEXT) {
+                    
+                    // 3. 점수 산정 (타이브레이크)
+                    // 우선순위: 텍스트 거리(textDist) > 아이콘 거리(iconDist)
+                    // textDist를 정수부로, iconDist를 소수부로 두어 텍스트 우선 비교
+                    const currentScore = textDist + (iconDist * 0.001);
+
                     if (currentScore < minScore) {
                         minScore = currentScore;
                         bestIdx = idx;
@@ -423,7 +519,7 @@ function loadState() {
             document.getElementById('res-enter').innerHTML = a.resEnter || "";
             document.getElementById('analysis-msg').innerText = a.msg || "대기 중...";
             if (a.oldVisible && a.imgOldSrc) { ui.imgOld.src = a.imgOldSrc; ui.imgOld.style.display = 'block'; ui.phOld.style.display = 'none'; }
-            if (a.newVisible && a.imgNewSrc) { ui.imgNew.src = a.imgNewSrc; ui.imgNew.style.display = 'block'; ui.phNew.style.display = 'none'; }
+            if (a.newVisible && a.imgNewSrc) { ui.imgNew.src = a.imgNewSrc; ui.phNew.style.display = 'none'; }
         }
 
         // 매칭 로그 접힘 상태 복원
@@ -573,6 +669,20 @@ if(ui.redoBtn) ui.redoBtn.onclick = () => {
     if (redoStack.length === 0) { alert("다시 실행할 기록이 없습니다."); return; }
     undoStack.push(JSON.parse(JSON.stringify(room))); room = redoStack.pop(); selected = []; refreshUI();
 };
+
+// 기준 해시 초기화 및 시작
+(function initStandardHash() {
+    const img = new Image();
+    img.src = READY_BASE64;
+    img.onload = () => {
+        const tCtx = Utils.getThumbCtx();
+        tCtx.clearRect(0, 0, 16, 16);
+        tCtx.drawImage(img, 0, 0, 16, 16);
+        const thumbData = tCtx.getImageData(0, 0, 16, 16).data;
+        STANDARD_READY_HASH = Utils.computeDHash(thumbData, 16);
+        console.log("Standard Hash Loaded");
+    };
+})();
 
 loadState(); refreshUI();
 
