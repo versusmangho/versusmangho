@@ -692,7 +692,7 @@ function calculateScore(p) {
 
         if (newbieBoostOn) {
             // For scoring, give a boost based on room average.
-            const virtual_W_curr = 2; // Virtual wait for scoring
+            const virtual_W_curr = 2.05; // Virtual wait for scoring
             const room_W_avg = averageW_avgOfWaiters;
             score = virtual_W_curr + room_W_avg;
         } else {
