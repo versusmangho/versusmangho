@@ -36,6 +36,11 @@
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
         }
+        .track-row.highlight {
+            border-color: #3b82f6 !important;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+            transform: scale(1.02);
+        }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
@@ -441,7 +446,7 @@
                     </div>
                 </div>
                 <div class="text-right">
-                    <p class="text-xs text-slate-500 uppercase font-bold tracking-tighter">Unofficial Floor</p>
+                    <p class="text-xs text-slate-500 uppercase font-bold tracking-tighter">Floor</p>
                     <p class="floor-value text-3xl font-black text-blue-400">${info.floor}</p>
                 </div>
             `;
@@ -466,6 +471,21 @@
                 default: return 'bg-slate-600';
             }
         }
+
+        resultList.addEventListener('click', (e) => {
+            const clickedRow = e.target.closest('.track-row');
+            if (!clickedRow) return;
+
+            const isAlreadyHighlighted = clickedRow.classList.contains('highlight');
+
+            document.querySelectorAll('#resultList .track-row').forEach(row => {
+                row.classList.remove('highlight');
+            });
+
+            if (!isAlreadyHighlighted) {
+                clickedRow.classList.add('highlight');
+            }
+        });
 
         window.onload = init;
     </script>

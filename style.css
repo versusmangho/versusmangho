@@ -158,3 +158,81 @@ tr.highlight { background: rgba(37,99,235,0.15); }
   flex: 0 0 auto;
   white-space: nowrap;
 }
+
+/* Sortable table headers */
+th.sortable {
+    cursor: pointer;
+    position: relative;
+    user-select: none;
+}
+th.sortable::after {
+    content: ' ';
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0.5;
+}
+th.sortable.sorted-asc::after {
+    content: '▲';
+    opacity: 1;
+}
+th.sortable.sorted-desc::after {
+    content: '▼';
+    opacity: 1;
+}
+
+/* --- Log Block Styles --- */
+#log-container {
+  display: flex;
+  flex-direction: column-reverse; /* 최신 로그가 위로 오도록 */
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 5px;
+  background: #0f172a;
+  border-radius: 6px;
+}
+.log-block {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #334155;
+  animation: fadeIn 0.3s;
+}
+.log-block--match {
+  background: #1e293b;
+  color: #94a3b8;
+}
+.log-block--analysis {
+  background: #13213c;
+  color: #64748b;
+  font-size: 13px;
+}
+.log-block .round {
+  font-weight: bold;
+  color: #cbd5e1;
+  margin-right: 12px;
+}
+.log-block .names {
+  flex-grow: 1;
+}
+.log-block .names .chooser {
+  font-weight: bold;
+  color: #e2e8f0;
+}
+.log-block--analysis .analysis-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.log-block--analysis .analysis-summary span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.log-block--analysis .analysis-summary .in-list { color: #86efac; }
+.log-block--analysis .analysis-summary .out-list { color: #fca5a5; }

@@ -27,12 +27,21 @@
     <h2>매칭</h2>
     <div class="row match-header">
       <p id="chooser-status">테이블에서 두 명을 클릭하세요.</p>
-      <div class="toggle-row">
-        <label class="switch">
-          <input type="checkbox" id="newcomer-toggle" checked />
-          <span class="slider"></span>
-        </label>
-        <span>신입 우선권</span>
+      <div class="toggle-row" style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <label class="switch">
+                <input type="checkbox" id="newcomer-toggle" checked />
+                <span class="slider"></span>
+            </label>
+            <span>신입 우선권</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <label class="switch">
+                <input type="checkbox" id="safeguard-toggle" checked />
+                <span class="slider"></span>
+            </label>
+            <span>세이프가드</span>
+        </div>
       </div>
     </div>
     <div class="row buttons-right">
@@ -48,7 +57,7 @@
     <h2>플레이어 현황</h2>
     <table>
       <thead>
-        <tr><th>우선순위</th><th>닉네임</th><th>원디골</th><th>현재 대기</th><th>평균 대기</th></tr>
+        <tr><th class="sortable" data-sort-key="priority">가중치</th><th class="sortable" data-sort-key="nickname">닉네임</th><th class="sortable" data-sort-key="chooserCount">원디골</th><th class="sortable" data-sort-key="w_curr">현재 대기</th><th class="sortable" data-sort-key="w_avg">평균 대기</th></tr>
       </thead>
       <tbody id="player-table-body"></tbody>
     </table>
@@ -60,16 +69,13 @@
   </section>
 
   <section class="card log-card">
-    <div class="collapsible-header" id="log-toggle-btn" role="button" tabindex="0" aria-expanded="true">
-      <h2 style="border-bottom:0; padding-bottom:0; margin-bottom:0;">매칭 로그</h2>
-      <span class="toggle-icon" id="log-toggle-icon">▲</span>
+    <div class="collapsible-header" id="log-toggle-btn" role="button" tabindex="0" aria-expanded="false">
+      <h2 style="border-bottom:0; padding-bottom:0; margin-bottom:0;">로그</h2>
+      <span class="toggle-icon" id="log-toggle-icon">▼</span>
     </div>
 
-    <div class="collapsible-body" id="log-content">
-      <table>
-        <thead><tr><th>라운드</th><th>선택자</th><th>피선택자</th></tr></thead>
-        <tbody id="log-table-body"></tbody>
-      </table>
+    <div class="collapsible-body" id="log-content" style="display: none;">
+      <div id="log-container"></div>
     </div>
   </section>
 
@@ -86,26 +92,26 @@
       
       <div class="analysis-controls">
         <div class="paste-zone" id="zone-old">
-          <span class="placeholder">1. 이전 (Old)</span>
+          <span class="placeholder">1. 이전</span>
           <img id="img-old" class="preview-img" style="display:none;">
         </div>
         <div class="paste-zone" id="zone-new">
-          <span class="placeholder">2. 현재 (New)</span>
+          <span class="placeholder">2. 현재</span>
           <img id="img-new" class="preview-img" style="display:none;">
         </div>
       </div>
       
       <div class="result-columns">
         <div class="col col-leave">
-          <h3>OUT (퇴장)</h3>
+          <h3>퇴장</h3>
           <div id="res-leave" class="col-content"></div>
         </div>
         <div class="col col-stay">
-          <h3>STAY (잔류)</h3>
+          <h3>잔류</h3>
           <div id="res-stay" class="col-content"></div>
         </div>
         <div class="col col-enter">
-          <h3>IN (입장)</h3>
+          <h3>입장</h3>
           <div id="res-enter" class="col-content"></div>
         </div>
       </div>
@@ -135,10 +141,12 @@
       <h3>1. 플레이어 & 매칭</h3>
       <ul class="help-list">
         <li><b>등록:</b> 닉네임을 입력하고 엔터를 누르세요. (최대 8명)</li>
-        <li><b>매칭:</b> 대기 목록에서 <b>두 명의 플레이어를 클릭</b>하면 매칭이 성사됩니다. 먼저 클릭한 플레이어가 선택자, 두 번째로 클릭한 플레이어가 피선택자가 됩니다.</li>
-        <li><b>우선순위:</b> 현재 대기 오래한 순 -> 평균 대기 오래한 순 -> 원디골 적게 한 순 -> 먼저 들어온 순으로 자동 정렬됩니다.</li>
-        <li><b>보류/복귀:</b> 한두 판 가량 차례를 넘기는 사람을 관리하기 위한 기능입니다.</li>
-        <li><b>신입 우선권:</b> 신입 우선권 옵션을 킨 경우 자체 매커니즘을 통해 게임을 오래 못 한 사람이 나오지 않는 선에서 신입에게 최대의 우선권을 부여합니다.</li>
+        <li><b>매칭:</b> 대기 목록에서 <b>두 명의 플레이어를 클릭</b>하면 매칭이 성사됩니다. 먼저 클릭한 사람이 선택자(원디골)가 됩니다.</li>
+        <li><b>우선순위 (가중치):</b> 기본적으로 <b>가중치</b> 점수가 높은 순으로 정렬됩니다. 가중치는 현재 대기, 평균 대기, 원디골 비율 등을 종합하여 계산된 값입니다.</li>
+        <li><b>테이블 정렬:</b> '가중치', '닉네임' 등 테이블의 제목(헤더)을 클릭하면 해당 기준으로 목록을 오름차순/내림차순 정렬할 수 있습니다.</li>
+        <li><b>보류/복귀:</b> 플레이어 목록의 '보류' 버튼을 눌러 잠시 매칭에서 제외할 수 있습니다. '복귀'를 누르면 보류한 시간만큼 대기 시간이 보정되어 복귀됩니다.</li>
+        <li><b>신입 우선권:</b> 이 옵션을 켜면, 방에 새로 들어온 플레이어('신입' 태그)가 빠르게 게임을 할 수 있도록 가중치에 보너스를 받습니다.</li>
+        <li><b>세이프가드:</b> 이 옵션을 켜면, <b>4판 이상 대기한 플레이어</b>가 있을 경우 다른 모든 규칙을 무시하고 해당 플레이어에게 최상위 우선순위가 부여됩니다.</li>
       </ul>
     </div>
 
@@ -150,9 +158,9 @@
         <li><b>*</b> 이미지 유사도를 기반으로 판단하기에, 가끔 오류가 날 수 있습니다. (특히 레디<->레디해제 중 스크린샷이 찍히는 경우)</li>
         <li><b>분석 결과:</b>
           <ul>
-            <li>🔴 <b>OUT:</b> 방을 나간 인원</li>
-            <li>🔵 <b>STAY/MOVE:</b> 자리를 지키거나 이동한 인원</li>
-            <li>🟢 <b>IN:</b> 새로 들어온 인원</li>
+            <li>🔴 <b>퇴장:</b> 방을 나간 인원</li>
+            <li>🔵 <b>잔류:</b> 자리를 지킨 인원</li>
+            <li>🟢 <b>입장:</b> 새로 들어온 인원</li>
           </ul>
         </li>
       </ul>
@@ -162,6 +170,8 @@
       <h3>3. 기타</h3>
       <ul class="help-list">
         <li><b>자동 저장:</b> 모든 데이터는 브라우저에 자동 저장되어 새로고침해도 유지됩니다.</li>
+        <li><b>실행 취소/다시 실행:</b> 실수로 매칭을 하거나 플레이어를 잘못 삭제했을 때 이전/다음 상태로 되돌릴 수 있습니다.</li>
+        <li><b>1순위 문구 복사:</b> '현재 1순위 문구 복사' 버튼을 누르면, 현재 가장 우선순위가 높은 플레이어의 대기 상태를 설명하는 문구가 클립보드에 복사됩니다.</li>
         <li><b>초기화:</b> '전체 초기화' 버튼을 누르면 모든 데이터가 삭제됩니다.</li>
       </ul>
     </div>

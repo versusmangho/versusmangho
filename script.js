@@ -27,6 +27,24 @@ const ANALYZER_CONFIG = {
     OFFSET_ISREADY: { x: 0.083, y: 0.022, w: 0.048, h: 0.038 } // Ready 배지 위치
 };
 
+const ui = {
+    input: document.getElementById("nickname-input"),
+    imgOld: document.getElementById("img-old"),
+    imgNew: document.getElementById("img-new"),
+    phOld: document.querySelector("#zone-old .placeholder"),
+    phNew: document.querySelector("#zone-new .placeholder"),
+    anaToggle: document.getElementById("analysis-toggle-btn"),
+    anaContent: document.getElementById("analysis-content"),
+    round: document.getElementById("round-info"),
+    pTable: document.getElementById("player-table-body"),
+    logContainer: document.getElementById("log-container"),
+    manageMsg: document.getElementById("manage-msg"),
+    addBtn: document.getElementById("add-btn"),
+    undoBtn: document.getElementById("undo-btn"),
+    redoBtn: document.getElementById("redo-btn"),
+    resetBtn: document.getElementById("reset-btn")
+};
+
 let STANDARD_READY_HASH = null;
 
 /**
@@ -299,6 +317,9 @@ async function runAnalysis() {
     // 결과창 초기화
     ['res-leave', 'res-stay', 'res-enter'].forEach(id => document.getElementById(id).innerHTML = '');
 
+    const leftSlots = [];
+    const enteredSlots = [];
+
     try {
         const W = Math.max(imgOld.naturalWidth, imgNew.naturalWidth);
         const H = Math.max(imgOld.naturalHeight, imgNew.naturalHeight);
@@ -329,15 +350,8 @@ async function runAnalysis() {
                 const textDist = Utils.hammingDist(oldS.pHash, newS.pHash);
 
                 // 2. 필터링 (엄격한 기준 적용)
-                // - 아이콘 거리 60 이하 (기본 형태 유사)
-                // - 텍스트 거리 20 이하 (글자 확실히 유사)
                 if (iconDist <= ANALYZER_CONFIG.THRESHOLD_ICON && textDist <= ANALYZER_CONFIG.THRESHOLD_TEXT) {
-                    
-                    // 3. 점수 산정 (타이브레이크)
-                    // 우선순위: 텍스트 거리(textDist) > 아이콘 거리(iconDist)
-                    // textDist를 정수부로, iconDist를 소수부로 두어 텍스트 우선 비교
                     const currentScore = textDist + (iconDist * 0.001);
-
                     if (currentScore < minScore) {
                         minScore = currentScore;
                         bestIdx = idx;
@@ -356,6 +370,7 @@ async function runAnalysis() {
                 }
             } else {
                 addResult('leave', `Slot ${oldS.index+1}`, oldS.cardImage, 'OUT');
+                leftSlots.push(`Slot ${oldS.index + 1}`);
             }
         });
 
@@ -363,11 +378,22 @@ async function runAnalysis() {
         newSlots.forEach((newS, idx) => {
             if (!newS.isEmpty && !usedNew[idx]) {
                 addResult('enter', `Slot ${newS.index+1}`, newS.cardImage, 'IN');
+                enteredSlots.push(`Slot ${newS.index + 1}`);
             }
         });
 
+        if (enteredSlots.length > 0 || leftSlots.length > 0) {
+            room.eventLog.push({
+                type: 'analysis',
+                round: room.round,
+                entered: enteredSlots.sort(),
+                left: leftSlots.sort()
+            });
+        }
+
         msgEl.innerText = "분석 완료";
         saveState(); 
+        refreshUI();
 
     } catch (e) {
         console.error(e);
@@ -386,26 +412,8 @@ function addResult(type, text, img, tag) {
     container.appendChild(div);
 }
 
-/**
- * [SYSTEM] UI 이벤트 및 스토리지 관리
- */
-const ui = {
-    input: document.getElementById("nickname-input"),
-    imgOld: document.getElementById("img-old"),
-    imgNew: document.getElementById("img-new"),
-    phOld: document.querySelector("#zone-old .placeholder"),
-    phNew: document.querySelector("#zone-new .placeholder"),
-    anaToggle: document.getElementById("analysis-toggle-btn"),
-    anaContent: document.getElementById("analysis-content"),
-    round: document.getElementById("round-info"),
-    pTable: document.getElementById("player-table-body"),
-    lTable: document.getElementById("log-table-body"),
-    manageMsg: document.getElementById("manage-msg"),
-    addBtn: document.getElementById("add-btn"),
-    undoBtn: document.getElementById("undo-btn"),
-    redoBtn: document.getElementById("redo-btn"),
-    resetBtn: document.getElementById("reset-btn")
-};
+
+
 
 // 이미지 붙여넣기 핸들러
 document.addEventListener('paste', (e) => {
@@ -449,14 +457,190 @@ if(ui.anaToggle) {
         const hide = ui.anaContent.style.display === 'none';
         ui.anaContent.style.display = hide ? 'block' : 'none';
         ui.anaToggle.querySelector('.toggle-icon').innerText = hide ? '▲' : '▼';
+        saveState(); // <--- saveState() 호출 추가
     }
 }
 
 // 스토리지 및 상태 관리
-const SafeStorage={available:false,getItem:function(k){try{return window.localStorage.getItem(k)}catch{return null}},setItem:function(k,v){try{window.localStorage.setItem(k,v);return true}catch(e){return false}}};
-try{const k="__t";window.localStorage.setItem(k,"1");window.localStorage.removeItem(k);SafeStorage.available=true;}catch{}
+const SafeStorage={available:false,getItem:function(k){try{return window.localStorage.getItem(k)}catch{return null}},setItem:function(k,v){try{window.localStorage.setItem(k,v);return true}catch{return false}}};
+try{const k="__t";window.localStorage.setItem(k,"1");window.localStorage.removeItem(k);SafeStorage.available=true;}catch { /* feature detect */ }
 const STORAGE_KEY = "roomStateV3";
-let room = { round: 0, players: [], matchLog: [], seen: [], newcomerPriority: true };
+/**
+ * =========================================================================
+ * [E7 RTA Analyzer] - Refactored & pHash Optimized (Clean Version)
+ * * Logic:
+ * 1. Analyze Icon (Structure + Brightness) -> General Shape
+ * 2. Detect Ready State (Fixed Position) -> Determine Background Mode
+ * 3. Analyze Text (DCT pHash) -> Robust against pixel shifts
+ * 4. Match Logic: Filter by Thresholds (Text <= 20 & Icon <= 60) -> Pick Best Text Match
+ * =========================================================================
+ */
+
+
+
+
+
+
+/**
+ * [CORE] 메인 분석 실행 함수
+ */
+async function runAnalysis() {
+    const msgEl = document.getElementById('analysis-msg');
+    const imgOld = document.getElementById('img-old');
+    const imgNew = document.getElementById('img-new');
+
+    if (!imgOld.src || !imgNew.src) return; 
+
+    msgEl.innerText = "분석 중...";
+    
+    // 결과창 초기화
+    ['res-leave', 'res-stay', 'res-enter'].forEach(id => document.getElementById(id).innerHTML = '');
+
+    const leftSlots = [];
+    const enteredSlots = [];
+
+    try {
+        const W = Math.max(imgOld.naturalWidth, imgNew.naturalWidth);
+        const H = Math.max(imgOld.naturalHeight, imgNew.naturalHeight);
+        const ctx = Utils.getCtx(W, H);
+
+        const oldSlots = [], newSlots = [];
+        
+        ctx.drawImage(imgOld, 0, 0, W, H);
+        for(let i=0; i<ANALYZER_CONFIG.SLOT_COUNT; i++) oldSlots.push(new SlotAnalyzer(imgOld, i, ctx, "OLD"));
+        
+        ctx.drawImage(imgNew, 0, 0, W, H);
+        for(let i=0; i<ANALYZER_CONFIG.SLOT_COUNT; i++) newSlots.push(new SlotAnalyzer(imgNew, i, ctx, "NEW"));
+
+        const usedNew = new Array(ANALYZER_CONFIG.SLOT_COUNT).fill(false);
+
+        // [MATCHING LOGIC START]
+        oldSlots.forEach(oldS => {
+            if (oldS.isEmpty) return;
+            
+            let bestIdx = -1;
+            let minScore = Infinity; // 점수가 낮을수록 유사함
+
+            newSlots.forEach((newS, idx) => {
+                if (usedNew[idx] || newS.isEmpty) return;
+                
+                // 1. 유사도 거리 계산
+                const iconDist = Utils.hammingDist(oldS.aHash, newS.aHash) + Utils.hammingDist(oldS.dHash, newS.dHash);
+                const textDist = Utils.hammingDist(oldS.pHash, newS.pHash);
+
+                // 2. 필터링 (엄격한 기준 적용)
+                if (iconDist <= ANALYZER_CONFIG.THRESHOLD_ICON && textDist <= ANALYZER_CONFIG.THRESHOLD_TEXT) {
+                    const currentScore = textDist + (iconDist * 0.001);
+                    if (currentScore < minScore) {
+                        minScore = currentScore;
+                        bestIdx = idx;
+                    }
+                }
+            });
+
+            // 결과 처리
+            if (bestIdx !== -1) {
+                usedNew[bestIdx] = true;
+                const newS = newSlots[bestIdx];
+                if (oldS.index !== newS.index) {
+                    addResult('stay', `Slot ${oldS.index+1} → ${newS.index+1}`, newS.cardImage, 'MOVE');
+                } else {
+                    addResult('stay', `Slot ${oldS.index+1}`, newS.cardImage, '');
+                }
+            } else {
+                addResult('leave', `Slot ${oldS.index+1}`, oldS.cardImage, 'OUT');
+                leftSlots.push(`Slot ${oldS.index + 1}`);
+            }
+        });
+
+        // 새로 들어온 유저 처리
+        newSlots.forEach((newS, idx) => {
+            if (!newS.isEmpty && !usedNew[idx]) {
+                addResult('enter', `Slot ${newS.index+1}`, newS.cardImage, 'IN');
+                enteredSlots.push(`Slot ${newS.index + 1}`);
+            }
+        });
+
+        if (enteredSlots.length > 0 || leftSlots.length > 0) {
+            room.eventLog.push({
+                type: 'analysis',
+                round: room.round,
+                entered: enteredSlots,
+                left: leftSlots
+            });
+        }
+
+        msgEl.innerText = "분석 완료";
+        saveState(); 
+        refreshUI();
+
+    } catch (e) {
+        console.error(e);
+        msgEl.innerText = "오류: " + e.message;
+    }
+}
+
+function addResult(type, text, img, tag) {
+    const colId = type === 'leave' ? 'res-leave' : (type === 'enter' ? 'res-enter' : 'res-stay');
+    const container = document.getElementById(colId);
+    
+    const div = document.createElement('div');
+    div.className = 'log-item';
+    let tagHtml = tag ? `<span class="move-tag">${tag}</span>` : '';
+    div.innerHTML = `<img src="${img}" class="log-thumb"><div class="log-info"><span>${text}</span>${tagHtml}</div>`;
+    container.appendChild(div);
+}
+
+/**
+ * [SYSTEM] UI 이벤트 및 스토리지 관리
+ */
+
+
+// 이미지 붙여넣기 핸들러
+document.addEventListener('paste', (e) => {
+    if (e.target === ui.input) return;
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    let file = null;
+    for (let i=0; i<items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) { file = items[i].getAsFile(); break; }
+    }
+    if (!file) return;
+    e.preventDefault();
+    const reader = new FileReader();
+    reader.onload = (ev) => pushToQueue(ev.target.result);
+    reader.readAsDataURL(file);
+});
+
+function pushToQueue(src) {
+    const oldFull = ui.imgOld.style.display === 'block';
+    const newFull = ui.imgNew.style.display === 'block';
+    
+    if (!oldFull) {
+        setImage(ui.imgOld, ui.phOld, src);
+    } else if (!newFull) {
+        setImage(ui.imgNew, ui.phNew, src);
+        ui.imgNew.onload = () => setTimeout(runAnalysis, 100); 
+    } else {
+        setImage(ui.imgOld, ui.phOld, ui.imgNew.src);
+        setImage(ui.imgNew, ui.phNew, src);
+        ui.imgNew.onload = () => setTimeout(runAnalysis, 100);
+    }
+}
+
+function setImage(img, ph, src) {
+    img.style.display = 'block'; 
+    ph.style.display = 'none';
+    img.src = src;
+}
+
+if(ui.anaToggle) {
+    ui.anaToggle.onclick = () => {
+        const hide = ui.anaContent.style.display === 'none';
+        ui.anaContent.style.display = hide ? 'block' : 'none';
+        ui.anaToggle.querySelector('.toggle-icon').innerText = hide ? '▲' : '▼';
+        saveState(); // <--- saveState() 호출 추가
+    }
+}
 
 // 평균 대기(매치 간 대기) 계산을 위한 필드/헬퍼
 function normalizePlayer(p) {
@@ -470,10 +654,23 @@ function normalizePlayer(p) {
 }
 function avgWaitValue(p) {
     if (!p || p.onHold) return null;
-    const mc = p.matchCount || 0;
-    if (mc <= 0) return null;
-    const ws = p.waitSum || 0;
-    return ws / mc;
+
+    const currentWait = room.round - (p.lastPlay || 0);
+    const pastWaitSum = p.waitSum || 0;
+    const pastMatchCount = p.matchCount || 0;
+
+    // 신규 유저: 현재까지 기다린 판수가 평균값
+    if (pastMatchCount === 0) {
+        return currentWait > 0 ? currentWait : null;
+    }
+
+    // 기존 유저: (과거 대기 합 + 현재 대기) / (과거 매치 수 + 현재 대기중이면 1)
+    const totalWait = pastWaitSum + currentWait;
+    const totalPeriods = pastMatchCount + (currentWait > 0 ? 1 : 0);
+
+    if (totalPeriods === 0) return null;
+
+    return totalWait / totalPeriods;
 }
 function avgWaitText(p) {
     const v = avgWaitValue(p);
@@ -481,6 +678,7 @@ function avgWaitText(p) {
 }
 
 let undoStack = [], redoStack = [], selected = [];
+let currentSort = { key: 'priority', order: 'desc' };
 
 function pushUndo() {
     const snapshot = JSON.parse(JSON.stringify(room));
@@ -499,9 +697,21 @@ function saveState() {
         imgOldSrc: ui.imgOld.getAttribute('src') || "",
         imgNewSrc: ui.imgNew.getAttribute('src') || ""
     };
-    const logCollapsed = (document.getElementById("log-content")?.style.display === "none");
-    const data = { room, analysis, logCollapsed };
-    try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+    const uiState = {
+        logCollapsed: document.getElementById("log-content")?.style.display === "none",
+        analysisCollapsed: document.getElementById("analysis-content")?.style.display === "none",
+    };
+    const toggles = {
+        newcomer: document.getElementById('newcomer-toggle')?.checked,
+        safeguard: document.getElementById('safeguard-toggle')?.checked
+    };
+    const data = { room, analysis, uiState, toggles };
+    try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+        console.error("Failed to save state:", e);
+        alert("데이터를 저장하는데 실패했습니다. 브라우저 저장 공간이 가득 찼을 수 있습니다.");
+    }
 }
 function loadState() {
     const r = SafeStorage.getItem(STORAGE_KEY);
@@ -511,6 +721,14 @@ function loadState() {
         if (parsed.room) {
             room = parsed.room;
             if (Array.isArray(room.players)) room.players.forEach(normalizePlayer);
+            if (!room.playerHistory) room.playerHistory = {};
+            
+            // 이전 버전 호환성: matchLog -> eventLog
+            if (room.matchLog && !room.eventLog) {
+                room.eventLog = room.matchLog.map(log => ({ type: 'match', ...log }));
+                delete room.matchLog;
+            }
+            if (!room.eventLog) room.eventLog = [];
         }
         if (parsed.analysis) {
             const a = parsed.analysis;
@@ -522,8 +740,27 @@ function loadState() {
             if (a.newVisible && a.imgNewSrc) { ui.imgNew.src = a.imgNewSrc; ui.phNew.style.display = 'none'; }
         }
 
-        // 매칭 로그 접힘 상태 복원
-        if (typeof parsed.logCollapsed === "boolean") {
+        // 접힘/펼침 상태 복원
+        if (parsed.uiState) {
+            if (typeof parsed.uiState.logCollapsed === "boolean") {
+                const logContent = document.getElementById("log-content");
+                const logIcon = document.getElementById("log-toggle-icon");
+                if (logContent && logIcon) {
+                    const hide = parsed.uiState.logCollapsed;
+                    logContent.style.display = hide ? "none" : "block";
+                    logIcon.innerText = hide ? "▼" : "▲";
+                }
+            }
+            if (typeof parsed.uiState.analysisCollapsed === "boolean") {
+                const analysisContent = document.getElementById("analysis-content");
+                const analysisIcon = document.querySelector("#analysis-toggle-btn .toggle-icon");
+                if (analysisContent && analysisIcon) {
+                    const hide = parsed.uiState.analysisCollapsed;
+                    analysisContent.style.display = hide ? "none" : "block";
+                    analysisIcon.innerText = hide ? "▼" : "▲";
+                }
+            }
+        } else if (typeof parsed.logCollapsed === "boolean") { // 이전 버전 호환성
             const logContent = document.getElementById("log-content");
             const logIcon = document.getElementById("log-toggle-icon");
             if (logContent && logIcon) {
@@ -532,67 +769,187 @@ function loadState() {
                 logIcon.innerText = hide ? "▼" : "▲";
             }
         }
+
+
+        // 토글 상태 복원
+        if (parsed.toggles) {
+            const newcomerToggle = document.getElementById('newcomer-toggle');
+            const safeguardToggle = document.getElementById('safeguard-toggle');
+            if (newcomerToggle && typeof parsed.toggles.newcomer === 'boolean') {
+                newcomerToggle.checked = parsed.toggles.newcomer;
+            }
+            if (safeguardToggle && typeof parsed.toggles.safeguard === 'boolean') {
+                safeguardToggle.checked = parsed.toggles.safeguard;
+            }
+        }
         return parsed;
-    } catch (e) { return null; }
+    } catch { return null; }
 }
 
+let averageW_avgOfWaiters = 0;
+const round2 = (num) => Math.round((num + Number.EPSILON) * 100) / 100;
+
+function updateAverageWaitersStat() {
+    const experiencedPlayers = room.players.filter(p => p.matchCount > 0);
+    if (experiencedPlayers.length > 0) {
+        const sumOfAvgs = experiencedPlayers.reduce((sum, p) => {
+            return sum + ((p.waitSum || 0) / p.matchCount);
+        }, 0);
+        averageW_avgOfWaiters = round2(sumOfAvgs / experiencedPlayers.length);
+    } else {
+        averageW_avgOfWaiters = 0;
+    }
+}
+
+function calculateScore(p) {
+    const newbieBoostOn = document.getElementById("newcomer-toggle")?.checked ?? true;
+    const real_W_curr = room.round - (p.lastPlay || 0);
+    let W_curr = real_W_curr;
+    let W_avg = 0;
+    let R_sel = (p.matchCount > 0) ? round2(p.chooserCount / p.matchCount) : 0;
+    let score;
+
+    if (p.matchCount > 0) {
+        W_avg = round2((p.waitSum || 0) / p.matchCount);
+        score = W_curr + W_avg - (R_sel * 0.1);
+    } else { // 신입
+        if (newbieBoostOn) {
+            W_curr = 2; // 점수 계산용 가상 대기
+            W_avg = averageW_avgOfWaiters;
+            score = W_curr + W_avg; // R_sel은 0
+        } else {
+            score = real_W_curr;
+        }
+    }
+    return { score, W_avg, R_sel, T_in: p.joinOrder || 0, W_curr: real_W_curr };
+}
+
+function getSortValue(p, key) {
+    const stats = calculateScore(p);
+    switch(key) {
+        case 'nickname': return p.nickname;
+        case 'chooserCount': return p.chooserCount || 0;
+        case 'w_curr': return stats.W_curr;
+        case 'w_avg': return stats.W_avg;
+        case 'priority': return stats.score;
+        default: return 0;
+    }
+}
+
+function getSortedPlayers(sortConfig) {
+    const safeguardOn = document.getElementById("safeguard-toggle")?.checked ?? false;
+    
+    return [...room.players].sort((a, b) => {
+        if (a.onHold !== b.onHold) return a.onHold ? 1 : -1;
+
+        if (safeguardOn) {
+            const waitA = getSortValue(a, 'w_curr');
+            const waitB = getSortValue(b, 'w_curr');
+            const isUrgentA = waitA >= 4;
+            const isUrgentB = waitB >= 4;
+            if (isUrgentA !== isUrgentB) return isUrgentA ? -1 : 1;
+            if (isUrgentA && isUrgentB) {
+                if (waitA !== waitB) return waitB - waitA;
+                const rSelA = (a.matchCount > 0) ? round2(a.chooserCount / a.matchCount) : 0;
+                const rSelB = (b.matchCount > 0) ? round2(b.chooserCount / b.matchCount) : 0;
+                return rSelA - rSelB;
+            }
+        }
+
+        const valA = getSortValue(a, sortConfig.key);
+        const valB = getSortValue(b, sortConfig.key);
+
+        let comparison = 0;
+        if (typeof valA === 'string') {
+            comparison = valA.localeCompare(valB); // Asc
+        } else {
+            comparison = valA - valB; // Asc
+        }
+        if (sortConfig.order === 'desc') {
+            comparison *= -1;
+        }
+        
+        if (comparison === 0) {
+             const scoreA = calculateScore(a).score;
+             const scoreB = calculateScore(b).score;
+             if (scoreB !== scoreA) return scoreB - scoreA;
+             return (a.joinOrder || 0) - (b.joinOrder || 0);
+        }
+        return comparison;
+    });
+}
+
+
 function refreshUI() {
+    updateAverageWaitersStat();
+
+    if (room.eventLog && room.eventLog.length > 100) {
+        room.eventLog.splice(0, room.eventLog.length - 100);
+    }
     if (Array.isArray(room.players)) room.players.forEach(normalizePlayer);
     if(ui.round) ui.round.textContent = `라운드: ${room.round}`;
     if(ui.pTable) ui.pTable.innerHTML = "";
-    if(ui.lTable) ui.lTable.innerHTML = "";
+    
+    const logContainer = document.getElementById("log-container");
+    if(logContainer) logContainer.innerHTML = "";
+
     ui.manageMsg.style.display = "none";
     if(document.getElementById("match-msg")) document.getElementById("match-msg").style.display = "none";
 
-    const sorted = [...room.players].sort((a,b) => {
-        if (a.onHold !== b.onHold) return a.onHold ? 1 : -1;
-        const waitA = room.round - (a.lastPlay || 0);
-        const waitB = room.round - (b.lastPlay || 0);
-        const urgencyA = waitA >= 4; const urgencyB = waitB >= 4;
-        if (urgencyA !== urgencyB) return urgencyA ? -1 : 1;
-        
-        const newcomerMode = document.getElementById("newcomer-toggle")?.checked;
-        if (newcomerMode && !urgencyA && !urgencyB) {
-            const isNewA = a.matchCount === 0; const isNewB = b.matchCount === 0;
-            if (isNewA !== isNewB) return isNewA ? -1 : 1;
+    const sorted = getSortedPlayers(currentSort);
+
+    // Update header visuals
+    document.querySelector("#player-table-body")?.parentElement.querySelectorAll('thead th').forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+        if (th.dataset.sortKey === currentSort.key) {
+            th.classList.add(currentSort.order === 'asc' ? 'sorted-asc' : 'sorted-desc');
         }
-        if (waitA !== waitB) return waitB - waitA;
-        
-        const avgA = avgWaitValue(a);
-        const avgB = avgWaitValue(b);
-        if (avgA === null && avgB !== null) return 1;
-        if (avgA !== null && avgB === null) return -1;
-        if (avgA !== null && avgB !== null && Math.abs(avgA - avgB) > 0.01) return avgB - avgA;
-        if ((a.chooserCount||0) !== (b.chooserCount||0)) return (a.chooserCount||0) - (b.chooserCount||0);
-        return (a.joinOrder||0) - (b.joinOrder||0);
     });
 
-    let rank = 0;
     sorted.forEach(p => {
         const tr = document.createElement("tr");
         const hold = !!p.onHold;
-        const idle = hold ? "-" : (room.round - (p.lastPlay||0));
-        const avgWait = hold ? "-" : avgWaitText(p);
-
+        const stats = calculateScore(p);
+        
         tr.innerHTML = `
-            <td>${hold?"보류":++rank+"순위"}</td>
+            <td>${stats.score.toFixed(2)}</td>
             <td>${p.nickname} ${p.rejoined?'<span class="tag danger">재입장</span>':''} ${!hold && p.matchCount===0?'<span class="tag" style="border-color:#4ade80;color:#86efac">신입</span>':''} ${hold?'<span class="tag danger">보류</span>':''}
                 <button class="small-hold">${hold?"복귀":"보류"}</button><button class="small-delete">×</button>
             </td>
             <td>${p.chooserCount||0}</td>
-            <td>${idle}</td>
-            <td>${avgWait}</td>
+            <td>${stats.W_curr}</td>
+            <td>${stats.W_avg.toFixed(2)}</td>
         `;
         tr.dataset.nickname = p.nickname;
         if(selected.includes(p.nickname)) tr.classList.add("highlight");
-        if (!hold && idle >= 4) tr.style.color = "#fca5a5"; 
+        if (!hold && stats.W_curr >= 4) tr.style.color = "#fca5a5"; 
         ui.pTable.appendChild(tr);
     });
     
-    room.matchLog.forEach(l => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${l.round}</td><td>${l.chooser}</td><td>${l.opponent}</td>`;
-        ui.lTable.appendChild(tr);
+    room.eventLog.forEach(event => {
+        const block = document.createElement("div");
+        if (event.type === 'match') {
+            block.className = "log-block log-block--match";
+            block.innerHTML = `
+                <span class="round">R${event.round}</span>
+                <span class="names"><span class="chooser">${event.chooser}</span> vs ${event.opponent}</span>
+            `;
+        } else if (event.type === 'analysis') {
+            block.className = "log-block log-block--analysis";
+            let summary = '';
+            if (event.entered.length > 0) {
+                summary += `<span class="in-list">🟢 IN: ${event.entered.join(', ')}</span>`;
+            }
+            if (event.left.length > 0) {
+                 if(summary) summary += ' ';
+                summary += `<span class="out-list">🔴 OUT: ${event.left.join(', ')}</span>`;
+            }
+            block.innerHTML = `
+                <span class="round">R${event.round}</span>
+                <div class="analysis-summary">${summary || '변경 없음'}</div>
+            `;
+        }
+        if(logContainer) logContainer.appendChild(block);
     });
     saveState();
 }
@@ -602,9 +959,34 @@ function addPlayer(n) {
     if(room.players.some(p=>p.nickname===n)) { ui.manageMsg.textContent="이미 존재함"; ui.manageMsg.style.display="block"; return; }
     if(room.players.filter(p=>!p.onHold).length >= 8) { ui.manageMsg.textContent="최대 8명"; ui.manageMsg.style.display="block"; return; }
     pushUndo();
+
     const isRejoin = room.seen.includes(n);
-    room.players.push({ nickname: n, joinOrder: room.seen.length, lastPlay: room.round, joinedAt: room.round, matchCount: 0, chooserCount: 0, waitSum: 0, onHold: false, holdStart: null, rejoined: isRejoin });
-    if(!isRejoin) room.seen.push(n);
+    // 기록이 있으면 가져오고, 없으면 기본값으로 설정
+    const history = (isRejoin && room.playerHistory[n]) 
+        ? room.playerHistory[n] 
+        : { matchCount: 0, chooserCount: 0, waitSum: 0 };
+
+    room.players.push({ 
+        nickname: n, 
+        joinOrder: room.seen.indexOf(n) === -1 ? room.seen.length : room.seen.indexOf(n), 
+        lastPlay: room.round, 
+        joinedAt: room.round, 
+        matchCount: history.matchCount, 
+        chooserCount: history.chooserCount, 
+        waitSum: history.waitSum, 
+        onHold: false, 
+        holdStart: null, 
+        rejoined: isRejoin 
+    });
+
+    if(!isRejoin) {
+        room.seen.push(n);
+    }
+    // 플레이어 히스토리가 없는 경우 초기화
+    if (!room.playerHistory[n]) {
+        room.playerHistory[n] = { matchCount: 0, chooserCount: 0, waitSum: 0 };
+    }
+
     ui.input.value=""; refreshUI();
 }
 
@@ -647,13 +1029,20 @@ if(ui.pTable) ui.pTable.onclick = (e) => {
             c.matchCount = (c.matchCount || 0) + 1;
             o.matchCount = (o.matchCount || 0) + 1;
             c.chooserCount = (c.chooserCount || 0) + 1;
-            room.matchLog.push({round:room.round, chooser:c.nickname, opponent:o.nickname}); selected=[]; refreshUI();
+
+            // 영구 기록 업데이트
+            room.playerHistory[c.nickname] = { matchCount: c.matchCount, chooserCount: c.chooserCount, waitSum: c.waitSum };
+            room.playerHistory[o.nickname] = { matchCount: o.matchCount, chooserCount: o.chooserCount, waitSum: o.waitSum };
+
+            room.eventLog.push({type: 'match', round:room.round, chooser:c.nickname, opponent:o.nickname}); 
+            selected=[]; 
+            refreshUI();
         } else { selected=[]; refreshUI(); }
     } else refreshUI();
 }
 if(ui.resetBtn) ui.resetBtn.onclick = () => {
     if(confirm("전체 초기화하시겠습니까?")) {
-        pushUndo(); room = {round:0, players:[], matchLog:[], seen:[], newcomerPriority:true}; selected = [];
+        pushUndo(); room = {round:0, players:[], eventLog:[], seen:[], playerHistory: {}, newcomerPriority:true}; selected = [];
         ui.imgOld.src = ""; ui.imgOld.style.display = "none"; ui.imgNew.src = ""; ui.imgNew.style.display = "none";
         ui.phOld.style.display = "flex"; ui.phNew.style.display = "flex";
         ['res-leave', 'res-stay', 'res-enter'].forEach(id => document.getElementById(id).innerHTML = '');
@@ -684,7 +1073,8 @@ if(ui.redoBtn) ui.redoBtn.onclick = () => {
     };
 })();
 
-loadState(); refreshUI();
+loadState(); 
+refreshUI();
 
 // 도움말 모달
 const helpModal = document.getElementById('help-modal');
@@ -754,7 +1144,7 @@ function fallbackCopyText(text) {
   ta.style.left = "-9999px";
   document.body.appendChild(ta);
   ta.select();
-  try { document.execCommand("copy"); } catch (e) {}
+  try { document.execCommand("copy"); } catch { /* fallback, ignore */ }
   document.body.removeChild(ta);
 }
 
@@ -768,49 +1158,27 @@ function copyToClipboard(text) {
 }
 
 function getSortedPlayersForPriority() {
-  const sorted = [...room.players].sort((a,b) => {
-    if (a.onHold !== b.onHold) return a.onHold ? 1 : -1;
-
-    const waitA = room.round - (a.lastPlay || 0);
-    const waitB = room.round - (b.lastPlay || 0);
-
-    const urgencyA = waitA >= 4;
-    const urgencyB = waitB >= 4;
-    if (urgencyA !== urgencyB) return urgencyA ? -1 : 1;
-
-    const newcomerMode = document.getElementById("newcomer-toggle")?.checked;
-    if (newcomerMode && !urgencyA && !urgencyB) {
-      const isNewA = a.matchCount === 0;
-      const isNewB = b.matchCount === 0;
-      if (isNewA !== isNewB) return isNewA ? -1 : 1;
-    }
-
-    if (waitA !== waitB) return waitB - waitA;
-
-    const avgA = avgWaitValue(a);
-        const avgB = avgWaitValue(b);
-        if (avgA === null && avgB !== null) return 1;
-        if (avgA !== null && avgB === null) return -1;
-        if (avgA !== null && avgB !== null && Math.abs(avgA - avgB) > 0.01) return avgB - avgA;
-
-    if ((a.chooserCount||0) !== (b.chooserCount||0)) return (a.chooserCount||0) - (b.chooserCount||0);
-    return (a.joinOrder||0) - (b.joinOrder||0);
-  });
-
+  const sorted = getSortedPlayers({ key: 'priority', order: 'desc' });
   return sorted.filter(p => !p.onHold);
 }
 
 function copyCurrentTopPriorityText() {
   const msg = document.getElementById("priority-copy-msg");
+  
+  // Re-calculate stats for consistency, as refreshUI might not have just run
+  updateAverageWaitersStat();
+
   const list = getSortedPlayersForPriority();
+
   if (list.length === 0) {
     showInlineMsg(msg, "대기 중인 플레이어가 없습니다.");
     return;
   }
   const p = list[0];
-  const currentWait = room.round - (p.lastPlay || 0);
+  const stats = calculateScore(p);
   const avgWait = avgWaitText(p);
-  const text = `현재 1순위 : ${currentWait}판째 대기 중, 평균 ${avgWait}판 기다림.`;
+
+  const text = `현재 1순위 (가중치 ${stats.score.toFixed(2)}) : ${stats.W_curr}판째 대기 중, 평균 ${avgWait}판 기다림.`;
 
   copyToClipboard(text).then(() => showInlineMsg(msg, "클립보드에 복사되었습니다."));
 }
@@ -921,4 +1289,26 @@ document.addEventListener('DOMContentLoaded', function() {
             window.open('floor.html', '_blank');
         });
     }
+
+    // 테이블 헤더 클릭 정렬 이벤트 핸들러
+    const pTableHead = document.querySelector("#player-table-body")?.parentElement.querySelector('thead');
+    if (pTableHead) {
+        pTableHead.addEventListener('click', (e) => {
+            const th = e.target.closest('th');
+            if (!th || !th.dataset.sortKey) return;
+
+            const key = th.dataset.sortKey;
+            if (currentSort.key === key) {
+                currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.key = key;
+                currentSort.order = key === 'nickname' ? 'asc' : 'desc';
+            }
+            refreshUI();
+        });
+    }
+
+    // 토글 스위치 변경 시 UI 즉시 새로고침
+    document.getElementById('newcomer-toggle')?.addEventListener('change', () => refreshUI());
+    document.getElementById('safeguard-toggle')?.addEventListener('change', () => refreshUI());
 });
