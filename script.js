@@ -9,6 +9,16 @@
  * =========================================================================
  */
 
+// [FIX] 전역 상태 변수 'room' 선언 및 기본값 초기화
+let room = {
+    round: 0,
+    players: [],
+    eventLog: [],
+    seen: [],
+    playerHistory: {},
+    newcomerPriority: true
+};
+
 // 1. 기준 이미지 (ISREADY_STANDARD.png)
 const READY_BASE64 = "data:image/png;base64,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";
 
@@ -53,11 +63,28 @@ let STANDARD_READY_HASH = null;
 const Utils = {
     getCtx: (w, h) => {
         const cvs = document.getElementById('processCanvas');
+        if (!cvs) {
+            // [FIX] 캔버스 없을 경우 생성 (안전장치)
+            const c = document.createElement('canvas');
+            c.id = 'processCanvas';
+            c.style.display = 'none';
+            document.body.appendChild(c);
+            c.width = w || 1; c.height = h || 1;
+            return c.getContext('2d', { willReadFrequently: true });
+        }
         cvs.width = w || 1; cvs.height = h || 1;
         return cvs.getContext('2d', { willReadFrequently: true });
     },
     getThumbCtx: () => {
-        return document.getElementById('thumbCanvas').getContext('2d', { willReadFrequently: true });
+        let cvs = document.getElementById('thumbCanvas');
+        if (!cvs) {
+            // [FIX] 썸네일 캔버스 안전장치
+            cvs = document.createElement('canvas');
+            cvs.id = 'thumbCanvas';
+            cvs.style.display = 'none';
+            document.body.appendChild(cvs);
+        }
+        return cvs.getContext('2d', { willReadFrequently: true });
     },
     getLum: (r, g, b) => 0.299*r + 0.587*g + 0.114*b,
 
@@ -310,12 +337,15 @@ async function runAnalysis() {
     const imgOld = document.getElementById('img-old');
     const imgNew = document.getElementById('img-new');
 
-    if (!imgOld.src || !imgNew.src) return; 
+    if (!imgOld?.src || !imgNew?.src) return; 
 
-    msgEl.innerText = "분석 중...";
+    if (msgEl) msgEl.innerText = "분석 중...";
     
     // 결과창 초기화
-    ['res-leave', 'res-stay', 'res-enter'].forEach(id => document.getElementById(id).innerHTML = '');
+    ['res-leave', 'res-stay', 'res-enter'].forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.innerHTML = '';
+    });
 
     const leftSlots = [];
     const enteredSlots = [];
@@ -391,19 +421,20 @@ async function runAnalysis() {
             });
         }
 
-        msgEl.innerText = "분석 완료";
+        if (msgEl) msgEl.innerText = "분석 완료";
         saveState(); 
         refreshUI();
 
     } catch (e) {
         console.error(e);
-        msgEl.innerText = "오류: " + e.message;
+        if (msgEl) msgEl.innerText = "오류: " + e.message;
     }
 }
 
 function addResult(type, text, img, tag) {
     const colId = type === 'leave' ? 'res-leave' : (type === 'enter' ? 'res-enter' : 'res-stay');
     const container = document.getElementById(colId);
+    if (!container) return;
     
     const div = document.createElement('div');
     div.className = 'log-item';
@@ -431,6 +462,9 @@ document.addEventListener('paste', (e) => {
 });
 
 function pushToQueue(src) {
+    // [FIX] ui 요소 존재 확인
+    if (!ui.imgOld || !ui.imgNew) return;
+
     const oldFull = ui.imgOld.style.display === 'block';
     const newFull = ui.imgNew.style.display === 'block';
     
@@ -447,9 +481,11 @@ function pushToQueue(src) {
 }
 
 function setImage(img, ph, src) {
-    img.style.display = 'block'; 
-    ph.style.display = 'none';
-    img.src = src;
+    if (img) {
+        img.style.display = 'block'; 
+        img.src = src;
+    }
+    if (ph) ph.style.display = 'none';
 }
 
 if(ui.anaToggle) {
@@ -528,7 +564,7 @@ function saveState() {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (e) {
         console.error("Failed to save state:", e);
-        alert("데이터를 저장하는데 실패했습니다. 브라우저 저장 공간이 가득 찼을 수 있습니다.");
+        // alert("데이터를 저장하는데 실패했습니다. 브라우저 저장 공간이 가득 찼을 수 있습니다.");
     }
 }
 function loadState() {
@@ -550,12 +586,13 @@ function loadState() {
         }
         if (parsed.analysis) {
             const a = parsed.analysis;
-            document.getElementById('res-leave').innerHTML = a.resLeave || "";
-            document.getElementById('res-stay').innerHTML = a.resStay || "";
-            document.getElementById('res-enter').innerHTML = a.resEnter || "";
-            document.getElementById('analysis-msg').innerText = a.msg || "대기 중...";
-            if (a.oldVisible && a.imgOldSrc) { ui.imgOld.src = a.imgOldSrc; ui.imgOld.style.display = 'block'; ui.phOld.style.display = 'none'; }
-            if (a.newVisible && a.imgNewSrc) { ui.imgNew.src = a.imgNewSrc; ui.phNew.style.display = 'none'; }
+            const rl = document.getElementById('res-leave'); if(rl) rl.innerHTML = a.resLeave || "";
+            const rs = document.getElementById('res-stay'); if(rs) rs.innerHTML = a.resStay || "";
+            const re = document.getElementById('res-enter'); if(re) re.innerHTML = a.resEnter || "";
+            const am = document.getElementById('analysis-msg'); if(am) am.innerText = a.msg || "대기 중...";
+            
+            if (a.oldVisible && a.imgOldSrc && ui.imgOld) { ui.imgOld.src = a.imgOldSrc; ui.imgOld.style.display = 'block'; if(ui.phOld) ui.phOld.style.display = 'none'; }
+            if (a.newVisible && a.imgNewSrc && ui.imgNew) { ui.imgNew.src = a.imgNewSrc; if(ui.phNew) ui.phNew.style.display = 'none'; }
         }
 
         // 접힘/펼침 상태 복원
@@ -608,6 +645,7 @@ let averageW_avgOfWaiters = 0;
 const round2 = (num) => Math.round((num + Number.EPSILON) * 100) / 100;
 
 function updateAverageWaitersStat() {
+    if (!room || !room.players) return;
     const experiencedPlayers = room.players.filter(p => p.matchCount > 0);
     if (experiencedPlayers.length > 0) {
         // 평균의 평균이 아닌, 전체 경험 플레이어의 통합 평균 대기 시간을 계산하여 정확도 향상
@@ -643,9 +681,9 @@ function calculateScore(p) {
 
         if (newbieBoostOn) {
             // For scoring, give a boost based on room average.
-            const virtual_W_curr = 2.05; // Virtual wait for scoring
+            // 사용자 요청: 고정된 virtual_W_curr 대신 다른 사람들의 통합 평균 대기 판수를 보정치로 사용
             const room_W_avg = averageW_avgOfWaiters;
-            score = virtual_W_curr + real_W_curr + room_W_avg;
+            score = room_W_avg + real_W_curr + room_W_avg; // 통합 평균 대기 시간을 두 번 더하는 방식으로 변경
         } else {
             score = real_W_curr;
         }
@@ -710,6 +748,9 @@ function getSortedPlayers(sortConfig) {
 
 
 function refreshUI() {
+    // [FIX] room 객체 안전 확인
+    if (!room) return;
+    
     updateAverageWaitersStat();
 
     if (room.eventLog && room.eventLog.length > 100) {
@@ -722,7 +763,7 @@ function refreshUI() {
     const logContainer = document.getElementById("log-container");
     if(logContainer) logContainer.innerHTML = "";
 
-    ui.manageMsg.style.display = "none";
+    if(ui.manageMsg) ui.manageMsg.style.display = "none";
     if(document.getElementById("match-msg")) document.getElementById("match-msg").style.display = "none";
 
     const sorted = getSortedPlayers(currentSort);
@@ -785,8 +826,8 @@ function refreshUI() {
 
 function addPlayer(n) {
     n = n.trim(); if(!n) return;
-    if(room.players.some(p=>p.nickname===n)) { ui.manageMsg.textContent="이미 존재함"; ui.manageMsg.style.display="block"; return; }
-    if(room.players.filter(p=>!p.onHold).length >= 8) { ui.manageMsg.textContent="최대 8명"; ui.manageMsg.style.display="block"; return; }
+    if(room.players.some(p=>p.nickname===n)) { if(ui.manageMsg) {ui.manageMsg.textContent="이미 존재함"; ui.manageMsg.style.display="block";} return; }
+    if(room.players.filter(p=>!p.onHold).length >= 8) { if(ui.manageMsg) {ui.manageMsg.textContent="최대 8명"; ui.manageMsg.style.display="block";} return; }
     pushUndo();
 
     const isRejoin = room.seen.includes(n);
@@ -816,7 +857,8 @@ function addPlayer(n) {
         room.playerHistory[n] = { matchCount: 0, chooserCount: 0, waitSum: 0 };
     }
 
-    ui.input.value=""; refreshUI();
+    if(ui.input) ui.input.value=""; 
+    refreshUI();
 }
 
 // 이벤트 핸들러 바인딩
@@ -872,10 +914,17 @@ if(ui.pTable) ui.pTable.onclick = (e) => {
 if(ui.resetBtn) ui.resetBtn.onclick = () => {
     if(confirm("전체 초기화하시겠습니까?")) {
         pushUndo(); room = {round:0, players:[], eventLog:[], seen:[], playerHistory: {}, newcomerPriority:true}; selected = [];
-        ui.imgOld.src = ""; ui.imgOld.style.display = "none"; ui.imgNew.src = ""; ui.imgNew.style.display = "none";
-        ui.phOld.style.display = "flex"; ui.phNew.style.display = "flex";
-        ['res-leave', 'res-stay', 'res-enter'].forEach(id => document.getElementById(id).innerHTML = '');
-        document.getElementById('analysis-msg').innerText = "대기 중...";
+        if(ui.imgOld) { ui.imgOld.src = ""; ui.imgOld.style.display = "none"; }
+        if(ui.imgNew) { ui.imgNew.src = ""; ui.imgNew.style.display = "none"; }
+        if(ui.phOld) ui.phOld.style.display = "flex"; 
+        if(ui.phNew) ui.phNew.style.display = "flex";
+        
+        ['res-leave', 'res-stay', 'res-enter'].forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.innerHTML = '';
+        });
+        const am = document.getElementById('analysis-msg');
+        if(am) am.innerText = "대기 중...";
         refreshUI();
     }
 };
@@ -910,8 +959,8 @@ const helpModal = document.getElementById('help-modal');
 const helpBtn = document.getElementById('help-btn');
 const helpCloseBtn = document.getElementById('help-close-btn');
 const helpBackdrop = document.querySelector('.modal-backdrop');
-if (helpBtn) helpBtn.onclick = () => helpModal.classList.add('open');
-if (helpCloseBtn) helpCloseBtn.onclick = () => helpModal.classList.remove('open');
+if (helpBtn && helpModal) helpBtn.onclick = () => helpModal.classList.add('open');
+if (helpCloseBtn && helpModal) helpCloseBtn.onclick = () => helpModal.classList.remove('open');
 if (helpBackdrop) helpBackdrop.onclick = () => { document.querySelectorAll('.modal.open').forEach(m => m.classList.remove('open')); };
 
 // 버망호 안내(이미지) 모달
@@ -953,7 +1002,7 @@ document.querySelectorAll('.modal-backdrop').forEach(bd => {
  * [버망호 공유용 복사 기능]
  * 1) 현재 1순위 문구 복사: "현재 1순위 : n판째 대기 중, 평균 n판 기다림."
  * 2) 티어 난이도 문구 복사: "(티어명)(티어 등급): 패드 n1~n2레벨, 스시 n3~n4레벨"
- *   - 패드: NM/HD/MX, 스시: SC
+ * - 패드: NM/HD/MX, 스시: SC
  * =========================================================================
  */
 
