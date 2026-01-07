@@ -467,56 +467,7 @@ try{const k="__t";window.localStorage.setItem(k,"1");window.localStorage.removeI
 const STORAGE_KEY = "roomStateV3";
 
 
-/**
- * [SYSTEM] UI 이벤트 및 스토리지 관리
- */
 
-
-// 이미지 붙여넣기 핸들러
-document.addEventListener('paste', (e) => {
-    if (e.target === ui.input) return;
-    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
-    let file = null;
-    for (let i=0; i<items.length; i++) {
-        if (items[i].type.indexOf("image") !== -1) { file = items[i].getAsFile(); break; }
-    }
-    if (!file) return;
-    e.preventDefault();
-    const reader = new FileReader();
-    reader.onload = (ev) => pushToQueue(ev.target.result);
-    reader.readAsDataURL(file);
-});
-
-function pushToQueue(src) {
-    const oldFull = ui.imgOld.style.display === 'block';
-    const newFull = ui.imgNew.style.display === 'block';
-    
-    if (!oldFull) {
-        setImage(ui.imgOld, ui.phOld, src);
-    } else if (!newFull) {
-        setImage(ui.imgNew, ui.phNew, src);
-        ui.imgNew.onload = () => setTimeout(runAnalysis, 100); 
-    } else {
-        setImage(ui.imgOld, ui.phOld, ui.imgNew.src);
-        setImage(ui.imgNew, ui.phNew, src);
-        ui.imgNew.onload = () => setTimeout(runAnalysis, 100);
-    }
-}
-
-function setImage(img, ph, src) {
-    img.style.display = 'block'; 
-    ph.style.display = 'none';
-    img.src = src;
-}
-
-if(ui.anaToggle) {
-    ui.anaToggle.onclick = () => {
-        const hide = ui.anaContent.style.display === 'none';
-        ui.anaContent.style.display = hide ? 'block' : 'none';
-        ui.anaToggle.querySelector('.toggle-icon').innerText = hide ? '▲' : '▼';
-        saveState(); // <--- saveState() 호출 추가
-    }
-}
 
 // 평균 대기(매치 간 대기) 계산을 위한 필드/헬퍼
 function normalizePlayer(p) {
@@ -692,9 +643,8 @@ function calculateScore(p) {
 
         if (newbieBoostOn) {
             // For scoring, give a boost based on room average.
-            const virtual_W_curr = 2.05; // Virtual wait for scoring
             const room_W_avg = averageW_avgOfWaiters;
-            score = virtual_W_curr + room_W_avg;
+            score = real_W_curr + room_W_avg;
         } else {
             score = real_W_curr;
         }
