@@ -671,19 +671,30 @@ function updateAverageWaitersStat() {
 function calculateScore(p) {
     const newbieBoostOn = document.getElementById("newcomer-toggle")?.checked ?? true;
     const real_W_curr = room.round - (p.lastPlay || 0);
-    let W_curr = real_W_curr;
     let W_avg = 0;
     let R_sel = (p.matchCount > 0) ? round2(p.chooserCount / p.matchCount) : 0;
     let score;
 
     if (p.matchCount > 0) {
-        W_avg = round2((p.waitSum || 0) / p.matchCount);
-        score = W_curr + W_avg - (R_sel * 0.1);
-    } else { // 신입
+        // 옵션 B: "현재 대기"를 평균에 포함하는 실시간 평균 대기 계산
+        const pastWaitSum = p.waitSum || 0;
+        const pastMatchCount = p.matchCount || 0;
+        
+        const totalWait = pastWaitSum + real_W_curr;
+        const totalPeriods = pastMatchCount + (real_W_curr > 0 ? 1 : 0);
+        
+        W_avg = (totalPeriods === 0) ? 0 : round2(totalWait / totalPeriods);
+
+        score = real_W_curr + W_avg - (R_sel * 0.1);
+    } else { // 신입 (New player)
+        // For new players, display their current wait as their average wait.
+        W_avg = real_W_curr; 
+
         if (newbieBoostOn) {
-            W_curr = 2; // 점수 계산용 가상 대기
-            W_avg = averageW_avgOfWaiters;
-            score = W_curr + W_avg; // R_sel은 0
+            // For scoring, give a boost based on room average.
+            const virtual_W_curr = 2; // Virtual wait for scoring
+            const room_W_avg = averageW_avgOfWaiters;
+            score = virtual_W_curr + room_W_avg;
         } else {
             score = real_W_curr;
         }
@@ -1043,7 +1054,7 @@ function copyCurrentTopPriorityText() {
   }
   const p = list[0];
   const stats = calculateScore(p);
-  const avgWait = avgWaitText(p);
+  const avgWait = stats.W_avg.toFixed(2); // 테이블에 표시되는 값과 동일한 역사적 평균 대기를 사용
 
   const text = `현재 1순위 (가중치 ${stats.score.toFixed(2)}) : ${stats.W_curr}판째 대기 중, 평균 ${avgWait}판 기다림.`;
 
