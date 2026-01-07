@@ -465,131 +465,7 @@ if(ui.anaToggle) {
 const SafeStorage={available:false,getItem:function(k){try{return window.localStorage.getItem(k)}catch{return null}},setItem:function(k,v){try{window.localStorage.setItem(k,v);return true}catch{return false}}};
 try{const k="__t";window.localStorage.setItem(k,"1");window.localStorage.removeItem(k);SafeStorage.available=true;}catch { /* feature detect */ }
 const STORAGE_KEY = "roomStateV3";
-/**
- * =========================================================================
- * [E7 RTA Analyzer] - Refactored & pHash Optimized (Clean Version)
- * * Logic:
- * 1. Analyze Icon (Structure + Brightness) -> General Shape
- * 2. Detect Ready State (Fixed Position) -> Determine Background Mode
- * 3. Analyze Text (DCT pHash) -> Robust against pixel shifts
- * 4. Match Logic: Filter by Thresholds (Text <= 20 & Icon <= 60) -> Pick Best Text Match
- * =========================================================================
- */
 
-
-
-
-
-
-/**
- * [CORE] 메인 분석 실행 함수
- */
-async function runAnalysis() {
-    const msgEl = document.getElementById('analysis-msg');
-    const imgOld = document.getElementById('img-old');
-    const imgNew = document.getElementById('img-new');
-
-    if (!imgOld.src || !imgNew.src) return; 
-
-    msgEl.innerText = "분석 중...";
-    
-    // 결과창 초기화
-    ['res-leave', 'res-stay', 'res-enter'].forEach(id => document.getElementById(id).innerHTML = '');
-
-    const leftSlots = [];
-    const enteredSlots = [];
-
-    try {
-        const W = Math.max(imgOld.naturalWidth, imgNew.naturalWidth);
-        const H = Math.max(imgOld.naturalHeight, imgNew.naturalHeight);
-        const ctx = Utils.getCtx(W, H);
-
-        const oldSlots = [], newSlots = [];
-        
-        ctx.drawImage(imgOld, 0, 0, W, H);
-        for(let i=0; i<ANALYZER_CONFIG.SLOT_COUNT; i++) oldSlots.push(new SlotAnalyzer(imgOld, i, ctx, "OLD"));
-        
-        ctx.drawImage(imgNew, 0, 0, W, H);
-        for(let i=0; i<ANALYZER_CONFIG.SLOT_COUNT; i++) newSlots.push(new SlotAnalyzer(imgNew, i, ctx, "NEW"));
-
-        const usedNew = new Array(ANALYZER_CONFIG.SLOT_COUNT).fill(false);
-
-        // [MATCHING LOGIC START]
-        oldSlots.forEach(oldS => {
-            if (oldS.isEmpty) return;
-            
-            let bestIdx = -1;
-            let minScore = Infinity; // 점수가 낮을수록 유사함
-
-            newSlots.forEach((newS, idx) => {
-                if (usedNew[idx] || newS.isEmpty) return;
-                
-                // 1. 유사도 거리 계산
-                const iconDist = Utils.hammingDist(oldS.aHash, newS.aHash) + Utils.hammingDist(oldS.dHash, newS.dHash);
-                const textDist = Utils.hammingDist(oldS.pHash, newS.pHash);
-
-                // 2. 필터링 (엄격한 기준 적용)
-                if (iconDist <= ANALYZER_CONFIG.THRESHOLD_ICON && textDist <= ANALYZER_CONFIG.THRESHOLD_TEXT) {
-                    const currentScore = textDist + (iconDist * 0.001);
-                    if (currentScore < minScore) {
-                        minScore = currentScore;
-                        bestIdx = idx;
-                    }
-                }
-            });
-
-            // 결과 처리
-            if (bestIdx !== -1) {
-                usedNew[bestIdx] = true;
-                const newS = newSlots[bestIdx];
-                if (oldS.index !== newS.index) {
-                    addResult('stay', `Slot ${oldS.index+1} → ${newS.index+1}`, newS.cardImage, 'MOVE');
-                } else {
-                    addResult('stay', `Slot ${oldS.index+1}`, newS.cardImage, '');
-                }
-            } else {
-                addResult('leave', `Slot ${oldS.index+1}`, oldS.cardImage, 'OUT');
-                leftSlots.push(`Slot ${oldS.index + 1}`);
-            }
-        });
-
-        // 새로 들어온 유저 처리
-        newSlots.forEach((newS, idx) => {
-            if (!newS.isEmpty && !usedNew[idx]) {
-                addResult('enter', `Slot ${newS.index+1}`, newS.cardImage, 'IN');
-                enteredSlots.push(`Slot ${newS.index + 1}`);
-            }
-        });
-
-        if (enteredSlots.length > 0 || leftSlots.length > 0) {
-            room.eventLog.push({
-                type: 'analysis',
-                round: room.round,
-                entered: enteredSlots,
-                left: leftSlots
-            });
-        }
-
-        msgEl.innerText = "분석 완료";
-        saveState(); 
-        refreshUI();
-
-    } catch (e) {
-        console.error(e);
-        msgEl.innerText = "오류: " + e.message;
-    }
-}
-
-function addResult(type, text, img, tag) {
-    const colId = type === 'leave' ? 'res-leave' : (type === 'enter' ? 'res-enter' : 'res-stay');
-    const container = document.getElementById(colId);
-    
-    const div = document.createElement('div');
-    div.className = 'log-item';
-    let tagHtml = tag ? `<span class="move-tag">${tag}</span>` : '';
-    div.innerHTML = `<img src="${img}" class="log-thumb"><div class="log-info"><span>${text}</span>${tagHtml}</div>`;
-    container.appendChild(div);
-}
 
 /**
  * [SYSTEM] UI 이벤트 및 스토리지 관리
@@ -687,16 +563,7 @@ function pushUndo() {
     if (undoStack.length > 50) undoStack.shift();
 }
 function saveState() {
-    const analysis = {
-        resLeave: document.getElementById('res-leave').innerHTML,
-        resStay: document.getElementById('res-stay').innerHTML,
-        resEnter: document.getElementById('res-enter').innerHTML,
-        msg: document.getElementById('analysis-msg').innerText,
-        oldVisible: ui.imgOld.style.display === 'block',
-        newVisible: ui.imgNew.style.display === 'block',
-        imgOldSrc: ui.imgOld.getAttribute('src') || "",
-        imgNewSrc: ui.imgNew.getAttribute('src') || ""
-    };
+    // 분석기 상태(이미지 등)는 크기가 매우 크므로 저장하지 않음.
     const uiState = {
         logCollapsed: document.getElementById("log-content")?.style.display === "none",
         analysisCollapsed: document.getElementById("analysis-content")?.style.display === "none",
@@ -705,7 +572,7 @@ function saveState() {
         newcomer: document.getElementById('newcomer-toggle')?.checked,
         safeguard: document.getElementById('safeguard-toggle')?.checked
     };
-    const data = { room, analysis, uiState, toggles };
+    const data = { room, uiState, toggles };
     try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (e) {
@@ -792,10 +659,10 @@ const round2 = (num) => Math.round((num + Number.EPSILON) * 100) / 100;
 function updateAverageWaitersStat() {
     const experiencedPlayers = room.players.filter(p => p.matchCount > 0);
     if (experiencedPlayers.length > 0) {
-        const sumOfAvgs = experiencedPlayers.reduce((sum, p) => {
-            return sum + ((p.waitSum || 0) / p.matchCount);
-        }, 0);
-        averageW_avgOfWaiters = round2(sumOfAvgs / experiencedPlayers.length);
+        // 평균의 평균이 아닌, 전체 경험 플레이어의 통합 평균 대기 시간을 계산하여 정확도 향상
+        const totalWaitSum = experiencedPlayers.reduce((sum, p) => sum + (p.waitSum || 0), 0);
+        const totalMatchCount = experiencedPlayers.reduce((sum, p) => sum + p.matchCount, 0);
+        averageW_avgOfWaiters = totalMatchCount > 0 ? round2(totalWaitSum / totalMatchCount) : 0;
     } else {
         averageW_avgOfWaiters = 0;
     }
