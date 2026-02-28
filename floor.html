@@ -384,6 +384,10 @@
                     img.onload = () => {
                         const previewImg = document.getElementById('screenshotPreview');
                         const previewContainer = document.getElementById('screenshotContainer');
+                        const dropZone = document.getElementById('dropZone');
+                        
+                        if (dropZone) dropZone.style.display = 'none';
+                        
                         if (previewImg && previewContainer) {
                             previewImg.src = img.src;
                             previewImg.classList.remove('expanded');
@@ -509,6 +513,22 @@
             if (diffColors[diffEl.value]) diffEl.classList.add(diffColors[diffEl.value]);
         }
 
+        async function copyTrackInfo(btn, name) {
+            const row = btn.closest('.track-row');
+            const button = row.querySelector('.btn-select').value;
+            const difficulty = row.querySelector('.diff-select').value;
+            const text = `${name} ${button} ${difficulty}`;
+            
+            try {
+                await navigator.clipboard.writeText(text);
+                const originalInner = btn.innerHTML;
+                btn.innerHTML = '✅';
+                setTimeout(() => { btn.innerHTML = originalInner; }, 1500);
+            } catch (err) {
+                console.error('복사 실패:', err);
+            }
+        }
+
         async function handleRecheck(btn) {
             const row = btn.closest('.track-row');
             if (!row || !row.matches) return;
@@ -578,7 +598,10 @@
                         </div>
                     </div>
                 </div>
-                <div class="text-right">
+                <div class="text-right flex flex-col items-end">
+                    <button class="mb-1 text-slate-500 hover:text-blue-400 transition-colors" onclick="event.stopPropagation(); copyTrackInfo(this, '${info.name.replace(/'/g, "\\'")}')" title="정보 복사">
+                        📋
+                    </button>
                     <p class="text-xs text-slate-500 uppercase font-bold tracking-tighter">Floor</p>
                     <p class="floor-value text-3xl font-black text-blue-400">${info.floor}</p>
                 </div>
