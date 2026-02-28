@@ -822,11 +822,39 @@ function refreshUI() {
     saveState();
 }
 
+function logPlayerChange(type, name) {
+    if (!room.eventLog) room.eventLog = [];
+    const last = room.eventLog[room.eventLog.length - 1];
+    if (last && last.type === 'analysis' && last.round === room.round) {
+        if (type === 'enter') {
+            if (!last.entered.includes(name)) last.entered.push(name);
+            last.left = last.left.filter(n => n !== name);
+        } else {
+            if (!last.left.includes(name)) last.left.push(name);
+            last.entered = last.entered.filter(n => n !== name);
+        }
+        last.entered.sort();
+        last.left.sort();
+        if (last.entered.length === 0 && last.left.length === 0) {
+            room.eventLog.pop();
+        }
+    } else {
+        room.eventLog.push({
+            type: 'analysis',
+            round: room.round,
+            entered: type === 'enter' ? [name] : [],
+            left: type === 'leave' ? [name] : []
+        });
+    }
+}
+
 function addPlayer(n) {
     n = n.trim(); if(!n) return;
     if(room.players.some(p=>p.nickname===n)) { if(ui.manageMsg) {ui.manageMsg.textContent="이미 존재함"; ui.manageMsg.style.display="block";} return; }
     if(room.players.filter(p=>!p.onHold).length >= 8) { if(ui.manageMsg) {ui.manageMsg.textContent="최대 8명"; ui.manageMsg.style.display="block";} return; }
     pushUndo();
+
+    logPlayerChange('enter', n);
 
     const isRejoin = room.seen.includes(n);
     // 기록이 있으면 가져오고, 없으면 기본값으로 설정
@@ -865,7 +893,13 @@ if(ui.addBtn) ui.addBtn.onclick = () => addPlayer(ui.input.value);
 if(ui.pTable) ui.pTable.onclick = (e) => {
     const nick = e.target.closest("tr")?.dataset.nickname;
     if(!nick) return;
-    if(e.target.classList.contains("small-delete")) { pushUndo(); room.players = room.players.filter(p=>p.nickname!==nick); refreshUI(); return; }
+    if(e.target.classList.contains("small-delete")) { 
+        pushUndo(); 
+        logPlayerChange('leave', nick);
+        room.players = room.players.filter(p=>p.nickname!==nick); 
+        refreshUI(); 
+        return; 
+    }
     if(e.target.classList.contains("small-hold")) { 
         pushUndo();
         const p = room.players.find(x=>x.nickname===nick); 
