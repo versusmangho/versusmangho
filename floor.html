@@ -517,7 +517,8 @@
             const row = btn.closest('.track-row');
             const button = row.querySelector('.btn-select').value;
             const difficulty = row.querySelector('.diff-select').value;
-            const text = `${name} ${button} ${difficulty}`;
+            const floor = row.querySelector('.floor-value').innerText;
+            const text = `${name} ${button} ${difficulty} (${floor})`;
             
             try {
                 await navigator.clipboard.writeText(text);
