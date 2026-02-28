@@ -712,8 +712,10 @@
             if (isNaN(floorNum)) return 'color: #60a5fa';
             const floor = Math.floor(floorNum);
             if (floor >= 16) return 'color: #c084fc';
-            // 1층(파랑, 240) -> 15층(빨강, 0)
-            const hue = Math.max(0, 240 - (Math.max(1, floor) - 1) * (240 / 14));
+            
+            // 1층(240) ~ 15층(0) 사이를 14구간으로 균등 분배
+            const clampedFloor = Math.max(1, Math.min(15, floor));
+            const hue = 240 - (clampedFloor - 1) * (240 / 14);
             return `color: hsl(${hue}, 100%, 70%)`;
         }
 
