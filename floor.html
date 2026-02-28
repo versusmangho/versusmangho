@@ -75,9 +75,82 @@
             border-color: #3b82f6;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
         }
+        /* Mode Toggle */
+        .mode-toggle-container {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            display: flex;
+            background: rgba(30, 41, 59, 0.8);
+            padding: 4px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 50;
+        }
+        .mode-btn {
+            padding: 6px 16px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .mode-btn.active {
+            background: #3b82f6;
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .mode-btn:not(.active):hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        /* General Mode Grid */
+        .general-grid {
+            display: grid;
+            grid-template-columns: auto repeat(4, 1fr);
+            gap: 1px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .grid-cell {
+            background: #1e293b;
+            padding: 12px 8px;
+            text-align: center;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+        }
+        .grid-header {
+            background: #334155;
+            font-weight: bold;
+            color: #94a3b8;
+            font-size: 0.75rem;
+        }
+        .grid-row-label {
+            background: #334155;
+            font-weight: bold;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 12px;
+        }
+        .grid-value {
+            color: #3b82f6;
+            font-weight: bold;
+        }
+        .grid-value.empty {
+            color: #475569;
+            font-weight: normal;
+        }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
+
+    <div class="mode-toggle-container">
+        <div id="mode-versus" class="mode-btn active" onclick="setMode('versus')">버망호 모드</div>
+        <div id="mode-general" class="mode-btn" onclick="setMode('general')">일망호 모드</div>
+    </div>
 
     <div class="max-w-4xl mx-auto">
         <!-- Header -->
@@ -96,6 +169,16 @@
 
         <!-- Message Area -->
         <div id="messageZone" class="text-center text-yellow-400 mb-4 h-6"></div>
+
+        <!-- Hash Upload Area (Hidden by default) -->
+        <div id="hashUploadContainer" class="hidden mb-8 p-6 bg-slate-900/80 border border-yellow-500/30 rounded-2xl text-center">
+            <p class="text-yellow-500 mb-4 text-sm font-bold">⚠️ 해시 데이터(hashes.json)를 불러오지 못했습니다.</p>
+            <label class="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg cursor-pointer transition-colors inline-block font-bold text-sm">
+                해시 파일 선택
+                <input type="file" id="hashFileInput" class="hidden" accept=".json" onchange="handleHashUpload(this)">
+            </label>
+            <p class="text-slate-500 mt-2 text-xs">로컬 환경에서는 hashes.json 파일을 직접 선택해야 합니다.</p>
+        </div>
 
         <!-- Screenshot Preview -->
         <div id="screenshotContainer">
@@ -119,6 +202,26 @@
         const RATIO_Y_START = 545 / BASE_H;
         const RATIO_THUMB_H = 240 / BASE_H;
         const RATIO_BAR_H = 43 / BASE_H;
+
+        // --- 일망호 (General) 설정 ---
+        const RATIO_GENERAL_X = 885 / BASE_W;
+        const RATIO_GENERAL_Y = 711 / BASE_H;
+        const RATIO_GENERAL_W = 80 / BASE_W;
+        const RATIO_GENERAL_H = 80 / BASE_H;
+
+        let currentMode = 'versus'; // 'versus' or 'general'
+
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`mode-${mode}`).classList.add('active');
+            
+            // 초기화
+            resultList.innerHTML = `<div class="text-center py-20 text-slate-600 italic">준비 완료! 스크린샷을 복사한 뒤 Ctrl+V로 붙여넣으세요.</div>`;
+            document.getElementById('screenshotContainer').style.display = 'none';
+            document.getElementById('dropZone').style.display = 'block';
+            lastImageHash = null;
+        }
 
         const BAR_SPLIT = 0.5;
         const W_AHASH = 1.0;
@@ -288,9 +391,35 @@
                 thumbRefs.push(...data.thumbnails);
             } catch (error) {
                 console.error("해시 데이터 로딩 오류:", error);
-                resultList.innerHTML = `<div class="text-center py-20 text-red-500">오류: hashes.json 파일을 불러올 수 없습니다.</div>`;
-                throw error;
+                document.getElementById('hashUploadContainer').classList.remove('hidden');
+                resultList.innerHTML = `<div class="text-center py-20 text-yellow-500">데이터 로딩에 실패했습니다. 위 버튼을 통해 hashes.json 파일을 수동으로 선택해주세요.</div>`;
             }
+        }
+
+        function handleHashUpload(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            resultList.innerHTML = `<div class="text-center py-20 text-slate-600 italic">데이터 처리 중...</div>`;
+            
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    Object.assign(buttonRefs, data.trackinfo.buttons);
+                    Object.assign(diffRefs, data.trackinfo.diffs);
+                    thumbRefs.length = 0;
+                    thumbRefs.push(...data.thumbnails);
+                    
+                    document.getElementById('hashUploadContainer').classList.add('hidden');
+                    resultList.innerHTML = `<div class="text-center py-20 text-slate-600 italic">준비 완료! 스크린샷을 복사한 뒤 Ctrl+V로 붙여넣으세요.</div>`;
+                    console.log("수동 데이터 로드 완료:", { thumbnails: thumbRefs.length, buttons: Object.keys(buttonRefs).length, diffs: Object.keys(diffRefs).length });
+                } catch (err) {
+                    console.error("파일 해석 오류:", err);
+                    alert("올바른 JSON 형식이 아닙니다.");
+                }
+            };
+            reader.readAsText(file);
         }
 
         async function init() {
@@ -404,32 +533,113 @@
             const W = img.width;
             const H = img.height;
 
-            for (let i = 0; i < 5; i++) {
-                const row = createLoadingRow(i + 1);
+            if (currentMode === 'versus') {
+                for (let i = 0; i < 5; i++) {
+                    const row = createLoadingRow(i + 1);
+                    resultList.appendChild(row);
+
+                    const x = (RATIO_X_START + (RATIO_THUMB_W + RATIO_GAP) * i) * W;
+                    const y = RATIO_Y_START * H;
+                    const tw = RATIO_THUMB_W * W;
+                    const th = RATIO_THUMB_H * H;
+                    const by = (RATIO_Y_START + RATIO_THUMB_H) * H;
+                    const bh = RATIO_BAR_H * H;
+
+                    const thumbCanvas = cropToCanvas(img, x, y, tw, th);
+                    const ah = aHashFromCanvas(thumbCanvas);
+                    const dh = dHashFromCanvas(thumbCanvas);
+                    
+                    const barCanvas = cropToCanvas(img, x, by, tw, bh);
+                    const leftCanvas = cropToCanvas(barCanvas, 0, 0, barCanvas.width * BAR_SPLIT, barCanvas.height);
+                    const rightCanvas = cropToCanvas(barCanvas, leftCanvas.width, 0, barCanvas.width * (1 - BAR_SPLIT), barCanvas.height);
+
+                    row.matches = getSortedMatches(ah, dh);
+                    row.matchIndex = 0;
+                    row.btnPh = pHashFromCanvas(leftCanvas);
+                    row.diffPh = pHashFromCanvas(rightCanvas);
+
+                    await displayMatch(row, 0);
+                }
+            } else {
+                // 일망호 모드 (80x80 단일 인식)
+                const row = createLoadingRow(1);
                 resultList.appendChild(row);
 
-                const x = (RATIO_X_START + (RATIO_THUMB_W + RATIO_GAP) * i) * W;
-                const y = RATIO_Y_START * H;
-                const tw = RATIO_THUMB_W * W;
-                const th = RATIO_THUMB_H * H;
-                const by = (RATIO_Y_START + RATIO_THUMB_H) * H;
-                const bh = RATIO_BAR_H * H;
+                const x = RATIO_GENERAL_X * W;
+                const y = RATIO_GENERAL_Y * H;
+                const tw = RATIO_GENERAL_W * W;
+                const th = RATIO_GENERAL_H * H;
 
                 const thumbCanvas = cropToCanvas(img, x, y, tw, th);
                 const ah = aHashFromCanvas(thumbCanvas);
                 const dh = dHashFromCanvas(thumbCanvas);
-                
-                const barCanvas = cropToCanvas(img, x, by, tw, bh);
-                const leftCanvas = cropToCanvas(barCanvas, 0, 0, barCanvas.width * BAR_SPLIT, barCanvas.height);
-                const rightCanvas = cropToCanvas(barCanvas, leftCanvas.width, 0, barCanvas.width * (1 - BAR_SPLIT), barCanvas.height);
 
-                row.matches = getSortedMatches(ah, dh);
-                row.matchIndex = 0;
-                row.btnPh = pHashFromCanvas(leftCanvas);
-                row.diffPh = pHashFromCanvas(rightCanvas);
+                const matches = getSortedMatches(ah, dh);
+                const best = matches[0];
 
-                await displayMatch(row, 0);
+                try {
+                    const response = await fetchWithRetry(`https://v-archive.net/api/archive/DEV/title/${best.id}`);
+                    const data = await response.json();
+                    if (data && data.success) {
+                        row.matches = matches;
+                        row.matchIndex = 0;
+                        updateGeneralRow(row, data, best.id);
+                    }
+                } catch (err) {
+                    console.error(err);
+                }
             }
+        }
+
+        async function displayGeneralMatch(row, index) {
+            const match = row.matches[index];
+            try {
+                const response = await fetchWithRetry(`https://v-archive.net/api/archive/DEV/title/${match.id}`);
+                const data = await response.json();
+                if (data && data.success) {
+                    updateGeneralRow(row, data, match.id);
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function updateGeneralRow(row, data, titleId) {
+            row.className = 'track-row p-6 rounded-xl block opacity-100 shadow-lg relative';
+            const btnList = ['4B', '5B', '6B', '8B'];
+            const diffList = ['NM', 'HD', 'MX', 'SC'];
+
+            let gridHtml = `
+                <div class="general-grid mt-4">
+                    <div class="grid-cell grid-header"></div>
+                    ${diffList.map(d => `<div class="grid-cell grid-header">${d}</div>`).join('')}
+            `;
+
+            btnList.forEach(btn => {
+                gridHtml += `<div class="grid-cell grid-row-label">${btn}</div>`;
+                diffList.forEach(diff => {
+                    const score = data.patterns?.[btn]?.[diff]?.floor || '-';
+                    const style = getFloorStyle(score);
+                    gridHtml += `<div class="grid-cell ${score==='-'?'empty':'grid-value'}" style="${score==='-'?'':style}">${score}</div>`;
+                });
+            });
+            gridHtml += `</div>`;
+
+            row.innerHTML = `
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center space-x-6">
+                        <img src="https://v-archive.net/static/images/jackets/${titleId}.jpg" class="w-24 h-24 rounded-lg object-cover border-2 border-slate-700">
+                        <div>
+                            <h3 class="font-bold text-white text-2xl mb-1">${data.name}</h3>
+                            <div class="flex items-center space-x-3">
+                                <p class="text-slate-400 text-sm">곡 ID: ${titleId}</p>
+                                <button class="recheck-btn bg-slate-700 hover:bg-slate-600 text-white text-[10px] px-2 py-0.5 rounded transition-colors" onclick="event.stopPropagation(); handleRecheck(this)">재검토</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                ${gridHtml}
+            `;
         }
 
         async function displayMatch(row, index) {
@@ -478,7 +688,9 @@
             const patternData = row.apiData.patterns?.[button]?.[difficulty];
             const floorEl = row.querySelector('.floor-value');
             if (floorEl) {
-                floorEl.innerText = patternData?.floor || "NO DATA";
+                const floorVal = patternData?.floor || "NO DATA";
+                floorEl.innerText = floorVal;
+                floorEl.setAttribute('style', getFloorStyle(floorVal));
             }
         }
 
@@ -493,6 +705,16 @@
             
             if (btnColors[btnEl.value]) btnEl.classList.add(btnColors[btnEl.value]);
             if (diffColors[diffEl.value]) diffEl.classList.add(diffColors[diffEl.value]);
+        }
+
+        function getFloorStyle(floorStr) {
+            const floorNum = parseFloat(floorStr);
+            if (isNaN(floorNum)) return 'color: #60a5fa';
+            const floor = Math.floor(floorNum);
+            if (floor >= 16) return 'color: #c084fc';
+            // 4층(파랑, 240) -> 15층(빨강, 0)
+            const hue = Math.max(0, 240 - (floor - 4) * (240 / 11));
+            return `color: hsl(${hue}, 100%, 70%)`;
         }
 
         async function copyTrackInfo(btn, name) {
@@ -523,7 +745,11 @@
             // 상태 초기화
             row.classList.remove('played', 'banned');
             
-            await displayMatch(row, row.matchIndex);
+            if (currentMode === 'general') {
+                await displayGeneralMatch(row, row.matchIndex);
+            } else {
+                await displayMatch(row, row.matchIndex);
+            }
         }
 
         async function fetchWithRetry(url, options = {}, retries = 3, backoff = 500) {
@@ -588,7 +814,7 @@
                         📋
                     </button>
                     <p class="text-xs text-slate-500 uppercase font-bold tracking-tighter">Floor</p>
-                    <p class="floor-value text-3xl font-black text-blue-400">${info.floor}</p>
+                    <p class="floor-value text-3xl font-black" style="${getFloorStyle(info.floor)}">${info.floor}</p>
                 </div>
             `;
             updateSelectColors(row.querySelector('.btn-select'), row.querySelector('.diff-select'));
