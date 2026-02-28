@@ -527,11 +527,9 @@ function avgWaitValue(p) {
         return currentWait > 0 ? currentWait : null;
     }
 
-    // 기존 유저: (과거 대기 합 + 현재 대기) / (과거 매치 수 + 현재 대기중이면 1)
+    // 기존 유저: (과거 대기 합 + 현재 대기) / (과거 매치 수 + 1)
     const totalWait = pastWaitSum + currentWait;
-    const totalPeriods = pastMatchCount + (currentWait > 0 ? 1 : 0);
-
-    if (totalPeriods === 0) return null;
+    const totalPeriods = pastMatchCount + 1;
 
     return totalWait / totalPeriods;
 }
@@ -670,9 +668,9 @@ function calculateScore(p) {
         const pastMatchCount = p.matchCount || 0;
         
         const totalWait = pastWaitSum + real_W_curr;
-        const totalPeriods = pastMatchCount + (real_W_curr > 0 ? 1 : 0);
+        const totalPeriods = pastMatchCount + 1;
         
-        W_avg = (totalPeriods === 0) ? 0 : round2(totalWait / totalPeriods);
+        W_avg = round2(totalWait / totalPeriods);
 
         score = real_W_curr + W_avg - (R_sel * 0.1);
     } else { // 신입 (New player)
