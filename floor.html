@@ -64,7 +64,7 @@
             opacity: 0.8;
         }
         .track-row.banned::after {
-            content: "BAN/PICK";
+            content: "BAN";
             position: absolute;
             top: 10px;
             right: 10px;
@@ -74,6 +74,24 @@
             border: 1px solid #ef4444;
             padding: 2px 4px;
             border-radius: 4px;
+        }
+        #screenshotContainer {
+            margin-bottom: 2rem;
+            display: none;
+            justify-content: center;
+        }
+        #screenshotPreview {
+            max-width: 300px;
+            cursor: pointer;
+            border-radius: 0.75rem;
+            border: 2px solid #334155;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        #screenshotPreview.expanded {
+            max-width: 100%;
+            border-color: #3b82f6;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
         }
     </style>
 </head>
@@ -96,6 +114,11 @@
 
         <!-- Message Area -->
         <div id="messageZone" class="text-center text-yellow-400 mb-4 h-6"></div>
+
+        <!-- Screenshot Preview -->
+        <div id="screenshotContainer">
+            <img id="screenshotPreview" alt="Original Screenshot">
+        </div>
 
         <!-- Result List -->
         <div id="resultList" class="space-y-4">
@@ -309,6 +332,14 @@
             return best;
         }
 
+        function getSortedMatches(hashA, hashD) {
+            return thumbRefs.map(ref => {
+                const dA = ham64(hashA, ref.ah);
+                const dD = ham64(hashD, ref.dh);
+                return { id: ref.id, score: dA * W_AHASH + dD * W_DHASH };
+            }).sort((a, b) => a.score - b.score);
+        }
+
         function bestMatchPhash(targetPh, refMap) {
             let best = { key: null, dist: Infinity };
             for (const key of Object.keys(refMap)) {
@@ -351,6 +382,14 @@
                     const img = new Image();
                     img.src = URL.createObjectURL(blob);
                     img.onload = () => {
+                        const previewImg = document.getElementById('screenshotPreview');
+                        const previewContainer = document.getElementById('screenshotContainer');
+                        if (previewImg && previewContainer) {
+                            previewImg.src = img.src;
+                            previewImg.classList.remove('expanded');
+                            previewContainer.style.display = 'flex';
+                        }
+
                         const fullImageCanvas = document.createElement('canvas');
                         fullImageCanvas.width = img.width;
                         fullImageCanvas.height = img.height;
@@ -393,43 +432,95 @@
                 const thumbCanvas = cropToCanvas(img, x, y, tw, th);
                 const ah = aHashFromCanvas(thumbCanvas);
                 const dh = dHashFromCanvas(thumbCanvas);
-                const thumbMatch = bestMatchThumbnail(ah, dh);
-
+                
                 const barCanvas = cropToCanvas(img, x, by, tw, bh);
                 const leftCanvas = cropToCanvas(barCanvas, 0, 0, barCanvas.width * BAR_SPLIT, barCanvas.height);
                 const rightCanvas = cropToCanvas(barCanvas, leftCanvas.width, 0, barCanvas.width * (1 - BAR_SPLIT), barCanvas.height);
 
-                const btnPh = pHashFromCanvas(leftCanvas);
-                const diffPh = pHashFromCanvas(rightCanvas);
-                const btnMatch = bestMatchPhash(btnPh, buttonRefs);
-                const diffMatch = bestMatchPhash(diffPh, diffRefs);
+                row.matches = getSortedMatches(ah, dh);
+                row.matchIndex = 0;
+                row.btnPh = pHashFromCanvas(leftCanvas);
+                row.diffPh = pHashFromCanvas(rightCanvas);
 
-                const button = btnMatch.key || "?B";
-                const difficulty = diffMatch.key || "??";
-
-                try {
-                    const titleId = thumbMatch.id ?? 0;
-                    const response = await fetchWithRetry(`https://v-archive.net/api/archive/DEV/title/${titleId}`);
-                    const data = await response.json();
-
-                    if (data && data.success) {
-                        const patternData = data.patterns?.[button]?.[difficulty];
-                        updateRow(row, {
-                            titleId,
-                            name: data.name ?? `ID ${titleId}`,
-                            button,
-                            difficulty,
-                            floor: patternData?.floor || "NO DATA",
-                            rating: patternData?.rating || "-",
-                            thumbScore: thumbMatch.score
-                        });
-                    } else {
-                         updateRow(row, { titleId, name: `ID ${titleId} (API 실패)`, button, difficulty, floor: "NO DATA", rating: "-", thumbScore: thumbMatch.score });
-                    }
-                } catch (err) {
-                    updateRow(row, { titleId: thumbMatch.id ?? 0, name: `ID ${thumbMatch.id ?? 0} (API 오류)`, button, difficulty, floor: "NO DATA", rating: "-", thumbScore: thumbMatch.score });
-                }
+                await displayMatch(row, 0);
             }
+        }
+
+        async function displayMatch(row, index) {
+            const match = row.matches[index];
+            const btnMatch = bestMatchPhash(row.btnPh, buttonRefs);
+            const diffMatch = bestMatchPhash(row.diffPh, diffRefs);
+            const button = btnMatch.key || "4B";
+            const difficulty = diffMatch.key || "SC";
+
+            try {
+                const titleId = match.id;
+                const response = await fetchWithRetry(`https://v-archive.net/api/archive/DEV/title/${titleId}`);
+                const data = await response.json();
+
+                if (data && data.success) {
+                    row.apiData = data; // 데이터 저장
+                    const patternData = data.patterns?.[button]?.[difficulty];
+                    updateRow(row, {
+                        titleId,
+                        name: data.name ?? `ID ${titleId}`,
+                        button,
+                        difficulty,
+                        floor: patternData?.floor || "NO DATA",
+                        rating: patternData?.rating || "-",
+                        thumbScore: match.score
+                    });
+                } else {
+                    updateRow(row, { titleId, name: `ID ${titleId} (API 실패)`, button, difficulty, floor: "NO DATA", rating: "-", thumbScore: match.score });
+                }
+            } catch (err) {
+                updateRow(row, { titleId: match.id, name: `ID ${match.id} (API 오류)`, button, difficulty, floor: "NO DATA", rating: "-", thumbScore: match.score });
+            }
+        }
+
+        function handleCorrection(el) {
+            const row = el.closest('.track-row');
+            if (!row || !row.apiData) return;
+            
+            const btnSelect = row.querySelector('.btn-select');
+            const diffSelect = row.querySelector('.diff-select');
+            const button = btnSelect.value;
+            const difficulty = diffSelect.value;
+            
+            updateSelectColors(btnSelect, diffSelect);
+            
+            const patternData = row.apiData.patterns?.[button]?.[difficulty];
+            const floorEl = row.querySelector('.floor-value');
+            if (floorEl) {
+                floorEl.innerText = patternData?.floor || "NO DATA";
+            }
+        }
+
+        function updateSelectColors(btnEl, diffEl) {
+            const btnColors = { '4B': 'bg-green-600', '5B': 'bg-sky-600', '6B': 'bg-orange-600', '8B': 'bg-indigo-600' };
+            const diffColors = { 'SC': 'bg-purple-600', 'MX': 'bg-red-600', 'HD': 'bg-orange-600', 'NM': 'bg-yellow-600' };
+            
+            [...Object.values(btnColors), ...Object.values(diffColors)].forEach(c => {
+                btnEl.classList.remove(c);
+                diffEl.classList.remove(c);
+            });
+            
+            if (btnColors[btnEl.value]) btnEl.classList.add(btnColors[btnEl.value]);
+            if (diffColors[diffEl.value]) diffEl.classList.add(diffColors[diffEl.value]);
+        }
+
+        async function handleRecheck(btn) {
+            const row = btn.closest('.track-row');
+            if (!row || !row.matches) return;
+            
+            row.matchIndex = (row.matchIndex + 1) % Math.min(row.matches.length, 10);
+            btn.innerText = "검색 중...";
+            btn.disabled = true;
+            
+            // 상태 초기화
+            row.classList.remove('played', 'banned');
+            
+            await displayMatch(row, row.matchIndex);
         }
 
         async function fetchWithRetry(url, options = {}, retries = 3, backoff = 500) {
@@ -468,14 +559,22 @@
 
         function updateRow(row, info) {
             row.className = 'track-row p-4 rounded-xl flex items-center justify-between opacity-100 shadow-lg relative';
+            const btnList = ['4B', '5B', '6B', '8B'];
+            const diffList = ['NM', 'HD', 'MX', 'SC'];
+
             row.innerHTML = `
                 <div class="flex items-center space-x-4">
                     <img src="https://v-archive.net/static/images/jackets/${info.titleId}.jpg" onerror="this.src='https://placehold.co/240x240/1e293b/white?text=No+Img'" class="w-20 h-20 rounded-lg object-cover border border-slate-700">
                     <div>
                         <h3 class="font-bold text-white text-lg">${info.name}</h3>
-                        <div class="flex items-center space-x-2">
-                            <span class="px-2 py-0.5 ${getButtonColor(info.button)} rounded text-[10px] font-bold header-font">${info.button}</span>
-                            <span class="px-2 py-0.5 ${getDiffColor(info.difficulty)} rounded text-[10px] font-bold header-font">${info.difficulty}</span>
+                        <div class="flex items-center space-x-1">
+                            <select class="btn-select px-1 py-0.5 rounded text-[10px] font-bold header-font text-white border-none outline-none cursor-pointer appearance-none" onchange="event.stopPropagation(); handleCorrection(this)">
+                                ${btnList.map(b => `<option value="${b}" ${b===info.button?'selected':''}>${b}</option>`).join('')}
+                            </select>
+                            <select class="diff-select px-1 py-0.5 rounded text-[10px] font-bold header-font text-white border-none outline-none cursor-pointer appearance-none" onchange="event.stopPropagation(); handleCorrection(this)">
+                                ${diffList.map(d => `<option value="${d}" ${d===info.difficulty?'selected':''}>${d}</option>`).join('')}
+                            </select>
+                            <button class="recheck-btn ml-2 bg-slate-700 hover:bg-slate-600 text-white text-[10px] px-2 py-0.5 rounded transition-colors" onclick="event.stopPropagation(); handleRecheck(this)">재검토</button>
                         </div>
                     </div>
                 </div>
@@ -484,6 +583,7 @@
                     <p class="floor-value text-3xl font-black text-blue-400">${info.floor}</p>
                 </div>
             `;
+            updateSelectColors(row.querySelector('.btn-select'), row.querySelector('.diff-select'));
         }
 
         function getButtonColor(button) {
@@ -521,6 +621,11 @@
             e.preventDefault();
             clickedRow.classList.toggle('banned');
             clickedRow.classList.remove('played');
+        });
+
+        // Screenshot Toggle
+        document.getElementById('screenshotPreview')?.addEventListener('click', function() {
+            this.classList.toggle('expanded');
         });
 
         window.onload = init;
