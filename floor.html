@@ -377,22 +377,33 @@
         }
 
         // ------------------------------
-        // 레퍼런스 로드 (hashes.json)
+        // 레퍼런스 로드 (hashes.json & songs.json)
         // ------------------------------
+        const songDatabase = {};
+
         async function loadHashes() {
             try {
-                const response = await fetch('hashes.json');
-                if (!response.ok) {
-                    throw new Error(`hashes.json 로딩 실패: ${response.statusText}`);
+                // 1. hashes.json 로드 (인식용 데이터)
+                const hRes = await fetch('hashes.json');
+                if (hRes.ok) {
+                    const data = await hRes.json();
+                    Object.assign(buttonRefs, data.trackinfo.buttons);
+                    Object.assign(diffRefs, data.trackinfo.diffs);
+                    thumbRefs.push(...data.thumbnails);
                 }
-                const data = await response.json();
-                Object.assign(buttonRefs, data.trackinfo.buttons);
-                Object.assign(diffRefs, data.trackinfo.diffs);
-                thumbRefs.push(...data.thumbnails);
+
+                // 2. V-Archive 서버에서 최신 곡 정보 및 층수 데이터 로드
+                const sRes = await fetch('https://v-archive.net/db/songs.json');
+                if (sRes.ok) {
+                    const songData = await sRes.json();
+                    songData.forEach(song => {
+                        songDatabase[song.title] = song;
+                    });
+                    console.log(`[DB] ${songData.length}개의 최신 곡 정보를 로드했습니다.`);
+                }
             } catch (error) {
-                console.error("해시 데이터 로딩 오류:", error);
+                console.error("데이터 로딩 오류:", error);
                 document.getElementById('hashUploadContainer').classList.remove('hidden');
-                resultList.innerHTML = `<div class="text-center py-20 text-yellow-500">데이터 로딩에 실패했습니다. 위 버튼을 통해 hashes.json 파일을 수동으로 선택해주세요.</div>`;
             }
         }
 
@@ -406,14 +417,25 @@
             reader.onload = function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
-                    Object.assign(buttonRefs, data.trackinfo.buttons);
-                    Object.assign(diffRefs, data.trackinfo.diffs);
-                    thumbRefs.length = 0;
-                    thumbRefs.push(...data.thumbnails);
+                    
+                    // hashes.json 형식인 경우
+                    if (data.trackinfo) {
+                        Object.assign(buttonRefs, data.trackinfo.buttons);
+                        Object.assign(diffRefs, data.trackinfo.diffs);
+                        thumbRefs.length = 0;
+                        thumbRefs.push(...data.thumbnails);
+                        console.log("해시 데이터 수동 로드 완료");
+                    } 
+                    // songs.json 형식인 경우 (배열)
+                    else if (Array.isArray(data)) {
+                        data.forEach(song => {
+                            songDatabase[song.title] = song;
+                        });
+                        console.log("곡 DB 수동 로드 완료");
+                    }
                     
                     document.getElementById('hashUploadContainer').classList.add('hidden');
                     resultList.innerHTML = `<div class="text-center py-20 text-slate-600 italic">준비 완료! 스크린샷을 복사한 뒤 Ctrl+V로 붙여넣으세요.</div>`;
-                    console.log("수동 데이터 로드 완료:", { thumbnails: thumbRefs.length, buttons: Object.keys(buttonRefs).length, diffs: Object.keys(diffRefs).length });
                 } catch (err) {
                     console.error("파일 해석 오류:", err);
                     alert("올바른 JSON 형식이 아닙니다.");
@@ -558,7 +580,7 @@
                     row.btnPh = pHashFromCanvas(leftCanvas);
                     row.diffPh = pHashFromCanvas(rightCanvas);
 
-                    await displayMatch(row, 0);
+                    displayMatch(row, 0);
                 }
             } else {
                 // 일망호 모드 (80x80 단일 인식)
@@ -577,35 +599,26 @@
                 const matches = getSortedMatches(ah, dh);
                 const best = matches[0];
 
-                try {
-                    const response = await fetchWithRetry(`https://v-archive.net/api/archive/DEV/title/${best.id}`);
-                    const data = await response.json();
-                    if (data && data.success) {
-                        row.matches = matches;
-                        row.matchIndex = 0;
-                        updateGeneralRow(row, data, best.id);
-                    }
-                } catch (err) {
-                    console.error(err);
+                const data = getSongDataSync(best.id);
+                if (data && data.success) {
+                    row.matches = matches;
+                    row.matchIndex = 0;
+                    updateGeneralRow(row, data, best.id);
                 }
             }
         }
 
-        async function displayGeneralMatch(row, index) {
+        function displayGeneralMatch(row, index) {
             const match = row.matches[index];
-            try {
-                const response = await fetchWithRetry(`https://v-archive.net/api/archive/DEV/title/${match.id}`);
-                const data = await response.json();
-                if (data && data.success) {
-                    updateGeneralRow(row, data, match.id);
-                }
-            } catch (err) {
-                console.error(err);
+            const data = getSongDataSync(match.id);
+            if (data && data.success) {
+                updateGeneralRow(row, data, match.id);
             }
         }
 
         function updateGeneralRow(row, data, titleId) {
             row.className = 'track-row p-6 rounded-xl block opacity-100 shadow-lg relative';
+            row.setAttribute('data-title-id', titleId);
             const btnList = ['4B', '5B', '6B', '8B'];
             const diffList = ['NM', 'HD', 'MX', 'SC'];
 
@@ -618,9 +631,12 @@
             btnList.forEach(btn => {
                 gridHtml += `<div class="grid-cell grid-row-label">${btn}</div>`;
                 diffList.forEach(diff => {
-                    const score = data.patterns?.[btn]?.[diff]?.floor || '-';
-                    const style = getFloorStyle(score);
-                    gridHtml += `<div class="grid-cell ${score==='-'?'empty':'grid-value'}" style="${score==='-'?'':style}">${score}</div>`;
+                    const pattern = data.patterns?.[btn]?.[diff];
+                    const floorVal = pattern?.floor || '-';
+                    // songs.json에는 floorName이 없을 수 있으므로 floor를 문자열로 사용
+                    const floorName = floorVal !== '-' ? String(floorVal) : '-';
+                    const style = getFloorStyle(floorVal);
+                    gridHtml += `<div class="grid-cell ${floorName==='-'?'empty':'grid-value'}" style="${floorName==='-'?'':style}">${floorName}</div>`;
                 });
             });
             gridHtml += `</div>`;
@@ -642,35 +658,32 @@
             `;
         }
 
-        async function displayMatch(row, index) {
+        function displayMatch(row, index) {
             const match = row.matches[index];
             const btnMatch = bestMatchPhash(row.btnPh, buttonRefs);
             const diffMatch = bestMatchPhash(row.diffPh, diffRefs);
             const button = btnMatch.key || "4B";
             const difficulty = diffMatch.key || "SC";
 
-            try {
-                const titleId = match.id;
-                const response = await fetchWithRetry(`https://v-archive.net/api/archive/DEV/title/${titleId}`);
-                const data = await response.json();
+            const titleId = match.id;
+            const data = getSongDataSync(titleId);
 
-                if (data && data.success) {
-                    row.apiData = data; // 데이터 저장
-                    const patternData = data.patterns?.[button]?.[difficulty];
-                    updateRow(row, {
-                        titleId,
-                        name: data.name ?? `ID ${titleId}`,
-                        button,
-                        difficulty,
-                        floor: patternData?.floor || "NO DATA",
-                        rating: patternData?.rating || "-",
-                        thumbScore: match.score
-                    });
-                } else {
-                    updateRow(row, { titleId, name: `ID ${titleId} (API 실패)`, button, difficulty, floor: "NO DATA", rating: "-", thumbScore: match.score });
-                }
-            } catch (err) {
-                updateRow(row, { titleId: match.id, name: `ID ${match.id} (API 오류)`, button, difficulty, floor: "NO DATA", rating: "-", thumbScore: match.score });
+            if (data && data.success) {
+                row.apiData = data; 
+                const patternData = data.patterns?.[button]?.[difficulty];
+                const floorVal = patternData?.floor || "-";
+                updateRow(row, {
+                    titleId,
+                    name: data.name ?? `ID ${titleId}`,
+                    button,
+                    difficulty,
+                    floorName: floorVal !== "-" ? String(floorVal) : "NO DATA",
+                    floor: floorVal,
+                    rating: patternData?.rating || "-",
+                    thumbScore: match.score
+                });
+            } else {
+                updateRow(row, { titleId, name: `ID ${titleId} (데이터 없음)`, button, difficulty, floorName: "NO DATA", floor: "-", rating: "-", thumbScore: match.score });
             }
         }
 
@@ -685,11 +698,16 @@
             
             updateSelectColors(btnSelect, diffSelect);
             
-            const patternData = row.apiData.patterns?.[button]?.[difficulty];
+            const titleId = row.getAttribute('data-title-id');
+            const data = getSongDataSync(titleId);
+            row.apiData = data;
+            
+            const patternData = data.patterns?.[button]?.[difficulty];
             const floorEl = row.querySelector('.floor-value');
             if (floorEl) {
-                const floorVal = patternData?.floor || "NO DATA";
-                floorEl.innerText = floorVal;
+                const floorVal = patternData?.floor || "-";
+                const floorName = floorVal !== "-" ? String(floorVal) : "NO DATA";
+                floorEl.innerText = floorName;
                 floorEl.setAttribute('style', getFloorStyle(floorVal));
             }
         }
@@ -707,16 +725,32 @@
             if (diffColors[diffEl.value]) diffEl.classList.add(diffColors[diffEl.value]);
         }
 
-        function getFloorStyle(floorStr) {
-            const floorNum = parseFloat(floorStr);
-            if (isNaN(floorNum)) return 'color: #60a5fa';
-            const floor = Math.floor(floorNum);
+        function getFloorStyle(floorVal) {
+            const floor = parseFloat(floorVal);
+            if (isNaN(floor)) return 'color: #60a5fa';
+            
+            // songs.json의 floor는 5.3 같은 실수이므로 그대로 사용
             if (floor >= 16) return 'color: #c084fc';
             
-            // 1층(240) ~ 15층(0) 사이를 14구간으로 균등 분배
             const clampedFloor = Math.max(1, Math.min(15, floor));
             const hue = 240 - (clampedFloor - 1) * (240 / 14);
             return `color: hsl(${hue}, 100%, 70%)`;
+        }
+
+        function getSongDataSync(titleId) {
+            const id = parseInt(titleId);
+            const song = songDatabase[id];
+            
+            if (!song) {
+                return { success: false, name: `ID ${id}`, id };
+            }
+
+            return {
+                success: true,
+                id: song.title,
+                name: song.name,
+                patterns: song.patterns 
+            };
         }
 
         async function copyTrackInfo(btn, name) {
@@ -748,9 +782,9 @@
             row.classList.remove('played', 'banned');
             
             if (currentMode === 'general') {
-                await displayGeneralMatch(row, row.matchIndex);
+                displayGeneralMatch(row, row.matchIndex);
             } else {
-                await displayMatch(row, row.matchIndex);
+                displayMatch(row, row.matchIndex);
             }
         }
 
@@ -790,6 +824,7 @@
 
         function updateRow(row, info) {
             row.className = 'track-row p-4 rounded-xl flex items-center justify-between opacity-100 shadow-lg relative';
+            row.setAttribute('data-title-id', info.titleId);
             const btnList = ['4B', '5B', '6B', '8B'];
             const diffList = ['NM', 'HD', 'MX', 'SC'];
 
@@ -816,7 +851,7 @@
                         📋
                     </button>
                     <p class="text-xs text-slate-500 uppercase font-bold tracking-tighter">Floor</p>
-                    <p class="floor-value text-3xl font-black" style="${getFloorStyle(info.floor)}">${info.floor}</p>
+                    <p class="floor-value text-3xl font-black" style="${getFloorStyle(info.floor)}">${info.floorName}</p>
                 </div>
             `;
             updateSelectColors(row.querySelector('.btn-select'), row.querySelector('.diff-select'));
