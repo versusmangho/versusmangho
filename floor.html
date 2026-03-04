@@ -216,14 +216,14 @@
             document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(`mode-${mode}`).classList.add('active');
             
-            // 마지막 분석 이미지가 있다면 새 모드에 맞춰 즉시 재분석
-            if (window.lastProcessedImg) {
-                processImage(window.lastProcessedImg);
-            } else {
-                renderStatus();
-                document.getElementById('screenshotContainer').style.display = 'none';
-                lastImageHash = null;
-            }
+            // 모드 전환 시 기존 데이터 및 분석 결과 폐기
+            window.lastProcessedImg = null; 
+            lastImageHash = null;
+            
+            // UI 초기화: 안내 로그 출력 및 스크린샷 영역 숨김
+            renderStatus();
+            document.getElementById('screenshotContainer').style.display = 'none';
+            document.getElementById('dropZone').style.display = 'block';
         }
 
         const BAR_SPLIT = 0.5;
