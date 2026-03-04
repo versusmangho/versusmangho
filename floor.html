@@ -168,7 +168,7 @@
         </div>
 
         <!-- Message Area -->
-        <div id="messageZone" class="text-center text-yellow-400 mb-4 h-6"></div>
+        <div id="messageZone" class="text-center text-yellow-400 mb-4 h-6 text-sm"></div>
 
         <!-- Hash Upload Area (Hidden by default) -->
         <div id="hashUploadContainer" class="hidden mb-8 p-6 bg-slate-900/80 border border-yellow-500/30 rounded-2xl text-center">
@@ -198,7 +198,7 @@
         const BASE_W = 2560, BASE_H = 1440;
         const RATIO_X_START = 307 / BASE_W;
         const RATIO_THUMB_W = 240 / BASE_W;
-        const RATIO_GAP = 186 / BASE_W;
+        const RATIO_GAP = 186.75 / BASE_W;
         const RATIO_Y_START = 545 / BASE_H;
         const RATIO_THUMB_H = 240 / BASE_H;
         const RATIO_BAR_H = 43 / BASE_H;
@@ -216,11 +216,14 @@
             document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(`mode-${mode}`).classList.add('active');
             
-            // 초기화
-            resultList.innerHTML = `<div class="text-center py-20 text-slate-600 italic">준비 완료! 스크린샷을 복사한 뒤 Ctrl+V로 붙여넣으세요.</div>`;
-            document.getElementById('screenshotContainer').style.display = 'none';
-            document.getElementById('dropZone').style.display = 'block';
-            lastImageHash = null;
+            // 마지막 분석 이미지가 있다면 새 모드에 맞춰 즉시 재분석
+            if (window.lastProcessedImg) {
+                processImage(window.lastProcessedImg);
+            } else {
+                renderStatus();
+                document.getElementById('screenshotContainer').style.display = 'none';
+                lastImageHash = null;
+            }
         }
 
         const BAR_SPLIT = 0.5;
@@ -380,31 +383,75 @@
         // 레퍼런스 로드 (hashes.json & songs.json)
         // ------------------------------
         const songDatabase = {};
+        let statusLogs = [];
+        window.lastProcessedImg = null; 
+
+        function renderStatus() {
+            if (!resultList) return;
+            resultList.innerHTML = `
+                <div class="text-center py-20 space-y-2">
+                    ${statusLogs.map(log => `<p class="text-slate-400 text-sm">${log}</p>`).join('')}
+                </div>
+            `;
+        }
+
+        function updateStatus(msg, isAppend = false) {
+            if (isAppend && statusLogs.length > 0) {
+                statusLogs[statusLogs.length - 1] += ` ${msg}`;
+            } else {
+                statusLogs.push(msg);
+            }
+            renderStatus();
+        }
 
         async function loadHashes() {
+            // 1. v-archive.net API 로드
+            updateStatus("v-archive에서 곡 정보를 받아오는 중..");
+            const songApiUrl = 'https://v-archive.net/db/v2/songs.json';
+            const proxyUrl = 'https://api.allorigins.win/raw?url=';
+
             try {
-                // 1. hashes.json 로드 (인식용 데이터)
+                let res;
+                try {
+                    res = await fetch(songApiUrl, { mode: 'cors' });
+                } catch (err) {
+                    res = await fetch(proxyUrl + encodeURIComponent(songApiUrl));
+                }
+
+                if (res && res.ok) {
+                    const songData = await res.json();
+                    songData.forEach(song => {
+                        songDatabase[song.title] = song;
+                    });
+                    updateStatus("<span class='text-green-500 font-bold'>완료!</span>", true);
+                } else {
+                    throw new Error();
+                }
+            } catch (error) {
+                updateStatus("<span class='text-red-500 font-bold'>실패! (곡 정보 없이 진행)</span>", true);
+            }
+
+            // 2. hashes.json 로드
+            updateStatus("이미지분석을 위한 데이터를 불러오는 중..");
+            try {
                 const hRes = await fetch('hashes.json');
                 if (hRes.ok) {
                     const data = await hRes.json();
                     Object.assign(buttonRefs, data.trackinfo.buttons);
                     Object.assign(diffRefs, data.trackinfo.diffs);
+                    thumbRefs.length = 0;
                     thumbRefs.push(...data.thumbnails);
+                    document.getElementById('hashUploadContainer').classList.add('hidden');
+                    updateStatus("<span class='text-green-500 font-bold'>완료!</span>", true);
+                } else {
+                    throw new Error();
                 }
-
-                // 2. V-Archive 서버에서 최신 곡 정보 및 층수 데이터 로드
-                const sRes = await fetch('https://v-archive.net/db/songs.json');
-                if (sRes.ok) {
-                    const songData = await sRes.json();
-                    songData.forEach(song => {
-                        songDatabase[song.title] = song;
-                    });
-                    console.log(`[DB] ${songData.length}개의 최신 곡 정보를 로드했습니다.`);
-                }
-            } catch (error) {
-                console.error("데이터 로딩 오류:", error);
+            } catch (e) {
+                updateStatus("<span class='text-yellow-500 font-bold' id='hashStatusLabel'>중단! (수동 업로드 필요)</span>", true);
                 document.getElementById('hashUploadContainer').classList.remove('hidden');
+                return false; 
             }
+            return true; 
         }
 
         function handleHashUpload(input) {
@@ -417,27 +464,24 @@
             reader.onload = function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
-                    
-                    // hashes.json 형식인 경우
                     if (data.trackinfo) {
                         Object.assign(buttonRefs, data.trackinfo.buttons);
                         Object.assign(diffRefs, data.trackinfo.diffs);
                         thumbRefs.length = 0;
                         thumbRefs.push(...data.thumbnails);
-                        console.log("해시 데이터 수동 로드 완료");
+                        document.getElementById('hashUploadContainer').classList.add('hidden');
+                        
+                        // "중단" 로그를 "완료"로 교체
+                        if (statusLogs.length > 0) {
+                            statusLogs[statusLogs.length - 1] = statusLogs[statusLogs.length - 1].replace(
+                                /<span class=['"]text-yellow-500 font-bold['"] id=['"]hashStatusLabel['"]>.*?<\/span>/, 
+                                "<span class='text-green-500 font-bold'>완료!</span>"
+                            );
+                        }
+                        renderStatus();
+                        updateStatus("<div class='mt-6 text-blue-400 font-bold text-lg'>이제 스크린샷을 PrtScr로 클립보드에 저장한 후<br>이곳에 Ctrl + V로 붙여넣어주세요.</div>");
                     } 
-                    // songs.json 형식인 경우 (배열)
-                    else if (Array.isArray(data)) {
-                        data.forEach(song => {
-                            songDatabase[song.title] = song;
-                        });
-                        console.log("곡 DB 수동 로드 완료");
-                    }
-                    
-                    document.getElementById('hashUploadContainer').classList.add('hidden');
-                    resultList.innerHTML = `<div class="text-center py-20 text-slate-600 italic">준비 완료! 스크린샷을 복사한 뒤 Ctrl+V로 붙여넣으세요.</div>`;
                 } catch (err) {
-                    console.error("파일 해석 오류:", err);
                     alert("올바른 JSON 형식이 아닙니다.");
                 }
             };
@@ -445,10 +489,12 @@
         }
 
         async function init() {
-            resultList.innerHTML = `<div class="text-center py-20 text-slate-600 italic">레퍼런스 데이터 로딩 중...</div>`;
-            await loadHashes();
-            resultList.innerHTML = `<div class="text-center py-20 text-slate-600 italic">준비 완료! 스크린샷을 복사한 뒤 Ctrl+V로 붙여넣으세요.</div>`;
-            console.log("레퍼런스 데이터 로드 완료:", { thumbnails: thumbRefs.length, buttons: Object.keys(buttonRefs).length, diffs: Object.keys(diffRefs).length });
+            statusLogs = [];
+            const success = await loadHashes();
+            
+            if (success) {
+                updateStatus("<div class='mt-6 text-blue-400 font-bold text-lg'>이제 스크린샷을 PrtScr로 클립보드에 저장한 후<br>이곳에 Ctrl + V로 붙여넣어주세요.</div>");
+            }
         }
 
         // ------------------------------
@@ -551,6 +597,8 @@
         });
 
         async function processImage(img) {
+            window.lastProcessedImg = img; // 마지막 이미지 저장
+            statusLogs = []; // 로딩 로그 비우기
             resultList.innerHTML = '';
             const W = img.width;
             const H = img.height;
@@ -616,6 +664,22 @@
             }
         }
 
+        function getDifficultyStyle(level, diff, floorVal) {
+            if (!floorVal || floorVal === '-' || isNaN(parseFloat(floorVal))) {
+                return 'background-color: rgba(71, 85, 105, 0.2);'; // 회색
+            }
+            
+            const floorPart = Math.floor(parseFloat(floorVal) / 10);
+            const levelNum = parseInt(level);
+            if (isNaN(levelNum)) return 'background-color: rgba(71, 85, 105, 0.2);';
+
+            const adj = (diff === 'SC') ? levelNum : (levelNum - 11) * 2;
+            
+            if (adj === floorPart) return 'background-color: rgba(234, 179, 8, 0.2);'; // 노란색 (정렙)
+            if (adj > floorPart) return 'background-color: rgba(56, 189, 248, 0.2);'; // 하늘색 (물렙)
+            return 'background-color: rgba(239, 68, 68, 0.2);'; // 붉은색 (불렙)
+        }
+
         function updateGeneralRow(row, data, titleId) {
             row.className = 'track-row p-6 rounded-xl block opacity-100 shadow-lg relative';
             row.setAttribute('data-title-id', titleId);
@@ -632,11 +696,12 @@
                 gridHtml += `<div class="grid-cell grid-row-label">${btn}</div>`;
                 diffList.forEach(diff => {
                     const pattern = data.patterns?.[btn]?.[diff];
-                    const floorVal = pattern?.floor || '-';
-                    // songs.json에는 floorName이 없을 수 있으므로 floor를 문자열로 사용
-                    const floorName = floorVal !== '-' ? String(floorVal) : '-';
-                    const style = getFloorStyle(floorVal);
-                    gridHtml += `<div class="grid-cell ${floorName==='-'?'empty':'grid-value'}" style="${floorName==='-'?'':style}">${floorName}</div>`;
+                    const floorVal = pattern?.floor ?? '-';
+                    const level = pattern?.level ?? 0;
+                    const floorName = pattern?.floorName ?? (floorVal !== '-' ? String(floorVal) : '-');
+                    const textColor = getFloorStyle(floorVal);
+                    const bgStyle = getDifficultyStyle(level, diff, floorVal); // btn을 diff로 수정
+                    gridHtml += `<div class="grid-cell ${floorName==='-'?'empty':'grid-value'}" style="${floorName==='-'?'':(textColor + ';' + bgStyle)}">${floorName}</div>`;
                 });
             });
             gridHtml += `</div>`;
@@ -671,19 +736,21 @@
             if (data && data.success) {
                 row.apiData = data; 
                 const patternData = data.patterns?.[button]?.[difficulty];
-                const floorVal = patternData?.floor || "-";
+                const floorVal = patternData?.floor ?? "-";
+                const floorName = patternData?.floorName ?? (floorVal !== "-" ? String(floorVal) : "NO DATA");
                 updateRow(row, {
                     titleId,
                     name: data.name ?? `ID ${titleId}`,
                     button,
                     difficulty,
-                    floorName: floorVal !== "-" ? String(floorVal) : "NO DATA",
+                    floorName,
                     floor: floorVal,
+                    level: patternData?.level || 0,
                     rating: patternData?.rating || "-",
                     thumbScore: match.score
                 });
             } else {
-                updateRow(row, { titleId, name: `ID ${titleId} (데이터 없음)`, button, difficulty, floorName: "NO DATA", floor: "-", rating: "-", thumbScore: match.score });
+                updateRow(row, { titleId, name: `ID ${titleId} (데이터 없음)`, button, difficulty, floorName: "NO DATA", floor: "-", level: 0, rating: "-", thumbScore: match.score });
             }
         }
 
@@ -704,11 +771,19 @@
             
             const patternData = data.patterns?.[button]?.[difficulty];
             const floorEl = row.querySelector('.floor-value');
+            const floorArea = row.querySelector('.floor-area');
+
             if (floorEl) {
-                const floorVal = patternData?.floor || "-";
-                const floorName = floorVal !== "-" ? String(floorVal) : "NO DATA";
+                const floorVal = patternData?.floor ?? "-";
+                const floorName = patternData?.floorName ?? (floorVal !== "-" ? String(floorVal) : "NO DATA");
+                const level = patternData?.level || 0;
+                
                 floorEl.innerText = floorName;
                 floorEl.setAttribute('style', getFloorStyle(floorVal));
+                
+                if (floorArea) {
+                    floorArea.setAttribute('style', getDifficultyStyle(level, difficulty, floorVal) + ' border-radius: 8px; padding: 4px 8px;');
+                }
             }
         }
 
@@ -726,10 +801,12 @@
         }
 
         function getFloorStyle(floorVal) {
-            const floor = parseFloat(floorVal);
-            if (isNaN(floor)) return 'color: #60a5fa';
+            const floorRaw = parseFloat(floorVal);
+            if (isNaN(floorRaw)) return 'color: #60a5fa';
             
-            // songs.json의 floor는 5.3 같은 실수이므로 그대로 사용
+            // 일의 자리를 없애고 판정 (예: 53 -> 5)
+            const floor = Math.floor(floorRaw / 10);
+            
             if (floor >= 16) return 'color: #c084fc';
             
             const clampedFloor = Math.max(1, Math.min(15, floor));
@@ -851,7 +928,9 @@
                         📋
                     </button>
                     <p class="text-xs text-slate-500 uppercase font-bold tracking-tighter">Floor</p>
-                    <p class="floor-value text-3xl font-black" style="${getFloorStyle(info.floor)}">${info.floorName}</p>
+                    <div class="floor-area" style="${getDifficultyStyle(info.level, info.difficulty, info.floor)} border-radius: 8px; padding: 4px 8px;">
+                        <p class="floor-value text-3xl font-black" style="${getFloorStyle(info.floor)}">${info.floorName}</p>
+                    </div>
                 </div>
             `;
             updateSelectColors(row.querySelector('.btn-select'), row.querySelector('.diff-select'));
