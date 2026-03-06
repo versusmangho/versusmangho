@@ -640,18 +640,38 @@ function loadState() {
 }
 
 let averageW_avgOfWaiters = 0;
+let averageW_currOfWaiters = 0;
+let averageR_selOfWaiters = 0;
+
 const round2 = (num) => Math.round((num + Number.EPSILON) * 100) / 100;
 
 function updateAverageWaitersStat() {
     if (!room || !room.players) return;
     const experiencedPlayers = room.players.filter(p => p.matchCount > 0);
     if (experiencedPlayers.length > 0) {
-        // 평균의 평균이 아닌, 전체 경험 플레이어의 통합 평균 대기 시간을 계산하여 정확도 향상
-        const totalWaitSum = experiencedPlayers.reduce((sum, p) => sum + (p.waitSum || 0), 0);
-        const totalMatchCount = experiencedPlayers.reduce((sum, p) => sum + p.matchCount, 0);
-        averageW_avgOfWaiters = totalMatchCount > 0 ? round2(totalWaitSum / totalMatchCount) : 0;
+        let totalW_avg = 0;
+        let totalW_curr = 0;
+        let totalR_sel = 0;
+
+        experiencedPlayers.forEach(p => {
+            const pastWaitSum = p.waitSum || 0;
+            const pastMatchCount = p.matchCount || 0;
+            const real_W_curr = room.round - (p.lastPlay || 0);
+            
+            // 실시간 평균 대기 (W_avg)
+            const wAvg = (pastWaitSum + real_W_curr) / (pastMatchCount + 1);
+            totalW_avg += wAvg;
+            totalW_curr += real_W_curr;
+            totalR_sel += (p.chooserCount / p.matchCount);
+        });
+
+        averageW_avgOfWaiters = round2(totalW_avg / experiencedPlayers.length);
+        averageW_currOfWaiters = round2(totalW_curr / experiencedPlayers.length);
+        averageR_selOfWaiters = round2(totalR_sel / experiencedPlayers.length);
     } else {
         averageW_avgOfWaiters = 0;
+        averageW_currOfWaiters = 0;
+        averageR_selOfWaiters = 0;
     }
 }
 
@@ -672,16 +692,16 @@ function calculateScore(p) {
         
         W_avg = round2(totalWait / totalPeriods);
 
-        score = real_W_curr + W_avg - (R_sel * 0.1);
+        // 원디골 가중치 상향 (0.1 -> 0.5)
+        score = real_W_curr + W_avg - (R_sel * 0.5);
     } else { // 신입 (New player)
         // For new players, display their current wait as their average wait.
         W_avg = real_W_curr; 
 
         if (newbieBoostOn) {
-            // For scoring, give a boost based on room average.
-            // 사용자 요청: 고정된 virtual_W_curr 대신 다른 사람들의 통합 평균 대기 판수를 보정치로 사용
-            const room_W_avg = averageW_avgOfWaiters;
-            score = room_W_avg + real_W_curr + room_W_avg; // 통합 평균 대기 시간을 두 번 더하는 방식으로 변경
+            // 사용자 요청: 다른 이들의 평균 대기 판수/현재 대기 판수/원디골 비율을 가져와서 가중치를 계산
+            // (다른 이들의 평균 대기 + 다른 이들의 현재 대기) + 본인의 현재 대기 - (다른 이들의 원디골 평균 * 0.5)
+            score = averageW_avgOfWaiters + averageW_currOfWaiters + real_W_curr - (averageR_selOfWaiters * 0.5);
         } else {
             score = real_W_curr;
         }
@@ -794,29 +814,61 @@ function refreshUI() {
         ui.pTable.appendChild(tr);
     });
     
-    room.eventLog.forEach(event => {
-        const block = document.createElement("div");
-        if (event.type === 'match') {
-            block.className = "log-block log-block--match";
-            block.innerHTML = `
-                <span class="round">R${event.round}</span>
-                <span class="names"><span class="chooser">${event.chooser}</span> vs ${event.opponent}</span>
-            `;
-        } else if (event.type === 'analysis') {
-            block.className = "log-block log-block--analysis";
-            let summary = '';
-            if (event.entered.length > 0) {
-                summary += `<span class="in-list">🟢 IN: ${event.entered.join(', ')}</span>`;
-            }
-            if (event.left.length > 0) {
-                 if(summary) summary += ' ';
-                summary += `<span class="out-list">🔴 OUT: ${event.left.join(', ')}</span>`;
-            }
-            block.innerHTML = `
-                <span class="round">R${event.round}</span>
-                <div class="analysis-summary">${summary || '변경 없음'}</div>
-            `;
+    // 그룹화된 로그 생성 (라운드별)
+    const groupedLogs = {};
+    (room.eventLog || []).forEach(ev => {
+        if (!groupedLogs[ev.round]) {
+            groupedLogs[ev.round] = { match: null, analysis: [] };
         }
+        if (ev.type === 'match') {
+            groupedLogs[ev.round].match = ev;
+        } else if (ev.type === 'analysis') {
+            groupedLogs[ev.round].analysis.push(ev);
+        }
+    });
+
+    Object.keys(groupedLogs).sort((a, b) => a - b).forEach(round => {
+        const data = groupedLogs[round];
+        const block = document.createElement("div");
+        block.className = "log-block";
+
+        // 1. 라운드 번호
+        const roundSpan = document.createElement("span");
+        roundSpan.className = "round";
+        roundSpan.textContent = `ROUND ${round}`;
+        block.appendChild(roundSpan);
+
+        // 2. 매치 정보 (왼쪽)
+        const matchDiv = document.createElement("div");
+        matchDiv.className = "match-info";
+        if (data.match) {
+            matchDiv.innerHTML = `<span class="chooser">${data.match.chooser}</span> vs ${data.match.opponent}`;
+        } else {
+            matchDiv.innerHTML = `<span style="color:#334155">-</span>`;
+        }
+        block.appendChild(matchDiv);
+
+        // 3. 입퇴장 정보 (오른쪽)
+        const analysisDiv = document.createElement("div");
+        analysisDiv.className = "analysis-info";
+        
+        let hasAnalysis = false;
+        data.analysis.forEach(an => {
+            if (an.entered.length > 0) {
+                analysisDiv.innerHTML += `<div class="in-list">🟢 IN: ${an.entered.join(', ')}</div>`;
+                hasAnalysis = true;
+            }
+            if (an.left.length > 0) {
+                analysisDiv.innerHTML += `<div class="out-list">🔴 OUT: ${an.left.join(', ')}</div>`;
+                hasAnalysis = true;
+            }
+        });
+
+        if (!hasAnalysis) {
+            analysisDiv.innerHTML = `<span class="empty-info">-</span>`;
+        }
+        block.appendChild(analysisDiv);
+
         if(logContainer) logContainer.appendChild(block);
     });
     saveState();
@@ -932,6 +984,10 @@ if(ui.pTable) ui.pTable.onclick = (e) => {
             c.matchCount = (c.matchCount || 0) + 1;
             o.matchCount = (o.matchCount || 0) + 1;
             c.chooserCount = (c.chooserCount || 0) + 1;
+
+            // 한 판 플레이하면 재입장 딱지 제거
+            c.rejoined = false;
+            o.rejoined = false;
 
             // 영구 기록 업데이트
             room.playerHistory[c.nickname] = { matchCount: c.matchCount, chooserCount: c.chooserCount, waitSum: c.waitSum };
