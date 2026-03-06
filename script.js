@@ -412,15 +412,6 @@ async function runAnalysis() {
             }
         });
 
-        if (enteredSlots.length > 0 || leftSlots.length > 0) {
-            room.eventLog.push({
-                type: 'analysis',
-                round: room.round,
-                entered: enteredSlots.sort(),
-                left: leftSlots.sort()
-            });
-        }
-
         if (msgEl) msgEl.innerText = "분석 완료";
         saveState(); 
         refreshUI();
@@ -817,18 +808,13 @@ function refreshUI() {
     // 그룹화된 로그 생성 (라운드별)
     const groupedLogs = {};
     (room.eventLog || []).forEach(ev => {
-        if (!groupedLogs[ev.round]) {
-            groupedLogs[ev.round] = { match: null, analysis: [] };
-        }
         if (ev.type === 'match') {
-            groupedLogs[ev.round].match = ev;
-        } else if (ev.type === 'analysis') {
-            groupedLogs[ev.round].analysis.push(ev);
+            groupedLogs[ev.round] = ev;
         }
     });
 
     Object.keys(groupedLogs).sort((a, b) => a - b).forEach(round => {
-        const data = groupedLogs[round];
+        const match = groupedLogs[round];
         const block = document.createElement("div");
         block.className = "log-block";
 
@@ -838,66 +824,15 @@ function refreshUI() {
         roundSpan.textContent = `ROUND ${round}`;
         block.appendChild(roundSpan);
 
-        // 2. 매치 정보 (왼쪽)
+        // 2. 매치 정보
         const matchDiv = document.createElement("div");
         matchDiv.className = "match-info";
-        if (data.match) {
-            matchDiv.innerHTML = `<span class="chooser">${data.match.chooser}</span> vs ${data.match.opponent}`;
-        } else {
-            matchDiv.innerHTML = `<span style="color:#334155">-</span>`;
-        }
+        matchDiv.innerHTML = `<span class="chooser">${match.chooser}</span> vs ${match.opponent}`;
         block.appendChild(matchDiv);
-
-        // 3. 입퇴장 정보 (오른쪽)
-        const analysisDiv = document.createElement("div");
-        analysisDiv.className = "analysis-info";
-        
-        let hasAnalysis = false;
-        data.analysis.forEach(an => {
-            if (an.entered.length > 0) {
-                analysisDiv.innerHTML += `<div class="in-list">🟢 IN: ${an.entered.join(', ')}</div>`;
-                hasAnalysis = true;
-            }
-            if (an.left.length > 0) {
-                analysisDiv.innerHTML += `<div class="out-list">🔴 OUT: ${an.left.join(', ')}</div>`;
-                hasAnalysis = true;
-            }
-        });
-
-        if (!hasAnalysis) {
-            analysisDiv.innerHTML = `<span class="empty-info">-</span>`;
-        }
-        block.appendChild(analysisDiv);
 
         if(logContainer) logContainer.appendChild(block);
     });
     saveState();
-}
-
-function logPlayerChange(type, name) {
-    if (!room.eventLog) room.eventLog = [];
-    const last = room.eventLog[room.eventLog.length - 1];
-    if (last && last.type === 'analysis' && last.round === room.round) {
-        if (type === 'enter') {
-            if (!last.entered.includes(name)) last.entered.push(name);
-            last.left = last.left.filter(n => n !== name);
-        } else {
-            if (!last.left.includes(name)) last.left.push(name);
-            last.entered = last.entered.filter(n => n !== name);
-        }
-        last.entered.sort();
-        last.left.sort();
-        if (last.entered.length === 0 && last.left.length === 0) {
-            room.eventLog.pop();
-        }
-    } else {
-        room.eventLog.push({
-            type: 'analysis',
-            round: room.round,
-            entered: type === 'enter' ? [name] : [],
-            left: type === 'leave' ? [name] : []
-        });
-    }
 }
 
 function addPlayer(n) {
@@ -905,8 +840,6 @@ function addPlayer(n) {
     if(room.players.some(p=>p.nickname===n)) { if(ui.manageMsg) {ui.manageMsg.textContent="이미 존재함"; ui.manageMsg.style.display="block";} return; }
     if(room.players.filter(p=>!p.onHold).length >= 8) { if(ui.manageMsg) {ui.manageMsg.textContent="최대 8명"; ui.manageMsg.style.display="block";} return; }
     pushUndo();
-
-    logPlayerChange('enter', n);
 
     const isRejoin = room.seen.includes(n);
     // 기록이 있으면 가져오고, 없으면 기본값으로 설정
@@ -947,7 +880,6 @@ if(ui.pTable) ui.pTable.onclick = (e) => {
     if(!nick) return;
     if(e.target.classList.contains("small-delete")) { 
         pushUndo(); 
-        logPlayerChange('leave', nick);
         room.players = room.players.filter(p=>p.nickname!==nick); 
         refreshUI(); 
         return; 

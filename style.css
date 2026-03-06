@@ -197,8 +197,7 @@ th.sortable.sorted-desc::after {
   padding: 10px 14px;
   border-radius: 8px;
   font-size: 13px;
-  display: grid;
-  grid-template-columns: 60px 1fr 1fr;
+  display: flex;
   align-items: center;
   gap: 16px;
   border: 1px solid #1e293b;
@@ -206,14 +205,14 @@ th.sortable.sorted-desc::after {
   animation: fadeIn 0.3s;
 }
 .log-block .round {
+  flex: 0 0 65px;
   font-weight: bold;
   color: #64748b;
   font-family: monospace;
 }
 .log-block .match-info {
+  flex: 1;
   color: #cbd5e1;
-  border-right: 1px solid #1e293b;
-  padding-right: 16px;
   min-height: 20px;
   display: flex;
   align-items: center;
@@ -222,12 +221,3 @@ th.sortable.sorted-desc::after {
   font-weight: bold;
   color: #60a5fa;
 }
-.log-block .analysis-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-}
-.log-block .analysis-info .in-list { color: #4ade80; }
-.log-block .analysis-info .out-list { color: #f87171; }
-.log-block .analysis-info .empty-info { color: #334155; font-style: italic; }
