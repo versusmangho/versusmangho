@@ -6,75 +6,208 @@
     <title>층수 측정기</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+KR:wght@300;500;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
         
+        :root {
+            --bg-main: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --bg-card-hover: rgba(30, 41, 59, 0.9);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --accent-blue: #3b82f6;
+            --accent-indigo: #6366f1;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+        }
+
         body {
-            background: #0f172a;
-            color: #f1f5f9;
+            background: var(--bg-main);
+            color: var(--text-primary);
             font-family: 'Noto Sans KR', sans-serif;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(99, 102, 241, 0.05) 0%, transparent 40%);
+            background-attachment: fixed;
         }
-        .header-font { font-family: 'Orbitron', sans-serif; }
+
+        .header-font { font-family: 'Orbitron', sans-serif; letter-spacing: 0.05em; }
+        
+        /* Glassmorphism effects */
+        .glass {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+        }
+
         .track-row {
-            background: rgba(30, 41, 59, 0.7);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            transition: all 0.3s ease;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
         }
+
+        .track-row::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 4px; height: 100%;
+            background: transparent;
+            transition: background 0.3s;
+        }
+
         .track-row:hover {
-            border-color: #3b82f6;
-            background: rgba(30, 41, 59, 1);
+            border-color: rgba(59, 130, 246, 0.4);
+            background: var(--bg-card-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.3);
         }
+
+        .track-row:hover::before {
+            background: var(--accent-blue);
+        }
+
         .floor-value {
             font-family: 'Orbitron', sans-serif;
-            text-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            line-height: 1;
         }
+
         .loading-shimmer {
             background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
             background-size: 200% 100%;
-            animation: shimmer 1.5s infinite;
+            animation: shimmer 2s infinite linear;
         }
+
         @keyframes shimmer {
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
         }
+
         .track-row.played {
-            background: rgba(34, 197, 94, 0.15);
-            border-color: #22c55e !important;
-            opacity: 0.8;
+            background: rgba(34, 197, 94, 0.08);
+            border-color: rgba(34, 197, 94, 0.4) !important;
         }
-        .track-row.played .status-played { display: inline-block; }
+        .track-row.played::before { background: #22c55e; }
+
         .track-row.banned {
-            background: rgba(239, 68, 68, 0.15);
-            border-color: #ef4444 !important;
-            opacity: 0.8;
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.4) !important;
+            opacity: 0.6;
         }
-        .track-row.banned .status-banned { display: inline-block; }
+        .track-row.banned::before { background: #ef4444; }
+
         #screenshotContainer { margin-bottom: 2rem; display: none; justify-content: center; }
         #screenshotPreview {
-            max-width: 300px;
+            max-width: 320px;
             cursor: pointer;
-            border-radius: 0.75rem;
-            border: 2px solid #334155;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-radius: 1rem;
+            border: 1px solid var(--border-color);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
         }
-        #screenshotPreview.expanded { max-width: 100%; border-color: #3b82f6; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2); }
+        #screenshotPreview.expanded { 
+            max-width: 100%; 
+            border-color: var(--accent-blue); 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); 
+        }
+
         .mode-toggle-container {
             position: absolute; top: 2rem; right: 2rem; display: flex;
-            background: rgba(30, 41, 59, 0.8); padding: 4px; border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1); z-index: 50;
+            background: rgba(15, 23, 42, 0.6); padding: 4px; border-radius: 14px;
+            border: 1px solid var(--border-color); z-index: 50;
+            backdrop-filter: blur(8px);
         }
-        .mode-btn { padding: 6px 16px; border-radius: 8px; font-size: 0.875rem; font-weight: 600; transition: all 0.2s; cursor: pointer; }
-        .mode-btn.active { background: #3b82f6; color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
-        .mode-btn:not(.active):hover { background: rgba(255, 255, 255, 0.05); }
+        .mode-btn { 
+            padding: 8px 18px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; 
+            color: var(--text-secondary);
+        }
+        .mode-btn.active { 
+            background: var(--accent-blue); color: white; 
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4); 
+        }
+        .mode-btn:not(.active):hover { background: rgba(255, 255, 255, 0.08); color: white; }
+
+        /* General Mode Grid Refinement */
         .general-grid {
-            display: grid; grid-template-columns: auto repeat(4, 1fr); gap: 1px;
-            background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; overflow: hidden;
+            display: grid; grid-template-columns: 60px repeat(4, 1fr); gap: 1px;
+            background: var(--border-color); border: 1px solid var(--border-color); 
+            border-radius: 12px; overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
-        .grid-cell { background: #1e293b; padding: 12px 8px; text-align: center; font-family: 'Orbitron', sans-serif; font-size: 0.85rem; }
-        .grid-header { background: #334155; font-weight: bold; color: #94a3b8; font-size: 0.75rem; }
-        .grid-row-label { background: #334155; font-weight: bold; color: #94a3b8; display: flex; align-items: center; justify-content: center; padding: 0 12px; }
-        .grid-value { color: #3b82f6; font-weight: bold; }
-        .grid-value.empty { color: #475569; font-weight: normal; }
+        .grid-cell { 
+            background: #1e293b; padding: 14px 8px; text-align: center; 
+            font-family: 'Orbitron', sans-serif; font-size: 0.85rem; 
+            transition: background 0.2s;
+        }
+        .grid-header { background: #0f172a; font-weight: 700; color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; }
+        .grid-row-label { background: #0f172a; font-weight: 700; color: #64748b; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; }
+        .grid-value { 
+            font-weight: 900; 
+            font-size: 1.1rem;
+            text-shadow: 2px 2px 3px rgba(0, 0, 0, 0.5);
+        }
+        .grid-value.empty { color: #334155; font-weight: normal; background: #161e2e; }
+
+        /* Select Styles */
+        select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.4rem center;
+            background-size: 0.8rem;
+            padding-right: 1.4rem !important;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        select:hover { filter: brightness(1.1); }
+
+        .recheck-btn, .copy-btn {
+            transition: all 0.2s;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .recheck-btn:hover, .copy-btn:hover {
+            background: #334155;
+            transform: scale(1.05);
+        }
+
+        /* Keyboard Shortcut Hint */
+        kbd {
+            font-family: monospace;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-bottom-width: 3px;
+            color: #e2e8f0;
+        }
+
+        /* Versus Mode Horizontal Layout */
+        #resultList.versus-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1rem;
+            align-items: stretch;
+        }
+        #resultList.versus-grid .track-row {
+            flex-direction: column;
+            text-align: center;
+            padding: 1rem;
+            height: 100%;
+            display: flex;
+            align-items: center;
+        }
+        #resultList.versus-grid .track-row::before {
+            width: 100%; height: 4px; top: 0; left: 0;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 768px) {
+            .mode-toggle-container { position: relative; top: 0; right: 0; margin-bottom: 2rem; justify-content: center; }
+            #resultList.versus-grid { grid-template-columns: 1fr; }
+            .track-row { flex-direction: column; align-items: flex-start; }
+            .track-row .text-right { text-align: left; align-items: flex-start; margin-top: 1rem; width: 100%; }
+        }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
@@ -84,30 +217,40 @@
         <div id="mode-general" class="mode-btn" onclick="setMode('general')">일망호 모드</div>
     </div>
 
-    <div class="max-w-4xl mx-auto">
+    <div class="max-w-6xl mx-auto">
         <header class="text-center mb-10">
             <h1 class="header-font text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500 mb-2">FLOOR METER</h1>
             <p class="text-gray-400 font-light uppercase tracking-widest text-sm">층수 측정기 (v-archive 및 로페봇 기반)</p>
         </header>
 
-        <div id="dropZone" class="mb-8 border-2 border-dashed border-slate-700 rounded-2xl p-8 text-center cursor-pointer hover:border-blue-500 transition-colors bg-slate-900/50">
-            <p class="text-slate-400 mb-2">스크린샷을 복사한 후 <kbd class="bg-slate-800 px-2 py-1 rounded text-white">Ctrl + V</kbd>를 누르세요</p>
-            <p class="text-xs text-slate-500">16:9 비율의 스크린샷만 인식할 수 있습니다.</p>
+        <div id="dropZone" class="mb-8 border-2 border-dashed border-slate-700 rounded-3xl p-10 text-center cursor-pointer hover:border-blue-500 hover:bg-slate-800/40 transition-all duration-300 glass group">
+            <div class="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-slate-400 group-hover:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+            </div>
+            <p class="text-slate-300 mb-2 font-medium">스크린샷을 복사한 후 <kbd class="px-2 py-1 rounded text-white text-xs">Ctrl + V</kbd>를 누르세요</p>
+            <p class="text-xs text-slate-500 uppercase tracking-widest">16:9 비율 (2560x1440 권장)</p>
         </div>
 
-        <div id="messageZone" class="text-center text-yellow-400 mb-4 h-6 text-sm"></div>
+        <div id="messageZone" class="text-center text-blue-400 mb-4 h-6 text-xs font-bold uppercase tracking-widest"></div>
 
-        <div id="hashUploadContainer" class="hidden mb-8 p-6 bg-slate-900/80 border border-yellow-500/30 rounded-2xl text-center">
-            <p class="text-yellow-500 mb-4 text-sm font-bold">⚠️ 해시 데이터(hashes.json)를 불러오지 못했습니다.</p>
-            <label class="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg cursor-pointer transition-colors inline-block font-bold text-sm">
+        <div id="hashUploadContainer" class="hidden mb-8 p-8 bg-slate-900/80 border border-yellow-500/30 rounded-3xl text-center glass">
+            <p class="text-yellow-500 mb-4 text-sm font-bold flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                </svg>
+                해시 데이터(hashes.json)를 불러오지 못했습니다.
+            </p>
+            <label class="bg-yellow-600 hover:bg-yellow-500 text-white px-6 py-2.5 rounded-xl cursor-pointer transition-all inline-block font-bold text-sm shadow-lg shadow-yellow-900/20">
                 해시 파일 선택
                 <input type="file" id="hashFileInput" class="hidden" accept=".json" onchange="handleHashUpload(this)">
             </label>
-            <p class="text-slate-500 mt-2 text-xs">로컬 환경에서는 hashes.json 파일을 직접 선택해야 합니다.</p>
+            <p class="text-slate-500 mt-4 text-xs">로컬 환경에서는 hashes.json 파일을 직접 선택해야 합니다.</p>
         </div>
 
-        <div id="screenshotContainer"><img id="screenshotPreview" alt="Original Screenshot"></div>
-        <div id="resultList" class="space-y-4"><div class="text-center py-20 text-slate-600 italic">페이지 로딩 중...</div></div>
+        <div id="screenshotContainer"><img id="screenshotPreview" alt="Original Screenshot" class="mb-10"></div>
+        <div id="resultList" class="versus-grid"><div class="text-center py-20 text-slate-600 italic tracking-widest text-sm uppercase">Initializing System...</div></div>
     </div>
     
     <script>
@@ -121,6 +264,15 @@
             currentMode = mode;
             document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(`mode-${mode}`).classList.add('active');
+            
+            if (mode === 'versus') {
+                resultList.classList.add('versus-grid');
+                resultList.classList.remove('space-y-4');
+            } else {
+                resultList.classList.remove('versus-grid');
+                resultList.classList.add('space-y-4');
+            }
+
             window.lastProcessedImg = null; lastImageHash = null;
             renderStatus();
             document.getElementById('screenshotContainer').style.display = 'none';
@@ -178,9 +330,10 @@
         function getSongTagsHtml(titleId, currentButton = null, currentDifficulty = null) {
             const tags = songTagsDatabase[titleId]; if (!tags) return '';
             const filteredTags = parseTags(tags, currentButton, currentDifficulty); if (filteredTags.length === 0) return '';
-            return `<div class="flex flex-wrap gap-1.5 mt-1.5">${filteredTags.map(tag => {
+            const justifyClass = currentMode === 'versus' ? 'justify-center' : 'justify-start';
+            return `<div class="flex flex-wrap gap-1 ${justifyClass} mt-1.5">${filteredTags.map(tag => {
                 const isBpm = tag.startsWith('BPM:'), bgColor = isBpm ? 'bg-blue-900/40' : 'bg-slate-800/60', textColor = isBpm ? 'text-blue-300' : 'text-slate-300', borderColor = isBpm ? 'border-blue-700/50' : 'border-slate-700/50';
-                return `<span class="px-2 py-0.5 rounded text-[11px] font-bold border ${bgColor} ${textColor} ${borderColor}">${tag}</span>`;
+                return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${bgColor} ${textColor} ${borderColor}">[${tag}]</span>`;
             }).join('')}</div>`;
         }
 
@@ -263,7 +416,8 @@
         const songDatabase = {}; let statusLogs = []; window.lastProcessedImg = null; 
         function renderStatus() {
             if (!resultList) return;
-            resultList.innerHTML = `<div class="text-center py-20 space-y-2">${statusLogs.map(log => `<p class="text-slate-400 text-sm">${log}</p>`).join('')}</div>`;
+            const containerClass = currentMode === 'versus' ? 'grid grid-cols-1 w-full col-span-full' : 'w-full';
+            resultList.innerHTML = `<div class="text-center py-20 space-y-3 ${containerClass}">${statusLogs.map(log => `<p class="text-slate-500 text-xs font-medium tracking-wide">${log}</p>`).join('')}</div>`;
         }
         function updateStatus(msg, isAppend = false) {
             if (isAppend && statusLogs.length > 0) statusLogs[statusLogs.length - 1] += ` ${msg}`; else statusLogs.push(msg);
@@ -379,35 +533,29 @@
             }
         }
 
-        function getFloorColor(fV) {
-            const f = parseFloat(fV); if (isNaN(f)) return '#60a5fa';
-            const fl = Math.floor(f / 10); if (fl >= 16) return '#c084fc';
-            const h = 240 - (Math.max(1, Math.min(15, fl)) - 1) * (240 / 14); return `hsl(${h}, 100%, 70%)`;
-        }
-
         function getDifficultyBgColor(level, diff, floor) {
-            if (!floor || floor === '-' || isNaN(parseFloat(floor))) return 'rgba(71, 85, 105, 0.2)';
+            if (!floor || floor === '-' || isNaN(parseFloat(floor))) return 'rgba(71, 85, 105, 0.85)';
             const f = Math.floor(parseFloat(floor) / 10), l = parseInt(level);
             const adj = (diff === 'SC') ? l : (l - 11) * 2;
-            if (adj === f) return 'rgba(234, 179, 8, 0.2)'; 
-            if (adj > f) return 'rgba(56, 189, 248, 0.2)'; 
-            return 'rgba(239, 68, 68, 0.2)';
+            if (adj === f) return 'rgba(234, 179, 8, 0.85)'; 
+            if (adj > f) return 'rgba(56, 189, 248, 0.85)'; 
+            return 'rgba(239, 68, 68, 0.85)';
         }
 
         function updateGeneralRow(row, data, titleId) {
-            row.className = 'track-row p-6 rounded-xl block opacity-100 shadow-lg relative';
+            row.className = 'track-row p-6 rounded-2xl block opacity-100 shadow-xl relative glass';
             const btnList = ['4B', '5B', '6B', '8B'], diffList = ['NM', 'HD', 'MX', 'SC'];
-            let grid = `<div class="general-grid mt-4"><div class="grid-cell grid-header"></div>${diffList.map(d => `<div class="grid-cell grid-header">${d}</div>`).join('')}`;
+            let grid = `<div class="general-grid mt-6"><div class="grid-cell grid-header"></div>${diffList.map(d => `<div class="grid-cell grid-header">${d}</div>`).join('')}`;
             btnList.forEach(btn => {
                 grid += `<div class="grid-cell grid-row-label">${btn}</div>`;
                 diffList.forEach(diff => {
                     const p = data.patterns?.[btn]?.[diff], fVal = p?.floor ?? '-', l = p?.level ?? 0, fName = p?.floorName ?? (fVal !== '-' ? String(fVal) : '-');
-                    const color = getFloorColor(fVal), bgColor = getDifficultyBgColor(l, diff, fVal);
-                    grid += `<div class="grid-cell ${fName==='-'?'empty':'grid-value'}" style="${fName==='-'?'':(`color: ${color}; background-color: ${bgColor}`)}">${fName}</div>`;
+                    const color = fName === '-' ? '' : '#ffffff', bgColor = fName === '-' ? '' : getDifficultyBgColor(l, diff, fVal);
+                    grid += `<div class="grid-cell ${fName==='-'?'empty':'grid-value'}" style="${fName==='-'?'':(`color: ${color}; background-color: ${bgColor}; box-shadow: inset 0 0 10px rgba(0,0,0,0.1);`)}">${fName}</div>`;
                 });
             });
             grid += `</div>`;
-            row.innerHTML = `<div class="flex items-center justify-between mb-2"><div class="flex items-center space-x-6"><img src="https://v-archive.net/static/images/jackets/${titleId}.jpg" class="w-24 h-24 rounded-lg object-cover border-2 border-slate-700"><div><h3 class="font-bold text-white text-2xl mb-1">${data.name}</h3><div class="flex items-center space-x-3"><p class="text-slate-400 text-sm">ID: ${titleId}</p><button class="recheck-btn bg-slate-700 text-white text-[10px] px-2 py-0.5 rounded" onclick="event.stopPropagation(); handleRecheck(this)">재검토</button></div></div></div></div><div class="mt-2 px-2">${getSongTagsHtml(titleId)}</div>${grid}`;
+            row.innerHTML = `<div class="flex items-center justify-between mb-2"><div class="flex items-center space-x-6"><img src="https://v-archive.net/static/images/jackets/${titleId}.jpg" class="w-24 h-24 rounded-xl object-cover border-2 border-slate-800 shadow-lg"><div><h3 class="font-bold text-white text-2xl mb-1">${data.name}</h3><div class="flex items-center space-x-3"><p class="text-slate-500 text-xs font-mono">ID: ${titleId}</p><button class="recheck-btn bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button></div></div></div></div><div class="mt-2 px-2">${getSongTagsHtml(titleId)}</div>${grid}`;
         }
 
         function displayMatch(row, index) {
@@ -419,10 +567,57 @@
         }
 
         function updateRow(row, info) {
-            row.className = 'track-row p-4 rounded-xl flex items-center justify-between opacity-100 shadow-lg relative'; row.setAttribute('data-title-id', info.titleId);
+            row.setAttribute('data-title-id', info.titleId);
             const bL = ['4B', '5B', '6B', '8B'], dL = ['NM', 'HD', 'MX', 'SC'];
-            row.innerHTML = `<div class="flex items-center space-x-4"><img src="https://v-archive.net/static/images/jackets/${info.titleId}.jpg" class="w-20 h-20 rounded-lg object-cover border border-slate-700"><div><h3 class="font-bold text-white text-lg leading-tight">${info.name}</h3><div class="tags-container">${getSongTagsHtml(info.titleId, info.button, info.difficulty)}</div><div class="flex items-center space-x-1 mt-1.5"><select class="btn-select px-1 py-0.5 rounded text-[10px] font-bold text-white bg-slate-700 appearance-none" onchange="event.stopPropagation(); handleCorrection(this)">${bL.map(b => `<option value="${b}" ${b===info.button?'selected':''}>${b}</option>`).join('')}</select><select class="diff-select px-1 py-0.5 rounded text-[10px] font-bold text-white bg-slate-700 appearance-none" onchange="event.stopPropagation(); handleCorrection(this)">${dL.map(d => `<option value="${d}" ${d===info.difficulty?'selected':''}>${d}</option>`).join('')}</select><button class="recheck-btn ml-2 bg-slate-700 text-white text-[10px] px-2 py-0.5 rounded" onclick="event.stopPropagation(); handleRecheck(this)">재검토</button></div></div></div><div class="text-right flex flex-col items-end"><p class="text-xs text-slate-500 uppercase font-bold">Floor</p><div class="floor-area" style="border-radius: 8px; padding: 4px 8px; background-color: ${getDifficultyBgColor(info.level, info.difficulty, info.floor)}"><p class="floor-value text-3xl font-black" style="color: ${getFloorColor(info.floor)}">${info.floorName}</p></div></div>`;
+            
+            if (currentMode === 'versus') {
+                row.className = 'track-row rounded-2xl opacity-100 shadow-xl relative glass flex flex-col items-center text-center p-4 space-y-3';
+                row.innerHTML = `
+                    <h3 class="font-bold text-white text-sm leading-tight h-10 flex items-center justify-center overflow-hidden">${info.name}</h3>
+                    <div class="relative group w-full aspect-square overflow-hidden rounded-xl border border-slate-800 shadow-md">
+                        <img src="https://v-archive.net/static/images/jackets/${info.titleId}.jpg" class="w-full h-full object-cover">
+                        <div class="absolute inset-x-0 bottom-0 bg-black/60 backdrop-blur-sm p-1 floor-area transition-all duration-300" style="background-color: ${getDifficultyBgColor(info.level, info.difficulty, info.floor)}">
+                            <p class="floor-value text-xl font-black text-white">${info.floorName}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-1 w-full">
+                        <select class="btn-select flex-1 px-1 py-1 rounded-md text-[10px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">
+                            ${bL.map(b => `<option value="${b}" ${b===info.button?'selected':''}>${b}</option>`).join('')}
+                        </select>
+                        <select class="diff-select flex-1 px-1 py-1 rounded-md text-[10px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">
+                            ${dL.map(d => `<option value="${d}" ${d===info.difficulty?'selected':''}>${d}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="tags-container w-full min-h-[40px]">${getSongTagsHtml(info.titleId, info.button, info.difficulty)}</div>
+                    <div class="flex items-center space-x-1 w-full pt-1">
+                        <button class="recheck-btn flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] py-1.5 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button>
+                        <button class="copy-btn flex-1 bg-blue-900/40 hover:bg-blue-800/60 text-blue-300 text-[10px] py-1.5 rounded-md uppercase font-bold tracking-tighter border border-blue-700/50" onclick="event.stopPropagation(); copyRowInfo(this)">Copy</button>
+                    </div>
+                `;
+            } else {
+                row.className = 'track-row p-5 rounded-2xl flex items-center justify-between opacity-100 shadow-xl relative glass';
+                row.innerHTML = `<div class="flex items-center space-x-5"><img src="https://v-archive.net/static/images/jackets/${info.titleId}.jpg" class="w-20 h-20 rounded-xl object-cover border border-slate-800 shadow-md"><div><h3 class="font-bold text-white text-xl leading-tight mb-1">${info.name}</h3><div class="tags-container">${getSongTagsHtml(info.titleId, info.button, info.difficulty)}</div><div class="flex items-center space-x-1.5 mt-2.5"><select class="btn-select px-2 py-1 rounded-md text-[11px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">${bL.map(b => `<option value="${b}" ${b===info.button?'selected':''}>${b}</option>`).join('')}</select><select class="diff-select px-2 py-1 rounded-md text-[11px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">${dL.map(d => `<option value="${d}" ${d===info.difficulty?'selected':''}>${d}</option>`).join('')}</select><button class="recheck-btn ml-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button></div></div></div><div class="text-right flex flex-col items-end"><p class="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Floor Intensity</p><div class="floor-area transition-all duration-300" style="border-radius: 12px; padding: 6px 12px; background-color: ${getDifficultyBgColor(info.level, info.difficulty, info.floor)}"><p class="floor-value text-3xl font-black text-white">${info.floorName}</p></div></div>`;
+            }
             updateSelectColors(row.querySelector('.btn-select'), row.querySelector('.diff-select'));
+        }
+
+        function copyRowInfo(btn) {
+            const row = btn.closest('.track-row');
+            const title = row.querySelector('h3').innerText;
+            const button = row.querySelector('.btn-select').value;
+            const diff = row.querySelector('.diff-select').value;
+            const floor = row.querySelector('.floor-value').innerText;
+            
+            const tagsContainer = row.querySelector('.tags-container');
+            const tags = tagsContainer ? Array.from(tagsContainer.querySelectorAll('span')).map(s => s.innerText).join(' ') : '';
+            
+            const text = `${title} ${button} ${diff} ${floor}${tags ? ' ' + tags : ''}`;
+            
+            navigator.clipboard.writeText(text).then(() => {
+                showTemporaryMessage("정보 복사됨!");
+            }).catch(err => {
+                showTemporaryMessage("복사 실패");
+            });
         }
 
         function handleCorrection(el) {
@@ -432,17 +627,16 @@
             const p = d.patterns?.[btn]?.[diff], fE = row.querySelector('.floor-value'), fA = row.querySelector('.floor-area');
             if (fE) {
                 const fV = p?.floor ?? "-", fN = p?.floorName ?? (fV !== "-" ? String(fV) : "NO DATA"), l = p?.level || 0;
-                fE.innerText = fN; fE.style.color = getFloorColor(fV);
+                fE.innerText = fN;
                 if (fA) {
                     fA.style.backgroundColor = getDifficultyBgColor(l, diff, fV);
-                    fA.style.borderRadius = '8px'; fA.style.padding = '4px 8px';
                 }
             }
         }
 
         function updateSelectColors(bE, dE) {
-            const bC = { '4B': 'bg-green-600', '5B': 'bg-sky-600', '6B': 'bg-orange-600', '8B': 'bg-indigo-600' }, dC = { 'SC': 'bg-purple-600', 'MX': 'bg-red-600', 'HD': 'bg-orange-600', 'NM': 'bg-yellow-600' };
-            const all = ['bg-slate-700', 'bg-slate-600', ...Object.values(bC), ...Object.values(dC)];
+            const bC = { '4B': 'bg-emerald-600', '5B': 'bg-sky-600', '6B': 'bg-amber-600', '8B': 'bg-indigo-600' }, dC = { 'SC': 'bg-purple-600', 'MX': 'bg-rose-600', 'HD': 'bg-orange-600', 'NM': 'bg-yellow-500' };
+            const all = ['bg-slate-800', 'bg-slate-700', 'bg-slate-600', ...Object.values(bC), ...Object.values(dC)];
             all.forEach(c => { bE.classList.remove(c); dE.classList.remove(c); });
             if (bC[bE.value]) bE.classList.add(bC[bE.value]); if (dC[dE.value]) dE.classList.add(dC[dE.value]);
         }
@@ -457,14 +651,27 @@
         }
 
         function createLoadingRow(index) {
-            const d = document.createElement('div'); d.className = 'track-row p-4 rounded-xl flex items-center justify-between opacity-50';
-            d.innerHTML = `<div class="flex items-center space-x-4 w-full"><div class="w-20 h-20 rounded-lg bg-slate-800 loading-shimmer"></div><div class="flex-grow"><div class="h-5 w-3/4 bg-slate-800 mb-2 loading-shimmer rounded"></div><div class="h-4 w-1/2 bg-slate-800 loading-shimmer rounded"></div></div><div class="text-right"><div class="h-8 w-20 bg-slate-800 loading-shimmer rounded"></div></div></div>`;
+            const d = document.createElement('div'); 
+            if (currentMode === 'versus') {
+                d.className = 'track-row p-4 rounded-2xl flex flex-col items-center opacity-50 glass space-y-3';
+                d.innerHTML = `
+                    <div class="h-6 w-3/4 bg-slate-800 loading-shimmer rounded-lg mb-2"></div>
+                    <div class="w-full aspect-square rounded-xl bg-slate-800 loading-shimmer"></div>
+                    <div class="h-8 w-full bg-slate-800 loading-shimmer rounded-md"></div>
+                    <div class="h-10 w-full bg-slate-800 loading-shimmer rounded-md"></div>
+                `;
+            } else {
+                d.className = 'track-row p-5 rounded-2xl flex items-center justify-between opacity-50 glass';
+                d.innerHTML = `<div class="flex items-center space-x-5 w-full"><div class="w-20 h-20 rounded-xl bg-slate-800 loading-shimmer"></div><div class="flex-grow"><div class="h-6 w-3/4 bg-slate-800 mb-3 loading-shimmer rounded-lg"></div><div class="h-4 w-1/2 bg-slate-800 loading-shimmer rounded-md"></div></div><div class="text-right"><div class="h-10 w-24 bg-slate-800 loading-shimmer rounded-xl"></div></div></div>`;
+            }
             return d;
         }
 
-        resultList.addEventListener('click', (e) => { const r = e.target.closest('.track-row'); if (r) { r.classList.toggle('played'); r.classList.remove('banned'); } });
-        resultList.addEventListener('contextmenu', (e) => { const r = e.target.closest('.track-row'); if (r) { e.preventDefault(); r.classList.toggle('banned'); r.classList.remove('played'); } });
+        resultList.addEventListener('click', (e) => { const r = e.target.closest('.track-row'); if (r && !e.target.closest('select') && !e.target.closest('button')) { r.classList.toggle('played'); r.classList.remove('banned'); } });
+        resultList.addEventListener('contextmenu', (e) => { const r = e.target.closest('.track-row'); if (r && !e.target.closest('select') && !e.target.closest('button')) { e.preventDefault(); r.classList.toggle('banned'); r.classList.remove('played'); } });
+        document.getElementById('screenshotPreview').addEventListener('click', function() { this.classList.toggle('expanded'); });
         window.onload = init;
     </script>
+
 </body>
 </html>
