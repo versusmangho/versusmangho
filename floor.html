@@ -36,32 +36,19 @@
             0% { background-position: 200% 0; }
             100% { background-position: -200% 0; }
         }
-        .track-row.highlight {
-            border-color: #3b82f6 !important;
-            box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
-            transform: scale(1.02);
-        }
         .track-row.played {
             background: rgba(34, 197, 94, 0.15);
             border-color: #22c55e !important;
             opacity: 0.8;
         }
-        .track-row.played .status-played {
-            display: inline-block;
-        }
+        .track-row.played .status-played { display: inline-block; }
         .track-row.banned {
             background: rgba(239, 68, 68, 0.15);
             border-color: #ef4444 !important;
             opacity: 0.8;
         }
-        .track-row.banned .status-banned {
-            display: inline-block;
-        }
-        #screenshotContainer {
-            margin-bottom: 2rem;
-            display: none;
-            justify-content: center;
-        }
+        .track-row.banned .status-banned { display: inline-block; }
+        #screenshotContainer { margin-bottom: 2rem; display: none; justify-content: center; }
         #screenshotPreview {
             max-width: 300px;
             cursor: pointer;
@@ -70,79 +57,24 @@
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
-        #screenshotPreview.expanded {
-            max-width: 100%;
-            border-color: #3b82f6;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
-        }
-        /* Mode Toggle */
+        #screenshotPreview.expanded { max-width: 100%; border-color: #3b82f6; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2); }
         .mode-toggle-container {
-            position: absolute;
-            top: 2rem;
-            right: 2rem;
-            display: flex;
-            background: rgba(30, 41, 59, 0.8);
-            padding: 4px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            z-index: 50;
+            position: absolute; top: 2rem; right: 2rem; display: flex;
+            background: rgba(30, 41, 59, 0.8); padding: 4px; border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1); z-index: 50;
         }
-        .mode-btn {
-            padding: 6px 16px;
-            border-radius: 8px;
-            font-size: 0.875rem;
-            font-weight: 600;
-            transition: all 0.2s;
-            cursor: pointer;
-        }
-        .mode-btn.active {
-            background: #3b82f6;
-            color: white;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-        .mode-btn:not(.active):hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-        /* General Mode Grid */
+        .mode-btn { padding: 6px 16px; border-radius: 8px; font-size: 0.875rem; font-weight: 600; transition: all 0.2s; cursor: pointer; }
+        .mode-btn.active { background: #3b82f6; color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .mode-btn:not(.active):hover { background: rgba(255, 255, 255, 0.05); }
         .general-grid {
-            display: grid;
-            grid-template-columns: auto repeat(4, 1fr);
-            gap: 1px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            overflow: hidden;
+            display: grid; grid-template-columns: auto repeat(4, 1fr); gap: 1px;
+            background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; overflow: hidden;
         }
-        .grid-cell {
-            background: #1e293b;
-            padding: 12px 8px;
-            text-align: center;
-            font-family: 'Orbitron', sans-serif;
-            font-size: 0.85rem;
-        }
-        .grid-header {
-            background: #334155;
-            font-weight: bold;
-            color: #94a3b8;
-            font-size: 0.75rem;
-        }
-        .grid-row-label {
-            background: #334155;
-            font-weight: bold;
-            color: #94a3b8;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 12px;
-        }
-        .grid-value {
-            color: #3b82f6;
-            font-weight: bold;
-        }
-        .grid-value.empty {
-            color: #475569;
-            font-weight: normal;
-        }
+        .grid-cell { background: #1e293b; padding: 12px 8px; text-align: center; font-family: 'Orbitron', sans-serif; font-size: 0.85rem; }
+        .grid-header { background: #334155; font-weight: bold; color: #94a3b8; font-size: 0.75rem; }
+        .grid-row-label { background: #334155; font-weight: bold; color: #94a3b8; display: flex; align-items: center; justify-content: center; padding: 0 12px; }
+        .grid-value { color: #3b82f6; font-weight: bold; }
+        .grid-value.empty { color: #475569; font-weight: normal; }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
@@ -153,24 +85,18 @@
     </div>
 
     <div class="max-w-4xl mx-auto">
-        <!-- Header -->
         <header class="text-center mb-10">
-            <h1 class="header-font text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500 mb-2">
-                FLOOR METER
-            </h1>
-            <p class="text-gray-400 font-light uppercase tracking-widest text-sm">층수 측정기 (v-archive 기반)</p>
+            <h1 class="header-font text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-500 mb-2">FLOOR METER</h1>
+            <p class="text-gray-400 font-light uppercase tracking-widest text-sm">층수 측정기 (v-archive 및 로페봇 기반)</p>
         </header>
 
-        <!-- Main Interaction Area -->
         <div id="dropZone" class="mb-8 border-2 border-dashed border-slate-700 rounded-2xl p-8 text-center cursor-pointer hover:border-blue-500 transition-colors bg-slate-900/50">
             <p class="text-slate-400 mb-2">스크린샷을 복사한 후 <kbd class="bg-slate-800 px-2 py-1 rounded text-white">Ctrl + V</kbd>를 누르세요</p>
             <p class="text-xs text-slate-500">16:9 비율의 스크린샷만 인식할 수 있습니다.</p>
         </div>
 
-        <!-- Message Area -->
         <div id="messageZone" class="text-center text-yellow-400 mb-4 h-6 text-sm"></div>
 
-        <!-- Hash Upload Area (Hidden by default) -->
         <div id="hashUploadContainer" class="hidden mb-8 p-6 bg-slate-900/80 border border-yellow-500/30 rounded-2xl text-center">
             <p class="text-yellow-500 mb-4 text-sm font-bold">⚠️ 해시 데이터(hashes.json)를 불러오지 못했습니다.</p>
             <label class="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-2 rounded-lg cursor-pointer transition-colors inline-block font-bold text-sm">
@@ -180,804 +106,364 @@
             <p class="text-slate-500 mt-2 text-xs">로컬 환경에서는 hashes.json 파일을 직접 선택해야 합니다.</p>
         </div>
 
-        <!-- Screenshot Preview -->
-        <div id="screenshotContainer">
-            <img id="screenshotPreview" alt="Original Screenshot">
-        </div>
-
-        <!-- Result List -->
-        <div id="resultList" class="space-y-4">
-            <div class="text-center py-20 text-slate-600 italic">페이지 로딩 중...</div>
-        </div>
+        <div id="screenshotContainer"><img id="screenshotPreview" alt="Original Screenshot"></div>
+        <div id="resultList" class="space-y-4"><div class="text-center py-20 text-slate-600 italic">페이지 로딩 중...</div></div>
     </div>
     
     <script>
         const resultList = document.getElementById('resultList');
-
-        // --- 설정값 (2560x1440 기준 비율) ---
         const BASE_W = 2560, BASE_H = 1440;
-        const RATIO_X_START = 307 / BASE_W;
-        const RATIO_THUMB_W = 240 / BASE_W;
-        const RATIO_GAP = 186.75 / BASE_W;
-        const RATIO_Y_START = 545 / BASE_H;
-        const RATIO_THUMB_H = 240 / BASE_H;
-        const RATIO_BAR_H = 43 / BASE_H;
+        const RATIO_X_START = 307 / BASE_W, RATIO_THUMB_W = 240 / BASE_W, RATIO_GAP = 186.75 / BASE_W, RATIO_Y_START = 545 / BASE_H, RATIO_THUMB_H = 240 / BASE_H, RATIO_BAR_H = 43 / BASE_H;
+        const RATIO_GENERAL_X = 885 / BASE_W, RATIO_GENERAL_Y = 711 / BASE_H, RATIO_GENERAL_W = 80 / BASE_W, RATIO_GENERAL_H = 80 / BASE_H;
 
-        // --- 일망호 (General) 설정 ---
-        const RATIO_GENERAL_X = 885 / BASE_W;
-        const RATIO_GENERAL_Y = 711 / BASE_H;
-        const RATIO_GENERAL_W = 80 / BASE_W;
-        const RATIO_GENERAL_H = 80 / BASE_H;
-
-        let currentMode = 'versus'; // 'versus' or 'general'
-
+        let currentMode = 'versus';
         function setMode(mode) {
             currentMode = mode;
             document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(`mode-${mode}`).classList.add('active');
-            
-            // 모드 전환 시 기존 데이터 및 분석 결과 폐기
-            window.lastProcessedImg = null; 
-            lastImageHash = null;
-            
-            // UI 초기화: 안내 로그 출력 및 스크린샷 영역 숨김
+            window.lastProcessedImg = null; lastImageHash = null;
             renderStatus();
             document.getElementById('screenshotContainer').style.display = 'none';
             document.getElementById('dropZone').style.display = 'block';
         }
 
-        const BAR_SPLIT = 0.5;
-        const W_AHASH = 1.0;
-        const W_DHASH = 1.0;
-
-        // 레퍼런스 해시 저장소
-        const thumbRefs = [];
-        const buttonRefs = {};
-        const diffRefs = {};
-
-        // 기능 개선을 위한 변수
-        let isProcessing = false;
-        let lastImageHash = null;
+        const BAR_SPLIT = 0.5, W_AHASH = 1.0, W_DHASH = 1.0;
+        const thumbRefs = [], buttonRefs = {}, diffRefs = {}, songTagsDatabase = {};
+        let isProcessing = false, lastImageHash = null;
         const COOLDOWN_MS = 3000;
 
-        // ------------------------------
-        // Canvas 유틸
-        // ------------------------------
         function cropToCanvas(sourceImg, x, y, w, h) {
             const c = document.createElement('canvas');
-            c.width = Math.max(1, Math.round(w));
-            c.height = Math.max(1, Math.round(h));
-            const ctx = c.getContext('2d', { willReadFrequently: true });
-            ctx.drawImage(sourceImg, x, y, w, h, 0, 0, c.width, c.height);
+            c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h));
+            c.getContext('2d', { willReadFrequently: true }).drawImage(sourceImg, x, y, w, h, 0, 0, c.width, c.height);
             return c;
         }
 
-        // ------------------------------
-        // 해시 구현 (aHash / dHash / pHash)
-        // ------------------------------
+        function parseTags(tagStr, currentButton = null, currentDifficulty = null) {
+            if (!tagStr) return [];
+            const circleMap = { '{1}': '①', '{2}': '②', '{3}': '③', '{4}': '④', '{5}': '⑤', '{6}': '⑥', '{7}': '⑦', '{8}': '⑧', '{9}': '⑨', '{10}': '⑩' };
+            const diffSuffixes = ['_MX', '_HD', '_NM'];
+
+            return tagStr.split(',')
+                .map(t => t.trim())
+                .filter(t => {
+                    if (!t || !t.includes(':') || t.startsWith('GENRE:')) return false;
+                    const [prefix, ...rest] = t.split(':'), content = rest.join(':').trim();
+                    if (prefix === 'BPM') return true;
+                    if (prefix.includes('B')) {
+                        const buttons = prefix.split('&').map(b => b.trim());
+                        if (currentButton && !buttons.includes(currentButton)) return false;
+                        if (currentDifficulty) {
+                            const baseContent = content.replace(/\|?\{?\d+\}?/g, '').trim();
+                            const foundSuffix = diffSuffixes.find(s => baseContent.endsWith(s));
+                            if (currentDifficulty === 'SC') return !foundSuffix;
+                            else return baseContent.endsWith('_' + currentDifficulty);
+                        }
+                        return true;
+                    }
+                    return false;
+                })
+                .map(t => {
+                    let result = t;
+                    for (const [key, val] of Object.entries(circleMap)) result = result.split(key).join(val);
+                    result = result.split('|').join('');
+                    const [prefix, ...rest] = result.split(':'), content = rest.join(':').trim();
+                    if (prefix === 'BPM') return result;
+                    let finalRes = currentButton ? content : result;
+                    diffSuffixes.forEach(s => { finalRes = finalRes.replace(new RegExp(s + '(?=[①-⑩]|$)'), ''); });
+                    return finalRes;
+                });
+        }
+
+        function getSongTagsHtml(titleId, currentButton = null, currentDifficulty = null) {
+            const tags = songTagsDatabase[titleId]; if (!tags) return '';
+            const filteredTags = parseTags(tags, currentButton, currentDifficulty); if (filteredTags.length === 0) return '';
+            return `<div class="flex flex-wrap gap-1.5 mt-1.5">${filteredTags.map(tag => {
+                const isBpm = tag.startsWith('BPM:'), bgColor = isBpm ? 'bg-blue-900/40' : 'bg-slate-800/60', textColor = isBpm ? 'text-blue-300' : 'text-slate-300', borderColor = isBpm ? 'border-blue-700/50' : 'border-slate-700/50';
+                return `<span class="px-2 py-0.5 rounded text-[11px] font-bold border ${bgColor} ${textColor} ${borderColor}">${tag}</span>`;
+            }).join('')}</div>`;
+        }
+
         function getGrayscaleFromCanvas(canvas, w, h) {
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            const data = ctx.getImageData(0, 0, w, h).data;
-            const gray = new Float32Array(w * h);
-            for (let i = 0, p = 0; i < data.length; i += 4, p++) {
-                gray[p] = (data[i] + data[i + 1] + data[i + 2]) / 3.0;
-            }
+            const data = ctx.getImageData(0, 0, w, h).data, gray = new Float32Array(w * h);
+            for (let i = 0, p = 0; i < data.length; i += 4, p++) gray[p] = (data[i] + data[i + 1] + data[i + 2]) / 3.0;
             return gray;
         }
 
         function aHashFromCanvas(canvas) {
-            const w = 8, h = 8;
-            const c = document.createElement('canvas');
-            c.width = w; c.height = h;
-            c.getContext('2d').drawImage(canvas, 0, 0, w, h);
-            const gray = getGrayscaleFromCanvas(c, w, h);
-            let avg = 0;
-            for (let i = 0; i < gray.length; i++) avg += gray[i];
-            avg /= gray.length;
-            let hi = 0, lo = 0;
-            for (let i = 0; i < 64; i++) {
-                const bit = gray[i] >= avg ? 1 : 0;
-                if (i < 32) hi = (hi << 1) | bit;
-                else lo = (lo << 1) | bit;
-            }
-            return { hi, lo };
+            const w = 8, h = 8, c = document.createElement('canvas'); c.width = w; c.height = h;
+            c.getContext('2d').drawImage(canvas, 0, 0, w, h); const gray = getGrayscaleFromCanvas(c, w, h);
+            let avg = 0; for (let i = 0; i < gray.length; i++) avg += gray[i]; avg /= gray.length;
+            let hi = 0, lo = 0; for (let i = 0; i < 32; i++) hi = (hi << 1) | (gray[i] >= avg ? 1 : 0);
+            for (let i = 32; i < 64; i++) lo = (lo << 1) | (gray[i] >= avg ? 1 : 0);
+            return { hi: hi >>> 0, lo: lo >>> 0 };
         }
 
         function dHashFromCanvas(canvas) {
-            const w = 9, h = 8;
-            const c = document.createElement('canvas');
-            c.width = w; c.height = h;
-            c.getContext('2d').drawImage(canvas, 0, 0, w, h);
-            const gray = getGrayscaleFromCanvas(c, w, h);
-            let hi = 0, lo = 0;
-            let bitIndex = 0;
+            const w = 9, h = 8, c = document.createElement('canvas'); c.width = w; c.height = h;
+            c.getContext('2d').drawImage(canvas, 0, 0, w, h); const gray = getGrayscaleFromCanvas(c, w, h);
+            let hi = 0, lo = 0; let bitIndex = 0;
             for (let y = 0; y < 8; y++) {
                 for (let x = 0; x < 8; x++) {
-                    const left = gray[y * 9 + x];
-                    const right = gray[y * 9 + x + 1];
-                    const bit = left < right ? 1 : 0;
-                    if (bitIndex < 32) hi = (hi << 1) | bit;
-                    else lo = (lo << 1) | bit;
+                    const bit = gray[y * 9 + x] < gray[y * 9 + x + 1] ? 1 : 0;
+                    if (bitIndex < 32) hi = (hi << 1) | bit; else lo = (lo << 1) | bit;
                     bitIndex++;
                 }
             }
-            return { hi, lo };
+            return { hi: hi >>> 0, lo: lo >>> 0 };
         }
 
         function popcnt32(v) {
-            v = v - ((v >>> 1) & 0x55555555);
-            v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
+            v = v - ((v >>> 1) & 0x55555555); v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
             return (((v + (v >>> 4)) & 0x0F0F0F0F) * 0x01010101) >>> 24;
         }
-
-        function ham64(a, b) {
-            if (!a || !b) return Infinity;
-            return popcnt32((a.hi ^ b.hi) >>> 0) + popcnt32((a.lo ^ b.lo) >>> 0);
-        }
+        function ham64(a, b) { if (!a || !b) return Infinity; return popcnt32((a.hi ^ b.hi) >>> 0) + popcnt32((a.lo ^ b.lo) >>> 0); }
 
         function dct1D(vec, N) {
-            const out = new Float32Array(N);
-            const factor = Math.PI / N;
+            const out = new Float32Array(N), factor = Math.PI / N;
             for (let u = 0; u < N; u++) {
-                let sum = 0;
-                for (let x = 0; x < N; x++) {
-                    sum += vec[x] * Math.cos((x + 0.5) * u * factor);
-                }
-                const c = (u === 0) ? Math.sqrt(1 / N) : Math.sqrt(2 / N);
-                out[u] = c * sum;
+                let sum = 0; for (let x = 0; x < N; x++) sum += vec[x] * Math.cos((x + 0.5) * u * factor);
+                out[u] = ((u === 0) ? Math.sqrt(1 / N) : Math.sqrt(2 / N)) * sum;
             }
             return out;
         }
 
         function pHashFromCanvas(canvas) {
-            const N = 32;
-            const c = document.createElement('canvas');
-            c.width = N; c.height = N;
-            c.getContext('2d').drawImage(canvas, 0, 0, N, N);
-            const gray = getGrayscaleFromCanvas(c, N, N);
-            const tmp = new Array(N);
+            const N = 32, c = document.createElement('canvas'); c.width = N; c.height = N;
+            c.getContext('2d').drawImage(canvas, 0, 0, N, N); const gray = getGrayscaleFromCanvas(c, N, N), tmp = new Array(N);
             for (let y = 0; y < N; y++) {
-                const row = new Float32Array(N);
-                for (let x = 0; x < N; x++) row[x] = gray[y * N + x];
+                const row = new Float32Array(N); for (let x = 0; x < N; x++) row[x] = gray[y * N + x];
                 tmp[y] = dct1D(row, N);
             }
             const dct = new Array(N);
             for (let x = 0; x < N; x++) {
-                const col = new Float32Array(N);
-                for (let y = 0; y < N; y++) col[y] = tmp[y][x];
+                const col = new Float32Array(N); for (let y = 0; y < N; y++) col[y] = tmp[y][x];
                 const colD = dct1D(col, N);
-                for (let y = 0; y < N; y++) {
-                    if (!dct[y]) dct[y] = new Float32Array(N);
-                    dct[y][x] = colD[y];
-                }
+                for (let y = 0; y < N; y++) { if (!dct[y]) dct[y] = new Float32Array(N); dct[y][x] = colD[y]; }
             }
-            const vals = [];
-            for (let y = 0; y < 8; y++) {
-                for (let x = 0; x < 8; x++) {
-                    if (x === 0 && y === 0) continue;
-                    vals.push(dct[y][x]);
-                }
-            }
-            const sorted = vals.slice().sort((a, b) => a - b);
-            const med = sorted[Math.floor(sorted.length / 2)];
-            let hi = 0, lo = 0;
-            let i = 0;
+            const vals = []; for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) if (!(x === 0 && y === 0)) vals.push(dct[y][x]);
+            const sorted = vals.slice().sort((a, b) => a - b), med = sorted[Math.floor(sorted.length / 2)];
+            let hi = 0, lo = 0, i = 0;
             for (let y = 0; y < 8; y++) {
                 for (let x = 0; x < 8; x++) {
                     if (x === 0 && y === 0) continue;
                     const bit = dct[y][x] > med ? 1 : 0;
-                    if (i < 32) hi = (hi << 1) | bit;
-                    else lo = (lo << 1) | bit;
+                    if (i < 32) hi = (hi << 1) | bit; else lo = (lo << 1) | bit;
                     i++;
                 }
             }
             if (i < 64) {
                 const pad = 64 - i;
-                if (pad <= 32) lo = (lo << pad) >>> 0;
-                else { hi = (hi << (pad - 32)) >>> 0; lo = 0; }
+                if (pad <= 32) lo = (lo << pad) >>> 0; else { hi = (hi << (pad - 32)) >>> 0; lo = 0; }
             }
             return { hi: hi >>> 0, lo: lo >>> 0 };
         }
 
-        // ------------------------------
-        // 레퍼런스 로드 (hashes.json & songs.json)
-        // ------------------------------
-        const songDatabase = {};
-        let statusLogs = [];
-        window.lastProcessedImg = null; 
-
+        const songDatabase = {}; let statusLogs = []; window.lastProcessedImg = null; 
         function renderStatus() {
             if (!resultList) return;
-            resultList.innerHTML = `
-                <div class="text-center py-20 space-y-2">
-                    ${statusLogs.map(log => `<p class="text-slate-400 text-sm">${log}</p>`).join('')}
-                </div>
-            `;
+            resultList.innerHTML = `<div class="text-center py-20 space-y-2">${statusLogs.map(log => `<p class="text-slate-400 text-sm">${log}</p>`).join('')}</div>`;
         }
-
         function updateStatus(msg, isAppend = false) {
-            if (isAppend && statusLogs.length > 0) {
-                statusLogs[statusLogs.length - 1] += ` ${msg}`;
-            } else {
-                statusLogs.push(msg);
-            }
+            if (isAppend && statusLogs.length > 0) statusLogs[statusLogs.length - 1] += ` ${msg}`; else statusLogs.push(msg);
             renderStatus();
         }
 
         async function loadHashes() {
-            // 1. v-archive.net API 로드
             updateStatus("v-archive에서 곡 정보를 받아오는 중..");
-            const songApiUrl = 'https://v-archive.net/db/v2/songs.json';
-            const proxyUrl = 'https://api.allorigins.win/raw?url=';
-
+            const songApiUrl = 'https://v-archive.net/db/v2/songs.json', tagApiUrl = 'https://data.xn--2o2bk9ff9x.com/tags/song_tags.json', proxyUrl = 'https://api.allorigins.win/raw?url=';
             try {
-                let res;
-                try {
-                    res = await fetch(songApiUrl, { mode: 'cors' });
-                } catch (err) {
-                    res = await fetch(proxyUrl + encodeURIComponent(songApiUrl));
-                }
+                let res; try { res = await fetch(songApiUrl, { mode: 'cors' }); } catch (err) { res = await fetch(proxyUrl + encodeURIComponent(songApiUrl)); }
+                if (res && res.ok) { 
+                    const songs = await res.json();
+                    songs.forEach(s => { songDatabase[s.title] = s; }); 
+                    updateStatus("<span class='text-green-500 font-bold'>완료!</span>", true); 
+                } else throw new Error();
+            } catch (e) { updateStatus("<span class='text-red-500 font-bold'>실패!</span>", true); }
 
-                if (res && res.ok) {
-                    const songData = await res.json();
-                    songData.forEach(song => {
-                        songDatabase[song.title] = song;
-                    });
-                    updateStatus("<span class='text-green-500 font-bold'>완료!</span>", true);
-                } else {
-                    throw new Error();
-                }
-            } catch (error) {
-                updateStatus("<span class='text-red-500 font-bold'>실패! (곡 정보 없이 진행)</span>", true);
-            }
+            updateStatus("곡 상세 태그 정보를 받아오는 중..");
+            try {
+                let res; try { res = await fetch(tagApiUrl, { mode: 'cors' }); } catch (err) { res = await fetch(proxyUrl + encodeURIComponent(tagApiUrl)); }
+                if (res && res.ok) { 
+                    const d = await res.json(); 
+                    if (d.items) d.items.forEach(i => { songTagsDatabase[i.song_title] = i.tags; }); 
+                    updateStatus("<span class='text-green-500 font-bold'>완료!</span>", true); 
+                } else throw new Error();
+            } catch (e) { updateStatus("<span class='text-yellow-500 font-bold'>실패!</span>", true); }
 
-            // 2. hashes.json 로드
             updateStatus("이미지분석을 위한 데이터를 불러오는 중..");
             try {
                 const hRes = await fetch('hashes.json');
                 if (hRes.ok) {
-                    const data = await hRes.json();
-                    Object.assign(buttonRefs, data.trackinfo.buttons);
-                    Object.assign(diffRefs, data.trackinfo.diffs);
-                    thumbRefs.length = 0;
-                    thumbRefs.push(...data.thumbnails);
-                    document.getElementById('hashUploadContainer').classList.add('hidden');
+                    const data = await hRes.json(); 
+                    Object.assign(buttonRefs, data.trackinfo.buttons); Object.assign(diffRefs, data.trackinfo.diffs);
+                    thumbRefs.length = 0; thumbRefs.push(...data.thumbnails); document.getElementById('hashUploadContainer').classList.add('hidden');
                     updateStatus("<span class='text-green-500 font-bold'>완료!</span>", true);
-                } else {
-                    throw new Error();
-                }
+                } else throw new Error();
             } catch (e) {
-                updateStatus("<span class='text-yellow-500 font-bold' id='hashStatusLabel'>중단! (수동 업로드 필요)</span>", true);
-                document.getElementById('hashUploadContainer').classList.remove('hidden');
-                return false; 
+                updateStatus("<span class='text-yellow-500 font-bold' id='hashStatusLabel'>중단!</span>", true);
+                document.getElementById('hashUploadContainer').classList.remove('hidden'); return false;
             }
-            return true; 
+            return true;
         }
 
         function handleHashUpload(input) {
-            const file = input.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            resultList.innerHTML = `<div class="text-center py-20 text-slate-600 italic">데이터 처리 중...</div>`;
-            
+            const file = input.files[0]; if (!file) return;
+            const reader = new FileReader(); resultList.innerHTML = `<div class="text-center py-20 text-slate-600 italic">데이터 처리 중...</div>`;
             reader.onload = function(e) {
                 try {
-                    const data = JSON.parse(e.target.result);
-                    if (data.trackinfo) {
-                        Object.assign(buttonRefs, data.trackinfo.buttons);
-                        Object.assign(diffRefs, data.trackinfo.diffs);
-                        thumbRefs.length = 0;
-                        thumbRefs.push(...data.thumbnails);
-                        document.getElementById('hashUploadContainer').classList.add('hidden');
-                        
-                        // "중단" 로그를 "완료"로 교체
-                        if (statusLogs.length > 0) {
-                            statusLogs[statusLogs.length - 1] = statusLogs[statusLogs.length - 1].replace(
-                                /<span class=['"]text-yellow-500 font-bold['"] id=['"]hashStatusLabel['"]>.*?<\/span>/, 
-                                "<span class='text-green-500 font-bold'>완료!</span>"
-                            );
-                        }
-                        renderStatus();
-                        updateStatus("<div class='mt-6 text-blue-400 font-bold text-lg'>이제 스크린샷을 PrtScr로 클립보드에 저장한 후<br>이곳에 Ctrl + V로 붙여넣어주세요.</div>");
-                    } 
-                } catch (err) {
-                    alert("올바른 JSON 형식이 아닙니다.");
-                }
+                    const d = JSON.parse(e.target.result);
+                    if (d.trackinfo) {
+                        Object.assign(buttonRefs, d.trackinfo.buttons); Object.assign(diffRefs, d.trackinfo.diffs);
+                        thumbRefs.length = 0; thumbRefs.push(...d.thumbnails); document.getElementById('hashUploadContainer').classList.add('hidden');
+                        if (statusLogs.length > 0) statusLogs[statusLogs.length - 1] = statusLogs[statusLogs.length - 1].replace(/<span.*>.*<\/span>/, "<span class='text-green-500 font-bold'>완료!</span>");
+                        renderStatus(); updateStatus("<div class='mt-6 text-blue-400 font-bold text-lg'>준비 완료!</div>");
+                    }
+                } catch (err) { alert("오류 발생"); }
             };
             reader.readAsText(file);
         }
 
-        async function init() {
-            statusLogs = [];
-            const success = await loadHashes();
-            
-            if (success) {
-                updateStatus("<div class='mt-6 text-blue-400 font-bold text-lg'>이제 스크린샷을 PrtScr로 클립보드에 저장한 후<br>이곳에 Ctrl + V로 붙여넣어주세요.</div>");
-            }
-        }
-
-        // ------------------------------
-        // 매칭 로직
-        // ------------------------------
-        function bestMatchThumbnail(hashA, hashD) {
-            let best = { id: null, score: Infinity };
-            for (const ref of thumbRefs) {
-                const dA = ham64(hashA, ref.ah);
-                const dD = ham64(hashD, ref.dh);
-                const score = dA * W_AHASH + dD * W_DHASH;
-                if (score < best.score) best = { id: ref.id, score };
-            }
-            return best;
-        }
+        async function init() { statusLogs = []; const s = await loadHashes(); if (s) updateStatus("<div class='mt-6 text-blue-400 font-bold text-lg'>준비 완료!</div>"); }
 
         function getSortedMatches(hashA, hashD) {
-            return thumbRefs.map(ref => {
-                const dA = ham64(hashA, ref.ah);
-                const dD = ham64(hashD, ref.dh);
-                return { id: ref.id, score: dA * W_AHASH + dD * W_DHASH };
-            }).sort((a, b) => a.score - b.score);
+            return thumbRefs.map(ref => ({ id: ref.id, score: ham64(hashA, ref.ah) * W_AHASH + ham64(hashD, ref.dh) * W_DHASH })).sort((a, b) => a.score - b.score);
         }
-
         function bestMatchPhash(targetPh, refMap) {
             let best = { key: null, dist: Infinity };
-            for (const key of Object.keys(refMap)) {
-                const dist = ham64(targetPh, refMap[key].ph);
-                if (dist < best.dist) best = { key, dist };
-            }
+            for (const key of Object.keys(refMap)) { const dist = ham64(targetPh, refMap[key].ph); if (dist < best.dist) best = { key, dist }; }
             return best;
         }
-
-        // ------------------------------
-        // 이벤트 핸들러 및 메인 로직
-        // ------------------------------
-        function showTemporaryMessage(message, duration = 2500) {
-            const msgZone = document.getElementById('messageZone');
-            if (!msgZone) return;
-            msgZone.textContent = message;
-            setTimeout(() => {
-                if (msgZone.textContent === message) {
-                    msgZone.textContent = '';
-                }
-            }, duration);
+        function showTemporaryMessage(msg, duration = 2500) {
+            const z = document.getElementById('messageZone'); if (!z) return; z.textContent = msg;
+            setTimeout(() => { if (z.textContent === msg) z.textContent = ''; }, duration);
         }
-        
-        window.addEventListener('paste', async (e) => {
-            const now = Date.now();
-            if (isProcessing) {
-                showTemporaryMessage("분석이 이미 진행 중입니다.");
-                return;
-            }
-            if (now - (window.lastProcessTime || 0) < COOLDOWN_MS) {
-                const remaining = ((window.lastProcessTime + COOLDOWN_MS) - now) / 1000;
-                showTemporaryMessage(`쿨다운 중입니다. ${remaining.toFixed(1)}초 후에 시도하세요.`);
-                return;
-            }
 
+        window.addEventListener('paste', async (e) => {
+            const now = Date.now(); if (isProcessing) return;
+            if (now - (window.lastProcessTime || 0) < COOLDOWN_MS) { showTemporaryMessage("쿨다운 중..."); return; }
             const items = e.clipboardData.items;
             for (let item of items) {
                 if (item.type.indexOf('image') !== -1) {
-                    const blob = item.getAsFile();
-                    const img = new Image();
-                    img.src = URL.createObjectURL(blob);
+                    const blob = item.getAsFile(), img = new Image(); img.src = URL.createObjectURL(blob);
                     img.onload = () => {
-                        const previewImg = document.getElementById('screenshotPreview');
-                        const previewContainer = document.getElementById('screenshotContainer');
-                        const dropZone = document.getElementById('dropZone');
-                        
-                        if (dropZone) dropZone.style.display = 'none';
-                        
-                        if (previewImg && previewContainer) {
-                            previewImg.src = img.src;
-                            previewImg.classList.remove('expanded');
-                            previewContainer.style.display = 'flex';
-                        }
-
-                        const fullImageCanvas = document.createElement('canvas');
-                        fullImageCanvas.width = img.width;
-                        fullImageCanvas.height = img.height;
-                        fullImageCanvas.getContext('2d').drawImage(img, 0, 0);
-
-                        const currentHash = dHashFromCanvas(fullImageCanvas);
-                        if (lastImageHash && ham64(lastImageHash, currentHash) === 0) {
-                            showTemporaryMessage("이전과 동일한 이미지입니다.");
-                            return;
-                        }
-                        
-                        isProcessing = true;
-                        lastImageHash = currentHash;
-                        window.lastProcessTime = Date.now();
-
-                        processImage(img).finally(() => {
-                            isProcessing = false;
-                        });
+                        const prev = document.getElementById('screenshotPreview'), cont = document.getElementById('screenshotContainer'), drop = document.getElementById('dropZone');
+                        if (drop) drop.style.display = 'none'; cont.style.display = 'flex'; prev.src = img.src;
+                        const full = document.createElement('canvas'); full.width = img.width; full.height = img.height; full.getContext('2d').drawImage(img, 0, 0);
+                        const hash = dHashFromCanvas(full); if (lastImageHash && ham64(lastImageHash, hash) === 0) { showTemporaryMessage("동일 이미지"); return; }
+                        isProcessing = true; lastImageHash = hash; window.lastProcessTime = Date.now();
+                        processImage(img).finally(() => { isProcessing = false; });
                     };
                 }
             }
         });
 
         async function processImage(img) {
-            window.lastProcessedImg = img; // 마지막 이미지 저장
-            statusLogs = []; // 로딩 로그 비우기
-            resultList.innerHTML = '';
-            const W = img.width;
-            const H = img.height;
-
+            window.lastProcessedImg = img; statusLogs = []; resultList.innerHTML = '';
+            const W = img.width, H = img.height;
             if (currentMode === 'versus') {
                 for (let i = 0; i < 5; i++) {
-                    const row = createLoadingRow(i + 1);
-                    resultList.appendChild(row);
-
-                    const x = (RATIO_X_START + (RATIO_THUMB_W + RATIO_GAP) * i) * W;
-                    const y = RATIO_Y_START * H;
-                    const tw = RATIO_THUMB_W * W;
-                    const th = RATIO_THUMB_H * H;
-                    const by = (RATIO_Y_START + RATIO_THUMB_H) * H;
-                    const bh = RATIO_BAR_H * H;
-
-                    const thumbCanvas = cropToCanvas(img, x, y, tw, th);
-                    const ah = aHashFromCanvas(thumbCanvas);
-                    const dh = dHashFromCanvas(thumbCanvas);
-                    
-                    const barCanvas = cropToCanvas(img, x, by, tw, bh);
-                    const leftCanvas = cropToCanvas(barCanvas, 0, 0, barCanvas.width * BAR_SPLIT, barCanvas.height);
-                    const rightCanvas = cropToCanvas(barCanvas, leftCanvas.width, 0, barCanvas.width * (1 - BAR_SPLIT), barCanvas.height);
-
-                    row.matches = getSortedMatches(ah, dh);
-                    row.matchIndex = 0;
-                    row.btnPh = pHashFromCanvas(leftCanvas);
-                    row.diffPh = pHashFromCanvas(rightCanvas);
-
+                    const row = createLoadingRow(i + 1); resultList.appendChild(row);
+                    const x = (RATIO_X_START + (RATIO_THUMB_W + RATIO_GAP) * i) * W, y = RATIO_Y_START * H, tw = RATIO_THUMB_W * W, th = RATIO_THUMB_H * H, by = (RATIO_Y_START + RATIO_THUMB_H) * H, bh = RATIO_BAR_H * H;
+                    const thumb = cropToCanvas(img, x, y, tw, th), ah = aHashFromCanvas(thumb), dh = dHashFromCanvas(thumb), bar = cropToCanvas(img, x, by, tw, bh);
+                    const left = cropToCanvas(bar, 0, 0, bar.width * BAR_SPLIT, bar.height), right = cropToCanvas(bar, left.width, 0, bar.width * (1 - BAR_SPLIT), bar.height);
+                    row.matches = getSortedMatches(ah, dh); row.matchIndex = 0; row.btnPh = pHashFromCanvas(left); row.diffPh = pHashFromCanvas(right);
                     displayMatch(row, 0);
                 }
             } else {
-                // 일망호 모드 (80x80 단일 인식)
-                const row = createLoadingRow(1);
-                resultList.appendChild(row);
-
-                const x = RATIO_GENERAL_X * W;
-                const y = RATIO_GENERAL_Y * H;
-                const tw = RATIO_GENERAL_W * W;
-                const th = RATIO_GENERAL_H * H;
-
-                const thumbCanvas = cropToCanvas(img, x, y, tw, th);
-                const ah = aHashFromCanvas(thumbCanvas);
-                const dh = dHashFromCanvas(thumbCanvas);
-
-                const matches = getSortedMatches(ah, dh);
-                const best = matches[0];
-
-                const data = getSongDataSync(best.id);
-                if (data && data.success) {
-                    row.matches = matches;
-                    row.matchIndex = 0;
-                    updateGeneralRow(row, data, best.id);
-                }
+                const row = createLoadingRow(1); resultList.appendChild(row);
+                const x = RATIO_GENERAL_X * W, y = RATIO_GENERAL_Y * H, tw = RATIO_GENERAL_W * W, th = RATIO_GENERAL_H * H;
+                const thumb = cropToCanvas(img, x, y, tw, th), ah = aHashFromCanvas(thumb), dh = dHashFromCanvas(thumb), matches = getSortedMatches(ah, dh), best = matches[0], data = getSongDataSync(best.id);
+                if (data && data.success) { row.matches = matches; row.matchIndex = 0; updateGeneralRow(row, data, best.id); }
             }
         }
 
-        function displayGeneralMatch(row, index) {
-            const match = row.matches[index];
-            const data = getSongDataSync(match.id);
-            if (data && data.success) {
-                updateGeneralRow(row, data, match.id);
-            }
+        function getFloorColor(fV) {
+            const f = parseFloat(fV); if (isNaN(f)) return '#60a5fa';
+            const fl = Math.floor(f / 10); if (fl >= 16) return '#c084fc';
+            const h = 240 - (Math.max(1, Math.min(15, fl)) - 1) * (240 / 14); return `hsl(${h}, 100%, 70%)`;
         }
 
-        function getDifficultyStyle(level, diff, floorVal) {
-            if (!floorVal || floorVal === '-' || isNaN(parseFloat(floorVal))) {
-                return 'background-color: rgba(71, 85, 105, 0.2);'; // 회색
-            }
-            
-            const floorPart = Math.floor(parseFloat(floorVal) / 10);
-            const levelNum = parseInt(level);
-            if (isNaN(levelNum)) return 'background-color: rgba(71, 85, 105, 0.2);';
-
-            const adj = (diff === 'SC') ? levelNum : (levelNum - 11) * 2;
-            
-            if (adj === floorPart) return 'background-color: rgba(234, 179, 8, 0.2);'; // 노란색 (정렙)
-            if (adj > floorPart) return 'background-color: rgba(56, 189, 248, 0.2);'; // 하늘색 (물렙)
-            return 'background-color: rgba(239, 68, 68, 0.2);'; // 붉은색 (불렙)
+        function getDifficultyBgColor(level, diff, floor) {
+            if (!floor || floor === '-' || isNaN(parseFloat(floor))) return 'rgba(71, 85, 105, 0.2)';
+            const f = Math.floor(parseFloat(floor) / 10), l = parseInt(level);
+            const adj = (diff === 'SC') ? l : (l - 11) * 2;
+            if (adj === f) return 'rgba(234, 179, 8, 0.2)'; 
+            if (adj > f) return 'rgba(56, 189, 248, 0.2)'; 
+            return 'rgba(239, 68, 68, 0.2)';
         }
 
         function updateGeneralRow(row, data, titleId) {
             row.className = 'track-row p-6 rounded-xl block opacity-100 shadow-lg relative';
-            row.setAttribute('data-title-id', titleId);
-            const btnList = ['4B', '5B', '6B', '8B'];
-            const diffList = ['NM', 'HD', 'MX', 'SC'];
-
-            let gridHtml = `
-                <div class="general-grid mt-4">
-                    <div class="grid-cell grid-header"></div>
-                    ${diffList.map(d => `<div class="grid-cell grid-header">${d}</div>`).join('')}
-            `;
-
+            const btnList = ['4B', '5B', '6B', '8B'], diffList = ['NM', 'HD', 'MX', 'SC'];
+            let grid = `<div class="general-grid mt-4"><div class="grid-cell grid-header"></div>${diffList.map(d => `<div class="grid-cell grid-header">${d}</div>`).join('')}`;
             btnList.forEach(btn => {
-                gridHtml += `<div class="grid-cell grid-row-label">${btn}</div>`;
+                grid += `<div class="grid-cell grid-row-label">${btn}</div>`;
                 diffList.forEach(diff => {
-                    const pattern = data.patterns?.[btn]?.[diff];
-                    const floorVal = pattern?.floor ?? '-';
-                    const level = pattern?.level ?? 0;
-                    const floorName = pattern?.floorName ?? (floorVal !== '-' ? String(floorVal) : '-');
-                    const textColor = getFloorStyle(floorVal);
-                    const bgStyle = getDifficultyStyle(level, diff, floorVal); // btn을 diff로 수정
-                    gridHtml += `<div class="grid-cell ${floorName==='-'?'empty':'grid-value'}" style="${floorName==='-'?'':(textColor + ';' + bgStyle)}">${floorName}</div>`;
+                    const p = data.patterns?.[btn]?.[diff], fVal = p?.floor ?? '-', l = p?.level ?? 0, fName = p?.floorName ?? (fVal !== '-' ? String(fVal) : '-');
+                    const color = getFloorColor(fVal), bgColor = getDifficultyBgColor(l, diff, fVal);
+                    grid += `<div class="grid-cell ${fName==='-'?'empty':'grid-value'}" style="${fName==='-'?'':(`color: ${color}; background-color: ${bgColor}`)}">${fName}</div>`;
                 });
             });
-            gridHtml += `</div>`;
-
-            row.innerHTML = `
-                <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center space-x-6">
-                        <img src="https://v-archive.net/static/images/jackets/${titleId}.jpg" class="w-24 h-24 rounded-lg object-cover border-2 border-slate-700">
-                        <div>
-                            <h3 class="font-bold text-white text-2xl mb-1">${data.name}</h3>
-                            <div class="flex items-center space-x-3">
-                                <p class="text-slate-400 text-sm">곡 ID: ${titleId}</p>
-                                <button class="recheck-btn bg-slate-700 hover:bg-slate-600 text-white text-[10px] px-2 py-0.5 rounded transition-colors" onclick="event.stopPropagation(); handleRecheck(this)">재검토</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                ${gridHtml}
-            `;
+            grid += `</div>`;
+            row.innerHTML = `<div class="flex items-center justify-between mb-2"><div class="flex items-center space-x-6"><img src="https://v-archive.net/static/images/jackets/${titleId}.jpg" class="w-24 h-24 rounded-lg object-cover border-2 border-slate-700"><div><h3 class="font-bold text-white text-2xl mb-1">${data.name}</h3><div class="flex items-center space-x-3"><p class="text-slate-400 text-sm">ID: ${titleId}</p><button class="recheck-btn bg-slate-700 text-white text-[10px] px-2 py-0.5 rounded" onclick="event.stopPropagation(); handleRecheck(this)">재검토</button></div></div></div></div><div class="mt-2 px-2">${getSongTagsHtml(titleId)}</div>${grid}`;
         }
 
         function displayMatch(row, index) {
-            const match = row.matches[index];
-            const btnMatch = bestMatchPhash(row.btnPh, buttonRefs);
-            const diffMatch = bestMatchPhash(row.diffPh, diffRefs);
-            const button = btnMatch.key || "4B";
-            const difficulty = diffMatch.key || "SC";
-
-            const titleId = match.id;
-            const data = getSongDataSync(titleId);
-
-            if (data && data.success) {
-                row.apiData = data; 
-                const patternData = data.patterns?.[button]?.[difficulty];
-                const floorVal = patternData?.floor ?? "-";
-                const floorName = patternData?.floorName ?? (floorVal !== "-" ? String(floorVal) : "NO DATA");
-                updateRow(row, {
-                    titleId,
-                    name: data.name ?? `ID ${titleId}`,
-                    button,
-                    difficulty,
-                    floorName,
-                    floor: floorVal,
-                    level: patternData?.level || 0,
-                    rating: patternData?.rating || "-",
-                    thumbScore: match.score
-                });
-            } else {
-                updateRow(row, { titleId, name: `ID ${titleId} (데이터 없음)`, button, difficulty, floorName: "NO DATA", floor: "-", level: 0, rating: "-", thumbScore: match.score });
-            }
-        }
-
-        function handleCorrection(el) {
-            const row = el.closest('.track-row');
-            if (!row || !row.apiData) return;
-            
-            const btnSelect = row.querySelector('.btn-select');
-            const diffSelect = row.querySelector('.diff-select');
-            const button = btnSelect.value;
-            const difficulty = diffSelect.value;
-            
-            updateSelectColors(btnSelect, diffSelect);
-            
-            const titleId = row.getAttribute('data-title-id');
-            const data = getSongDataSync(titleId);
-            row.apiData = data;
-            
-            const patternData = data.patterns?.[button]?.[difficulty];
-            const floorEl = row.querySelector('.floor-value');
-            const floorArea = row.querySelector('.floor-area');
-
-            if (floorEl) {
-                const floorVal = patternData?.floor ?? "-";
-                const floorName = patternData?.floorName ?? (floorVal !== "-" ? String(floorVal) : "NO DATA");
-                const level = patternData?.level || 0;
-                
-                floorEl.innerText = floorName;
-                floorEl.setAttribute('style', getFloorStyle(floorVal));
-                
-                if (floorArea) {
-                    floorArea.setAttribute('style', getDifficultyStyle(level, difficulty, floorVal) + ' border-radius: 8px; padding: 4px 8px;');
-                }
-            }
-        }
-
-        function updateSelectColors(btnEl, diffEl) {
-            const btnColors = { '4B': 'bg-green-600', '5B': 'bg-sky-600', '6B': 'bg-orange-600', '8B': 'bg-indigo-600' };
-            const diffColors = { 'SC': 'bg-purple-600', 'MX': 'bg-red-600', 'HD': 'bg-orange-600', 'NM': 'bg-yellow-600' };
-            
-            [...Object.values(btnColors), ...Object.values(diffColors)].forEach(c => {
-                btnEl.classList.remove(c);
-                diffEl.classList.remove(c);
-            });
-            
-            if (btnColors[btnEl.value]) btnEl.classList.add(btnColors[btnEl.value]);
-            if (diffColors[diffEl.value]) diffEl.classList.add(diffColors[diffEl.value]);
-        }
-
-        function getFloorStyle(floorVal) {
-            const floorRaw = parseFloat(floorVal);
-            if (isNaN(floorRaw)) return 'color: #60a5fa';
-            
-            // 일의 자리를 없애고 판정 (예: 53 -> 5)
-            const floor = Math.floor(floorRaw / 10);
-            
-            if (floor >= 16) return 'color: #c084fc';
-            
-            const clampedFloor = Math.max(1, Math.min(15, floor));
-            const hue = 240 - (clampedFloor - 1) * (240 / 14);
-            return `color: hsl(${hue}, 100%, 70%)`;
-        }
-
-        function getSongDataSync(titleId) {
-            const id = parseInt(titleId);
-            const song = songDatabase[id];
-            
-            if (!song) {
-                return { success: false, name: `ID ${id}`, id };
-            }
-
-            return {
-                success: true,
-                id: song.title,
-                name: song.name,
-                patterns: song.patterns 
-            };
-        }
-
-        async function copyTrackInfo(btn, name) {
-            const row = btn.closest('.track-row');
-            const button = row.querySelector('.btn-select').value;
-            const difficulty = row.querySelector('.diff-select').value;
-            const floor = row.querySelector('.floor-value').innerText;
-            const text = `${name} ${button} ${difficulty} (${floor})`;
-            
-            try {
-                await navigator.clipboard.writeText(text);
-                const originalInner = btn.innerHTML;
-                btn.innerHTML = '✅';
-                setTimeout(() => { btn.innerHTML = originalInner; }, 1500);
-            } catch (err) {
-                console.error('복사 실패:', err);
-            }
-        }
-
-        async function handleRecheck(btn) {
-            const row = btn.closest('.track-row');
-            if (!row || !row.matches) return;
-            
-            row.matchIndex = (row.matchIndex + 1) % Math.min(row.matches.length, 10);
-            btn.innerText = "검색 중...";
-            btn.disabled = true;
-            
-            // 상태 초기화
-            row.classList.remove('played', 'banned');
-            
-            if (currentMode === 'general') {
-                displayGeneralMatch(row, row.matchIndex);
-            } else {
-                displayMatch(row, row.matchIndex);
-            }
-        }
-
-        async function fetchWithRetry(url, options = {}, retries = 3, backoff = 500) {
-            for (let i = 0; i < retries; i++) {
-                try {
-                    const res = await fetch(url, options);
-                    if (res.ok) return res;
-                } catch (err) {
-                    if (i === retries - 1) throw err;
-                }
-                await new Promise(r => setTimeout(r, backoff * Math.pow(2, i)));
-            }
-            throw new Error(`Failed to fetch ${url} after ${retries} attempts`);
-        }
-        
-        // ------------------------------
-        // UI 렌더링
-        // ------------------------------
-        function createLoadingRow(index) {
-            const div = document.createElement('div');
-            div.className = 'track-row p-4 rounded-xl flex items-center justify-between opacity-50';
-            div.innerHTML = `
-                <div class="flex items-center space-x-4 w-full">
-                    <div class="w-20 h-20 rounded-lg bg-slate-800 loading-shimmer"></div>
-                    <div class="flex-grow">
-                        <div class="h-5 w-3/4 bg-slate-800 mb-2 loading-shimmer rounded"></div>
-                        <div class="h-4 w-1/2 bg-slate-800 loading-shimmer rounded"></div>
-                    </div>
-                    <div class="text-right">
-                        <div class="h-8 w-20 bg-slate-800 loading-shimmer rounded"></div>
-                    </div>
-                </div>
-            `;
-            return div;
+            const m = row.matches[index], bM = bestMatchPhash(row.btnPh, buttonRefs), dM = bestMatchPhash(row.diffPh, diffRefs), btn = bM.key || "4B", diff = dM.key || "SC", tId = m.id, d = getSongDataSync(tId);
+            if (d && d.success) {
+                row.apiData = d; const p = d.patterns?.[btn]?.[diff], fV = p?.floor ?? "-", fN = p?.floorName ?? (fV !== "-" ? String(fV) : "NO DATA");
+                updateRow(row, { titleId: tId, name: d.name, button: btn, difficulty: diff, floorName: fN, floor: fV, level: p?.level || 0 });
+            } else updateRow(row, { titleId: tId, name: `ID ${tId}`, button: btn, difficulty: diff, floorName: "NO DATA", floor: "-", level: 0 });
         }
 
         function updateRow(row, info) {
-            row.className = 'track-row p-4 rounded-xl flex items-center justify-between opacity-100 shadow-lg relative';
-            row.setAttribute('data-title-id', info.titleId);
-            const btnList = ['4B', '5B', '6B', '8B'];
-            const diffList = ['NM', 'HD', 'MX', 'SC'];
-
-            row.innerHTML = `
-                <div class="flex items-center space-x-4">
-                    <img src="https://v-archive.net/static/images/jackets/${info.titleId}.jpg" onerror="this.src='https://placehold.co/240x240/1e293b/white?text=No+Img'" class="w-20 h-20 rounded-lg object-cover border border-slate-700">
-                    <div>
-                        <h3 class="font-bold text-white text-lg">${info.name}</h3>
-                        <div class="flex items-center space-x-1">
-                            <select class="btn-select px-1 py-0.5 rounded text-[10px] font-bold header-font text-white border-none outline-none cursor-pointer appearance-none" onchange="event.stopPropagation(); handleCorrection(this)">
-                                ${btnList.map(b => `<option value="${b}" ${b===info.button?'selected':''}>${b}</option>`).join('')}
-                            </select>
-                            <select class="diff-select px-1 py-0.5 rounded text-[10px] font-bold header-font text-white border-none outline-none cursor-pointer appearance-none" onchange="event.stopPropagation(); handleCorrection(this)">
-                                ${diffList.map(d => `<option value="${d}" ${d===info.difficulty?'selected':''}>${d}</option>`).join('')}
-                            </select>
-                            <button class="recheck-btn ml-2 bg-slate-700 hover:bg-slate-600 text-white text-[10px] px-2 py-0.5 rounded transition-colors" onclick="event.stopPropagation(); handleRecheck(this)">재검토</button>
-                            <span class="status-tag status-played hidden ml-2 text-[10px] font-bold text-green-500 border border-green-500 px-1 py-0.5 rounded">PLAYED</span>
-                            <span class="status-tag status-banned hidden ml-2 text-[10px] font-bold text-red-500 border border-red-500 px-1 py-0.5 rounded">BAN</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="text-right flex flex-col items-end">
-                    <button class="mb-1 text-slate-500 hover:text-blue-400 transition-colors" onclick="event.stopPropagation(); copyTrackInfo(this, '${info.name.replace(/'/g, "\\'")}')" title="정보 복사">
-                        📋
-                    </button>
-                    <p class="text-xs text-slate-500 uppercase font-bold tracking-tighter">Floor</p>
-                    <div class="floor-area" style="${getDifficultyStyle(info.level, info.difficulty, info.floor)} border-radius: 8px; padding: 4px 8px;">
-                        <p class="floor-value text-3xl font-black" style="${getFloorStyle(info.floor)}">${info.floorName}</p>
-                    </div>
-                </div>
-            `;
+            row.className = 'track-row p-4 rounded-xl flex items-center justify-between opacity-100 shadow-lg relative'; row.setAttribute('data-title-id', info.titleId);
+            const bL = ['4B', '5B', '6B', '8B'], dL = ['NM', 'HD', 'MX', 'SC'];
+            row.innerHTML = `<div class="flex items-center space-x-4"><img src="https://v-archive.net/static/images/jackets/${info.titleId}.jpg" class="w-20 h-20 rounded-lg object-cover border border-slate-700"><div><h3 class="font-bold text-white text-lg leading-tight">${info.name}</h3><div class="tags-container">${getSongTagsHtml(info.titleId, info.button, info.difficulty)}</div><div class="flex items-center space-x-1 mt-1.5"><select class="btn-select px-1 py-0.5 rounded text-[10px] font-bold text-white bg-slate-700 appearance-none" onchange="event.stopPropagation(); handleCorrection(this)">${bL.map(b => `<option value="${b}" ${b===info.button?'selected':''}>${b}</option>`).join('')}</select><select class="diff-select px-1 py-0.5 rounded text-[10px] font-bold text-white bg-slate-700 appearance-none" onchange="event.stopPropagation(); handleCorrection(this)">${dL.map(d => `<option value="${d}" ${d===info.difficulty?'selected':''}>${d}</option>`).join('')}</select><button class="recheck-btn ml-2 bg-slate-700 text-white text-[10px] px-2 py-0.5 rounded" onclick="event.stopPropagation(); handleRecheck(this)">재검토</button></div></div></div><div class="text-right flex flex-col items-end"><p class="text-xs text-slate-500 uppercase font-bold">Floor</p><div class="floor-area" style="border-radius: 8px; padding: 4px 8px; background-color: ${getDifficultyBgColor(info.level, info.difficulty, info.floor)}"><p class="floor-value text-3xl font-black" style="color: ${getFloorColor(info.floor)}">${info.floorName}</p></div></div>`;
             updateSelectColors(row.querySelector('.btn-select'), row.querySelector('.diff-select'));
         }
 
-        function getButtonColor(button) {
-            switch(button) {
-                case '4B': return 'bg-green-600';
-                case '5B': return 'bg-sky-600';
-                case '6B': return 'bg-orange-600';
-                case '8B': return 'bg-indigo-600';
-                default: return 'bg-slate-600';
+        function handleCorrection(el) {
+            const row = el.closest('.track-row'), bS = row.querySelector('.btn-select'), dS = row.querySelector('.diff-select'), btn = bS.value, diff = dS.value;
+            updateSelectColors(bS, dS); const tId = row.getAttribute('data-title-id'), d = getSongDataSync(tId);
+            const tC = row.querySelector('.tags-container'); if (tC) tC.innerHTML = getSongTagsHtml(tId, btn, diff);
+            const p = d.patterns?.[btn]?.[diff], fE = row.querySelector('.floor-value'), fA = row.querySelector('.floor-area');
+            if (fE) {
+                const fV = p?.floor ?? "-", fN = p?.floorName ?? (fV !== "-" ? String(fV) : "NO DATA"), l = p?.level || 0;
+                fE.innerText = fN; fE.style.color = getFloorColor(fV);
+                if (fA) {
+                    fA.style.backgroundColor = getDifficultyBgColor(l, diff, fV);
+                    fA.style.borderRadius = '8px'; fA.style.padding = '4px 8px';
+                }
             }
         }
 
-        function getDiffColor(diff) {
-            switch(diff) {
-                case 'SC': return 'bg-purple-600';
-                case 'MX': return 'bg-red-600';
-                case 'HD': return 'bg-orange-600';
-                case 'NM': return 'bg-yellow-600';
-                default: return 'bg-slate-600';
-            }
+        function updateSelectColors(bE, dE) {
+            const bC = { '4B': 'bg-green-600', '5B': 'bg-sky-600', '6B': 'bg-orange-600', '8B': 'bg-indigo-600' }, dC = { 'SC': 'bg-purple-600', 'MX': 'bg-red-600', 'HD': 'bg-orange-600', 'NM': 'bg-yellow-600' };
+            const all = ['bg-slate-700', 'bg-slate-600', ...Object.values(bC), ...Object.values(dC)];
+            all.forEach(c => { bE.classList.remove(c); dE.classList.remove(c); });
+            if (bC[bE.value]) bE.classList.add(bC[bE.value]); if (dC[dE.value]) dE.classList.add(dC[dE.value]);
         }
 
-        // Left Click (Toggle Played)
-        resultList.addEventListener('click', (e) => {
-            const clickedRow = e.target.closest('.track-row');
-            if (!clickedRow) return;
-            clickedRow.classList.toggle('played');
-            clickedRow.classList.remove('banned');
-        });
+        function getSongDataSync(tId) { const s = songDatabase[parseInt(tId)]; return s ? { success: true, id: s.title, name: s.name, patterns: s.patterns } : { success: false }; }
 
-        // Right Click (Toggle Ban/Pick)
-        resultList.addEventListener('contextmenu', (e) => {
-            const clickedRow = e.target.closest('.track-row');
-            if (!clickedRow) return;
-            e.preventDefault();
-            clickedRow.classList.toggle('banned');
-            clickedRow.classList.remove('played');
-        });
+        async function handleRecheck(btn) {
+            const r = btn.closest('.track-row'); if (!r || !r.matches) return;
+            r.matchIndex = (r.matchIndex + 1) % Math.min(r.matches.length, 10);
+            if (currentMode === 'general') { const m = r.matches[r.matchIndex], d = getSongDataSync(m.id); if (d.success) updateGeneralRow(r, d, m.id); }
+            else displayMatch(r, r.matchIndex);
+        }
 
-        // Screenshot Toggle
-        document.getElementById('screenshotPreview')?.addEventListener('click', function() {
-            this.classList.toggle('expanded');
-        });
+        function createLoadingRow(index) {
+            const d = document.createElement('div'); d.className = 'track-row p-4 rounded-xl flex items-center justify-between opacity-50';
+            d.innerHTML = `<div class="flex items-center space-x-4 w-full"><div class="w-20 h-20 rounded-lg bg-slate-800 loading-shimmer"></div><div class="flex-grow"><div class="h-5 w-3/4 bg-slate-800 mb-2 loading-shimmer rounded"></div><div class="h-4 w-1/2 bg-slate-800 loading-shimmer rounded"></div></div><div class="text-right"><div class="h-8 w-20 bg-slate-800 loading-shimmer rounded"></div></div></div>`;
+            return d;
+        }
 
+        resultList.addEventListener('click', (e) => { const r = e.target.closest('.track-row'); if (r) { r.classList.toggle('played'); r.classList.remove('banned'); } });
+        resultList.addEventListener('contextmenu', (e) => { const r = e.target.closest('.track-row'); if (r) { e.preventDefault(); r.classList.toggle('banned'); r.classList.remove('played'); } });
         window.onload = init;
     </script>
 </body>
