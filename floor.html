@@ -406,9 +406,11 @@
                     if (!t || !t.includes(':') || t.startsWith('GENRE:')) return false;
                     const [prefix, ...rest] = t.split(':'), content = rest.join(':').trim();
                     if (prefix === 'BPM') return true;
-                    if (prefix.includes('B')) {
-                        const buttons = prefix.split('&').map(b => b.trim());
-                        if (currentButton && !buttons.includes(currentButton)) return false;
+                    if (prefix === 'ALL' || prefix.includes('B')) {
+                        if (prefix !== 'ALL') {
+                            const buttons = prefix.split('&').map(b => b.trim());
+                            if (currentButton && !buttons.includes(currentButton)) return false;
+                        }
                         if (currentDifficulty) {
                             const baseContent = content.replace(/\|?\{?\d+\}?/g, '').trim();
                             const foundSuffix = diffSuffixes.find(s => baseContent.endsWith(s));
