@@ -204,13 +204,105 @@
         /* Mobile Adjustments */
         @media (max-width: 768px) {
             .mode-toggle-container { position: relative; top: 0; right: 0; margin-bottom: 2rem; justify-content: center; }
+            .help-btn-container { position: relative; top: 0; left: 0; margin-bottom: 1rem; display: flex; justify-content: center; }
             #resultList.versus-grid { grid-template-columns: 1fr; }
             .track-row { flex-direction: column; align-items: flex-start; }
             .track-row .text-right { text-align: left; align-items: flex-start; margin-top: 1rem; width: 100%; }
         }
+
+        /* Help Modal Styles */
+        .help-btn-container {
+            position: absolute; top: 2rem; left: 2rem; z-index: 50;
+        }
+        .help-btn {
+            background: #3b82f6 !important;
+            color: white !important;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .help-btn:hover {
+            background: #2563eb !important;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+        }
+        .help-modal {
+            display: none; position: fixed; inset: 0; z-index: 100;
+            background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px);
+            align-items: center; justify-content: center; padding: 20px;
+        }
+        .help-modal.active { display: flex; }
+        .help-content {
+            background: #1e293b; border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 700px; width: 100%; max-height: 85vh; overflow-y: auto;
+            border-radius: 24px; padding: 40px; position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .close-help {
+            position: absolute; top: 20px; right: 20px; cursor: pointer;
+            color: #94a3b8; transition: all 0.2s;
+        }
+        .close-help:hover { color: white; transform: rotate(90deg); }
+        
+        .help-body h2 { font-family: 'Orbitron', sans-serif; color: #3b82f6; font-size: 1.5rem; margin-bottom: 20px; font-weight: 700; border-bottom: 1px solid rgba(59, 130, 246, 0.2); padding-bottom: 10px; }
+        .help-body h3 { font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin-top: 20px; margin-bottom: 10px; }
+        .help-body p { margin-bottom: 15px; line-height: 1.7; color: #cbd5e1; font-size: 0.95rem; }
+        .help-body ul { list-style: none; padding: 0; margin-bottom: 20px; }
+        .help-body li { margin-bottom: 8px; padding-left: 20px; position: relative; color: #94a3b8; font-size: 0.9rem; }
+        .help-body li::before { content: '•'; position: absolute; left: 0; color: #3b82f6; font-weight: bold; }
+        .help-body code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #facc15; }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
+
+    <div class="help-btn-container">
+        <div class="mode-btn help-btn" onclick="toggleHelp(true)">
+            <span class="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.444 1.103m.495 2.503a1 1 0 100-2 1 1 0 000 2z" />
+                </svg>
+                도움말
+            </span>
+        </div>
+    </div>
+
+    <!-- Help Modal Overlay -->
+    <div id="helpModal" class="help-modal" onclick="if(event.target === this) toggleHelp(false)">
+        <div class="help-content glass">
+            <div class="close-help" onclick="toggleHelp(false)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </div>
+            <div class="help-body">
+                <!-- HELP CONTENT START -->
+                <h2>도움말 (HELP)</h2>
+                
+                <h3>기본 사용법</h3>
+                <p>게임에 밴픽창이 떠있는 상황에서 <code>PrintScreen</code>으로 클립보드에 스크린샷을 넣은 후, 이 페이지에서 <code>Ctrl+V</code>를 눌러 붙여넣으세요.</p>
+                
+                <h3>버망호 모드</h3>
+                <ul>
+                    <li>5개의 곡 슬롯을 자동으로 인식하여 각 곡의 '층수'를 표시합니다.</li>
+                    <li>잘못 인식된 경우 <code>Recheck</code> 버튼을 눌러 다음 후보군으로 변경할 수 있습니다.</li>
+                    <li><code>Copy</code> 버튼을 누르면 '곡제목-버튼-난이도-층수-BPM-태그' 정보가 복사됩니다.</li>
+                </ul>
+
+                <h3>일망호 모드</h3>
+                <ul>
+                    <li>선택된 한 곡의 전체 난이도별 층수 표를 보여줍니다.</li>
+                    <li>방장이 선곡한 곡의 층수를 빠르게 확인하고 싶을 때 유용합니다.</li>
+                </ul>
+
+                <h3>조작 팁</h3>
+                <ul>
+                    <li>곡 카드를 <strong>클릭</strong>하면 <span class="text-green-400">초록색(플레이)</span>으로 표시됩니다.</li>
+                    <li>곡 카드를 <strong>우클릭</strong>하면 <span class="text-red-400">빨간색(밴)</span>으로 표시됩니다.</li>
+                    <li>입력된 스크린샷은 클릭하면 확대해서 볼 수 있습니다.</li>
+                </ul>
+                <!-- HELP CONTENT END -->
+            </div>
+        </div>
+    </div>
 
     <div class="mode-toggle-container">
         <div id="mode-versus" class="mode-btn active" onclick="setMode('versus')">버망호 모드</div>
@@ -260,6 +352,18 @@
         const RATIO_GENERAL_X = 885 / BASE_W, RATIO_GENERAL_Y = 711 / BASE_H, RATIO_GENERAL_W = 80 / BASE_W, RATIO_GENERAL_H = 80 / BASE_H;
 
         let currentMode = 'versus';
+        
+        function toggleHelp(show) {
+            const modal = document.getElementById('helpModal');
+            if (show) {
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            } else {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
         function setMode(mode) {
             currentMode = mode;
             document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
