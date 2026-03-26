@@ -395,51 +395,41 @@
             return c;
         }
 
-        function parseTags(tagStr, currentButton = null, currentDifficulty = null) {
-            if (!tagStr) return [];
-            const circleMap = { '{1}': '①', '{2}': '②', '{3}': '③', '{4}': '④', '{5}': '⑤', '{6}': '⑥', '{7}': '⑦', '{8}': '⑧', '{9}': '⑨', '{10}': '⑩' };
-            const diffSuffixes = ['_MX', '_HD', '_NM'];
-
-            return tagStr.split(',')
-                .map(t => t.trim())
-                .filter(t => {
-                    if (!t || !t.includes(':') || t.startsWith('GENRE:')) return false;
-                    const [prefix, ...rest] = t.split(':'), content = rest.join(':').trim();
-                    if (prefix === 'BPM') return true;
-                    if (prefix === 'ALL' || prefix.includes('B')) {
-                        if (prefix !== 'ALL') {
-                            const buttons = prefix.split('&').map(b => b.trim());
-                            if (currentButton && !buttons.includes(currentButton)) return false;
-                        }
-                        if (currentDifficulty) {
-                            const baseContent = content.replace(/\|?\{?\d+\}?/g, '').trim();
-                            const foundSuffix = diffSuffixes.find(s => baseContent.endsWith(s));
-                            if (currentDifficulty === 'SC') return !foundSuffix;
-                            else return baseContent.endsWith('_' + currentDifficulty);
-                        }
-                        return true;
-                    }
-                    return false;
-                })
-                .map(t => {
-                    let result = t;
-                    for (const [key, val] of Object.entries(circleMap)) result = result.split(key).join(val);
-                    result = result.split('|').join('');
-                    const [prefix, ...rest] = result.split(':'), content = rest.join(':').trim();
-                    if (prefix === 'BPM') return result;
-                    let finalRes = currentButton ? content : result;
-                    diffSuffixes.forEach(s => { finalRes = finalRes.replace(new RegExp(s + '(?=[①-⑩]|$)'), ''); });
-                    return finalRes;
-                });
-        }
-
         function getSongTagsHtml(titleId, currentButton = null, currentDifficulty = null) {
-            const tags = songTagsDatabase[titleId]; if (!tags) return '';
-            const filteredTags = parseTags(tags, currentButton, currentDifficulty); if (filteredTags.length === 0) return '';
+            const tagData = songTagsDatabase[String(titleId)];
+            if (!tagData) return '';
+            
+            const displayTags = [];
+            
+            // 1. BPM 정보 추가 (BPM: 접두사 포함)
+            if (tagData.bpm && tagData.bpm.text) {
+                displayTags.push({ text: `BPM:${tagData.bpm.text}`, type: 'bpm' });
+            }
+            
+            // 2. 패턴 전용 특징 태그 추가 (일반 태그는 제외)
+            if (currentButton && currentDifficulty && tagData.pattern_tags && tagData.pattern_tags[currentButton]) {
+                const pTags = tagData.pattern_tags[currentButton];
+                pTags.forEach(pt => {
+                    // 난이도가 일치하거나(SC/MX/HD/NM), 태그에 난이도 정보가 없는 경우 포함
+                    if (pt.diff === currentDifficulty || !pt.diff) {
+                        displayTags.push({ text: pt.name, type: 'pattern' });
+                    }
+                });
+            }
+            
+            if (displayTags.length === 0) return '';
+            
             const justifyClass = currentMode === 'versus' ? 'justify-center' : 'justify-start';
-            return `<div class="flex flex-wrap gap-1 ${justifyClass} mt-1.5">${filteredTags.map(tag => {
-                const isBpm = tag.startsWith('BPM:'), bgColor = isBpm ? 'bg-blue-900/40' : 'bg-slate-800/60', textColor = isBpm ? 'text-blue-300' : 'text-slate-300', borderColor = isBpm ? 'border-blue-700/50' : 'border-slate-700/50';
-                return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${bgColor} ${textColor} ${borderColor}">[${tag}]</span>`;
+            return `<div class="flex flex-wrap gap-1 ${justifyClass} mt-1.5">${displayTags.map(tag => {
+                let bgColor = 'bg-slate-800/60', textColor = 'text-slate-300', borderColor = 'border-slate-700/50';
+                
+                if (tag.type === 'bpm') {
+                    bgColor = 'bg-blue-900/40'; textColor = 'text-blue-300'; borderColor = 'border-blue-700/50';
+                } else if (tag.type === 'pattern') {
+                    bgColor = 'bg-indigo-900/40'; textColor = 'text-indigo-300'; borderColor = 'border-indigo-700/50';
+                }
+                
+                return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${bgColor} ${textColor} ${borderColor}">[${tag.text}]</span>`;
             }).join('')}</div>`;
         }
 
@@ -450,34 +440,94 @@
             return gray;
         }
 
+                function getColorGridFromCanvas(canvas) {
+            const segments = 4;
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            const w = canvas.width, h = canvas.height;
+            const sw = w / segments, sh = h / segments;
+            const colors = [];
+
+            for (let sy = 0; sy < segments; sy++) {
+                for (let sx = 0; sx < segments; sx++) {
+                    const data = ctx.getImageData(sx * sw, sy * sh, sw, sh).data;
+                    let r = 0, g = 0, b = 0, count = 0;
+                    for (let i = 0; i < data.length; i += 4) {
+                        r += data[i]; g += data[i + 1]; b += data[i + 2];
+                        count++;
+                    }
+                    colors.push(Math.round(r / count), Math.round(g / count), Math.round(b / count));
+                }
+            }
+            return colors;
+        }
+
         function aHashFromCanvas(canvas) {
-            const w = 8, h = 8, c = document.createElement('canvas'); c.width = w; c.height = h;
-            c.getContext('2d').drawImage(canvas, 0, 0, w, h); const gray = getGrayscaleFromCanvas(c, w, h);
+            const size = 16;
+            const c = document.createElement('canvas'); c.width = size; c.height = size;
+            c.getContext('2d').drawImage(canvas, 0, 0, size, size);
+            const gray = getGrayscaleFromCanvas(c, size, size);
             let avg = 0; for (let i = 0; i < gray.length; i++) avg += gray[i]; avg /= gray.length;
-            let hi = 0, lo = 0; for (let i = 0; i < 32; i++) hi = (hi << 1) | (gray[i] >= avg ? 1 : 0);
-            for (let i = 32; i < 64; i++) lo = (lo << 1) | (gray[i] >= avg ? 1 : 0);
-            return { hi: hi >>> 0, lo: lo >>> 0 };
+            
+            const bits = [];
+            for (let i = 0; i < 8; i++) {
+                let val = 0;
+                for (let j = 0; j < 32; j++) {
+                    const bit = gray[i * 32 + j] >= avg ? 1 : 0;
+                    val = (val << 1) | bit;
+                }
+                bits.push(val >>> 0);
+            }
+            return bits;
         }
 
         function dHashFromCanvas(canvas) {
-            const w = 9, h = 8, c = document.createElement('canvas'); c.width = w; c.height = h;
-            c.getContext('2d').drawImage(canvas, 0, 0, w, h); const gray = getGrayscaleFromCanvas(c, w, h);
-            let hi = 0, lo = 0; let bitIndex = 0;
-            for (let y = 0; y < 8; y++) {
-                for (let x = 0; x < 8; x++) {
-                    const bit = gray[y * 9 + x] < gray[y * 9 + x + 1] ? 1 : 0;
-                    if (bitIndex < 32) hi = (hi << 1) | bit; else lo = (lo << 1) | bit;
-                    bitIndex++;
+            const size = 16;
+            const c = document.createElement('canvas'); c.width = size + 1; c.height = size;
+            c.getContext('2d').drawImage(canvas, 0, 0, size + 1, size);
+            const gray = getGrayscaleFromCanvas(c, size + 1, size);
+            
+            const bits = [];
+            let bitCount = 0;
+            let currentVal = 0;
+            for (let y = 0; y < size; y++) {
+                for (let x = 0; x < size; x++) {
+                    const left = gray[y * (size + 1) + x];
+                    const right = gray[y * (size + 1) + x + 1];
+                    const bit = left < right ? 1 : 0;
+                    currentVal = (currentVal << 1) | bit;
+                    bitCount++;
+                    if (bitCount % 32 === 0) {
+                        bits.push(currentVal >>> 0);
+                        currentVal = 0;
+                    }
                 }
             }
-            return { hi: hi >>> 0, lo: lo >>> 0 };
+            return bits;
         }
 
         function popcnt32(v) {
             v = v - ((v >>> 1) & 0x55555555); v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
             return (((v + (v >>> 4)) & 0x0F0F0F0F) * 0x01010101) >>> 24;
         }
-        function ham64(a, b) { if (!a || !b) return Infinity; return popcnt32((a.hi ^ b.hi) >>> 0) + popcnt32((a.lo ^ b.lo) >>> 0); }
+
+        function hamDist(a, b) {
+            if (!a || !b) return Infinity;
+            if (Array.isArray(a)) {
+                let dist = 0;
+                for (let i = 0; i < a.length; i++) dist += popcnt32((a[i] ^ b[i]) >>> 0);
+                return dist;
+            }
+            return popcnt32((a.hi ^ b.hi) >>> 0) + popcnt32((a.lo ^ b.lo) >>> 0);
+        }
+
+        function colorDist(c1, c2) {
+            if (!c1 || !c2) return Infinity;
+            let dist = 0;
+            for (let i = 0; i < c1.length; i++) {
+                dist += Math.abs(c1[i] - c2[i]);
+            }
+            return dist / c1.length;
+        }
 
         function dct1D(vec, N) {
             const out = new Float32Array(N), factor = Math.PI / N;
@@ -532,7 +582,7 @@
 
         async function loadHashes() {
             updateStatus("v-archive에서 곡 정보를 받아오는 중..");
-            const songApiUrl = 'https://v-archive.net/db/v2/songs.json', tagApiUrl = 'https://data.xn--2o2bk9ff9x.com/tags/song_tags.json', proxyUrl = 'https://api.allorigins.win/raw?url=';
+            const songApiUrl = 'https://v-archive.net/db/v2/songs.json', proxyUrl = 'https://api.allorigins.win/raw?url=';
             try {
                 let res; try { res = await fetch(songApiUrl, { mode: 'cors' }); } catch (err) { res = await fetch(proxyUrl + encodeURIComponent(songApiUrl)); }
                 if (res && res.ok) { 
@@ -543,14 +593,27 @@
             } catch (e) { updateStatus("<span class='text-red-500 font-bold'>실패!</span>", true); }
 
             updateStatus("곡 상세 태그 정보를 받아오는 중..");
+            const tagApiUrl = 'https://data.xn--2o2bk9ff9x.com/tags/new_tags.json';
             try {
                 let res; try { res = await fetch(tagApiUrl, { mode: 'cors' }); } catch (err) { res = await fetch(proxyUrl + encodeURIComponent(tagApiUrl)); }
                 if (res && res.ok) { 
                     const d = await res.json(); 
-                    if (d.items) d.items.forEach(i => { songTagsDatabase[i.song_title] = i.tags; }); 
+                    if (d.items && Array.isArray(d.items)) {
+                        d.items.forEach(i => { 
+                            if (i.song_title !== undefined && i.song_title !== null) {
+                                // 새 구조에서는 song_title이 숫자 ID임
+                                const idKey = String(i.song_title);
+                                songTagsDatabase[idKey] = i; 
+                            }
+                        }); 
+                        console.log(`[Tags] Successfully loaded ${Object.keys(songTagsDatabase).length} tag entries by ID.`);
+                    }
                     updateStatus("<span class='text-green-500 font-bold'>완료!</span>", true); 
                 } else throw new Error();
-            } catch (e) { updateStatus("<span class='text-yellow-500 font-bold'>실패!</span>", true); }
+            } catch (e) { 
+                console.error("[Tags] Error loading tags:", e);
+                updateStatus("<span class='text-yellow-500 font-bold'>실패!</span>", true); 
+            }
 
             updateStatus("이미지분석을 위한 데이터를 불러오는 중..");
             try {
@@ -587,12 +650,17 @@
 
         async function init() { statusLogs = []; const s = await loadHashes(); if (s) updateStatus("<div class='mt-6 text-blue-400 font-bold text-lg'>준비 완료!</div>"); }
 
-        function getSortedMatches(hashA, hashD) {
-            return thumbRefs.map(ref => ({ id: ref.id, score: ham64(hashA, ref.ah) * W_AHASH + ham64(hashD, ref.dh) * W_DHASH })).sort((a, b) => a.score - b.score);
+        function getSortedMatches(hashA, hashD, colorGrid) {
+            const W_COLOR = 2.0; // 색상 유사도 가중치
+            return thumbRefs.map(ref => {
+                const hDist = hamDist(hashA, ref.ah) * W_AHASH + hamDist(hashD, ref.dh) * W_DHASH;
+                const cDist = colorDist(colorGrid, ref.color);
+                return { id: ref.id, score: hDist + (cDist * W_COLOR) };
+            }).sort((a, b) => a.score - b.score);
         }
         function bestMatchPhash(targetPh, refMap) {
             let best = { key: null, dist: Infinity };
-            for (const key of Object.keys(refMap)) { const dist = ham64(targetPh, refMap[key].ph); if (dist < best.dist) best = { key, dist }; }
+            for (const key of Object.keys(refMap)) { const dist = hamDist(targetPh, refMap[key].ph); if (dist < best.dist) best = { key, dist }; }
             return best;
         }
         function showTemporaryMessage(msg, duration = 2500) {
@@ -611,13 +679,45 @@
                         const prev = document.getElementById('screenshotPreview'), cont = document.getElementById('screenshotContainer'), drop = document.getElementById('dropZone');
                         if (drop) drop.style.display = 'none'; cont.style.display = 'flex'; prev.src = img.src;
                         const full = document.createElement('canvas'); full.width = img.width; full.height = img.height; full.getContext('2d').drawImage(img, 0, 0);
-                        const hash = dHashFromCanvas(full); if (lastImageHash && ham64(lastImageHash, hash) === 0) { showTemporaryMessage("동일 이미지"); return; }
+                        const hash = dHashFromCanvas(full); if (lastImageHash && hamDist(lastImageHash, hash) === 0) { showTemporaryMessage("동일 이미지"); return; }
                         isProcessing = true; lastImageHash = hash; window.lastProcessTime = Date.now();
                         processImage(img).finally(() => { isProcessing = false; });
                     };
                 }
             }
         });
+
+        function binarizeButton(canvas) {
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i], g = data[i+1], b = data[i+2];
+                const isWhite = r >= 240 && g >= 240 && b >= 240;
+                const v = isWhite ? 255 : 0;
+                data[i] = data[i+1] = data[i+2] = v;
+                data[i+3] = 255;
+            }
+            const newCanvas = document.createElement('canvas'); newCanvas.width = canvas.width; newCanvas.height = canvas.height;
+            newCanvas.getContext('2d').putImageData(imageData, 0, 0);
+            return newCanvas;
+        }
+
+        function binarizeDifficulty(canvas) {
+            const ctx = canvas.getContext('2d');
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i], g = data[i+1], b = data[i+2];
+                const isBlack = r <= 64 && g <= 64 && b <= 64;
+                const v = isBlack ? 255 : 0;
+                data[i] = data[i+1] = data[i+2] = v;
+                data[i+3] = 255;
+            }
+            const newCanvas = document.createElement('canvas'); newCanvas.width = canvas.width; newCanvas.height = canvas.height;
+            newCanvas.getContext('2d').putImageData(imageData, 0, 0);
+            return newCanvas;
+        }
 
         async function processImage(img) {
             window.lastProcessedImg = img; statusLogs = []; resultList.innerHTML = '';
@@ -626,15 +726,17 @@
                 for (let i = 0; i < 5; i++) {
                     const row = createLoadingRow(i + 1); resultList.appendChild(row);
                     const x = (RATIO_X_START + (RATIO_THUMB_W + RATIO_GAP) * i) * W, y = RATIO_Y_START * H, tw = RATIO_THUMB_W * W, th = RATIO_THUMB_H * H, by = (RATIO_Y_START + RATIO_THUMB_H) * H, bh = RATIO_BAR_H * H;
-                    const thumb = cropToCanvas(img, x, y, tw, th), ah = aHashFromCanvas(thumb), dh = dHashFromCanvas(thumb), bar = cropToCanvas(img, x, by, tw, bh);
+                    const thumb = cropToCanvas(img, x, y, tw, th), ah = aHashFromCanvas(thumb), dh = dHashFromCanvas(thumb), color = getColorGridFromCanvas(thumb), bar = cropToCanvas(img, x, by, tw, bh);
                     const left = cropToCanvas(bar, 0, 0, bar.width * BAR_SPLIT, bar.height), right = cropToCanvas(bar, left.width, 0, bar.width * (1 - BAR_SPLIT), bar.height);
-                    row.matches = getSortedMatches(ah, dh); row.matchIndex = 0; row.btnPh = pHashFromCanvas(left); row.diffPh = pHashFromCanvas(right);
+                    row.matches = getSortedMatches(ah, dh, color); row.matchIndex = 0; 
+                    row.btnPh = pHashFromCanvas(binarizeButton(left)); 
+                    row.diffPh = pHashFromCanvas(binarizeDifficulty(right));
                     displayMatch(row, 0);
                 }
             } else {
                 const row = createLoadingRow(1); resultList.appendChild(row);
                 const x = RATIO_GENERAL_X * W, y = RATIO_GENERAL_Y * H, tw = RATIO_GENERAL_W * W, th = RATIO_GENERAL_H * H;
-                const thumb = cropToCanvas(img, x, y, tw, th), ah = aHashFromCanvas(thumb), dh = dHashFromCanvas(thumb), matches = getSortedMatches(ah, dh), best = matches[0], data = getSongDataSync(best.id);
+                const thumb = cropToCanvas(img, x, y, tw, th), ah = aHashFromCanvas(thumb), dh = dHashFromCanvas(thumb), color = getColorGridFromCanvas(thumb), matches = getSortedMatches(ah, dh, color), best = matches[0], data = getSongDataSync(best.id);
                 if (data && data.success) { row.matches = matches; row.matchIndex = 0; updateGeneralRow(row, data, best.id); }
             }
         }
@@ -651,17 +753,85 @@
         function updateGeneralRow(row, data, titleId) {
             row.className = 'track-row p-6 rounded-2xl block opacity-100 shadow-xl relative glass';
             const btnList = ['4B', '5B', '6B', '8B'], diffList = ['NM', 'HD', 'MX', 'SC'];
-            let grid = `<div class="general-grid mt-6"><div class="grid-cell grid-header"></div>${diffList.map(d => `<div class="grid-cell grid-header">${d}</div>`).join('')}`;
+            
+            // 색상 정의
+            const bC = { '4B': 'bg-emerald-600', '5B': 'bg-sky-600', '6B': 'bg-amber-600', '8B': 'bg-indigo-600' };
+            const dC = { 'SC': 'bg-purple-600', 'MX': 'bg-rose-600', 'HD': 'bg-orange-600', 'NM': 'bg-yellow-500' };
+
+            // 헤더 생성 (NM, HD, MX, SC) - 높이 통일을 위해 h-10(40px) 적용
+            let grid = `<div class="general-grid mt-6"><div class="grid-cell grid-header flex items-center justify-center h-10"></div>${diffList.map(d => `<div class="grid-cell grid-header ${dC[d]} text-white flex items-center justify-center h-10">${d}</div>`).join('')}`;
+            
             btnList.forEach(btn => {
-                grid += `<div class="grid-cell grid-row-label">${btn}</div>`;
+                // 왼쪽 버튼 라벨 (4B, 5B...) - 데이터 셀과 높이 통일을 위해 h-20(80px) 적용
+                grid += `<div class="grid-cell grid-row-label ${bC[btn]} text-white flex items-center justify-center h-20">${btn}</div>`;
+                
                 diffList.forEach(diff => {
-                    const p = data.patterns?.[btn]?.[diff], fVal = p?.floor ?? '-', l = p?.level ?? 0, fName = p?.floorName ?? (fVal !== '-' ? String(fVal) : '-');
-                    const color = fName === '-' ? '' : '#ffffff', bgColor = fName === '-' ? '' : getDifficultyBgColor(l, diff, fVal);
-                    grid += `<div class="grid-cell ${fName==='-'?'empty':'grid-value'}" style="${fName==='-'?'':(`color: ${color}; background-color: ${bgColor}; box-shadow: inset 0 0 10px rgba(0,0,0,0.1);`)}">${fName}</div>`;
+                    const p = data.patterns?.[btn]?.[diff];
+                    const hasPattern = !!p;
+                    const fVal = p?.floor ?? '-';
+                    const l = p?.level ?? 0;
+                    const fName = p?.floorName ?? (fVal !== '-' ? String(fVal) : '-');
+                    
+                    let displayChar = fName;
+                    let bgColor = '';
+                    let textColor = 'text-white';
+                    let opacity = 'opacity-100';
+
+                    if (!hasPattern) {
+                        displayChar = 'X';
+                        bgColor = 'background-color: #000000;';
+                        textColor = 'text-slate-700';
+                        opacity = 'opacity-40';
+                    } else if (fVal === '-' || fVal === null) {
+                        displayChar = '-';
+                        bgColor = 'background-color: #334155;';
+                        textColor = 'text-slate-400';
+                    } else {
+                        bgColor = `background-color: ${getDifficultyBgColor(l, diff, fVal)};`;
+                    }
+
+                    // 해당 패턴의 태그 가져오기
+                    const tagData = songTagsDatabase[String(titleId)];
+                    let pTagsHtml = '';
+                    if (tagData && tagData.pattern_tags && tagData.pattern_tags[btn]) {
+                        const matchedTags = tagData.pattern_tags[btn].filter(pt => pt.diff === diff || !pt.diff);
+                        if (matchedTags.length > 0) {
+                            pTagsHtml = `<div class="flex flex-wrap justify-center gap-0.5 mt-1 overflow-hidden max-h-[32px]">
+                                ${matchedTags.map(mt => `<span class="text-[8px] px-1 bg-black/30 rounded-sm whitespace-nowrap">${mt.name}</span>`).join('')}
+                            </div>`;
+                        }
+                    }
+
+                    // 데이터 셀 - 고정 높이 h-20(80px) 적용
+                    grid += `<div class="grid-cell flex flex-col items-center justify-center ${textColor} ${opacity} h-20" style="${bgColor}">
+                        <span class="grid-value">${displayChar}</span>
+                        ${pTagsHtml}
+                    </div>`;
                 });
             });
             grid += `</div>`;
-            row.innerHTML = `<div class="flex items-center justify-between mb-2"><div class="flex items-center space-x-6"><img src="https://v-archive.net/static/images/jackets/${titleId}.jpg" class="w-24 h-24 rounded-xl object-cover border-2 border-slate-800 shadow-lg"><div><h3 class="font-bold text-white text-2xl mb-1">${data.name}</h3><div class="flex items-center space-x-3"><p class="text-slate-500 text-xs font-mono">ID: ${titleId}</p><button class="recheck-btn bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button></div></div></div></div><div class="mt-2 px-2">${getSongTagsHtml(titleId)}</div>${grid}`;
+            
+            const tagData = songTagsDatabase[String(titleId)];
+            const bpmText = tagData?.bpm?.text ? `<span class="px-2 py-0.5 rounded text-xs font-bold border border-blue-700/50 bg-blue-900/40 text-blue-300 ml-3">BPM:${tagData.bpm.text}</span>` : '';
+
+            row.innerHTML = `
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center space-x-6">
+                        <img src="https://v-archive.net/static/images/jackets/${titleId}.jpg" class="w-24 h-24 rounded-xl object-cover border-2 border-slate-800 shadow-lg cursor-pointer hover:opacity-80 transition-opacity" onclick="window.open('https://b300.vercel.app/?m=song&s=${titleId}', '_blank'); event.stopPropagation();">
+                        <div>
+                            <div class="flex items-center">
+                                <h3 class="font-bold text-white text-2xl mb-1">${data.name}</h3>
+                                ${bpmText}
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <p class="text-slate-500 text-xs font-mono">ID: ${titleId}</p>
+                                <button class="recheck-btn bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                ${grid}
+            `;
         }
 
         function displayMatch(row, index) {
@@ -681,7 +851,7 @@
                 row.innerHTML = `
                     <h3 class="font-bold text-white text-sm leading-tight h-10 flex items-center justify-center overflow-hidden">${info.name}</h3>
                     <div class="relative group w-full aspect-square overflow-hidden rounded-xl border border-slate-800 shadow-md">
-                        <img src="https://v-archive.net/static/images/jackets/${info.titleId}.jpg" class="w-full h-full object-cover">
+                        <img src="https://v-archive.net/static/images/jackets/${info.titleId}.jpg" class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity" onclick="window.open('https://b300.vercel.app/?m=song&s=${info.titleId}', '_blank'); event.stopPropagation();">
                         <div class="absolute inset-x-0 bottom-0 bg-black/60 backdrop-blur-sm p-1 floor-area transition-all duration-300" style="background-color: ${getDifficultyBgColor(info.level, info.difficulty, info.floor)}">
                             <p class="floor-value text-xl font-black text-white">${info.floorName}</p>
                         </div>
@@ -702,7 +872,7 @@
                 `;
             } else {
                 row.className = 'track-row p-5 rounded-2xl flex items-center justify-between opacity-100 shadow-xl relative glass';
-                row.innerHTML = `<div class="flex items-center space-x-5"><img src="https://v-archive.net/static/images/jackets/${info.titleId}.jpg" class="w-20 h-20 rounded-xl object-cover border border-slate-800 shadow-md"><div><h3 class="font-bold text-white text-xl leading-tight mb-1">${info.name}</h3><div class="tags-container">${getSongTagsHtml(info.titleId, info.button, info.difficulty)}</div><div class="flex items-center space-x-1.5 mt-2.5"><select class="btn-select px-2 py-1 rounded-md text-[11px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">${bL.map(b => `<option value="${b}" ${b===info.button?'selected':''}>${b}</option>`).join('')}</select><select class="diff-select px-2 py-1 rounded-md text-[11px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">${dL.map(d => `<option value="${d}" ${d===info.difficulty?'selected':''}>${d}</option>`).join('')}</select><button class="recheck-btn ml-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button></div></div></div><div class="text-right flex flex-col items-end"><p class="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Floor Intensity</p><div class="floor-area transition-all duration-300" style="border-radius: 12px; padding: 6px 12px; background-color: ${getDifficultyBgColor(info.level, info.difficulty, info.floor)}"><p class="floor-value text-3xl font-black text-white">${info.floorName}</p></div></div>`;
+                row.innerHTML = `<div class="flex items-center space-x-5"><img src="https://v-archive.net/static/images/jackets/${info.titleId}.jpg" class="w-20 h-20 rounded-xl object-cover border border-slate-800 shadow-md cursor-pointer hover:opacity-80 transition-opacity" onclick="window.open('https://b300.vercel.app/?m=song&s=${info.titleId}', '_blank'); event.stopPropagation();"><div><h3 class="font-bold text-white text-xl leading-tight mb-1">${info.name}</h3><div class="tags-container">${getSongTagsHtml(info.titleId, info.button, info.difficulty)}</div><div class="flex items-center space-x-1.5 mt-2.5"><select class="btn-select px-2 py-1 rounded-md text-[11px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">${bL.map(b => `<option value="${b}" ${b===info.button?'selected':''}>${b}</option>`).join('')}</select><select class="diff-select px-2 py-1 rounded-md text-[11px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">${dL.map(d => `<option value="${d}" ${d===info.difficulty?'selected':''}>${d}</option>`).join('')}</select><button class="recheck-btn ml-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button></div></div></div><div class="text-right flex flex-col items-end"><p class="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Floor Intensity</p><div class="floor-area transition-all duration-300" style="border-radius: 12px; padding: 6px 12px; background-color: ${getDifficultyBgColor(info.level, info.difficulty, info.floor)}"><p class="floor-value text-3xl font-black text-white">${info.floorName}</p></div></div>`;
             }
             updateSelectColors(row.querySelector('.btn-select'), row.querySelector('.diff-select'));
         }
