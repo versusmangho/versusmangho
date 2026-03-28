@@ -247,20 +247,34 @@ async function main() {
             const rightCanvas = createCanvas(rw, canvas.height);
             rightCanvas.getContext('2d').drawImage(canvas, lw, 0, rw, canvas.height, 0, 0, rw, canvas.height);
 
-            output.trackinfo.buttons[button] = { ph: pHashFromCanvas(binarizeButton(leftCanvas)) };
-            output.trackinfo.diffs[diff] = { ph: pHashFromCanvas(binarizeDifficulty(rightCanvas)) };
+            output.trackinfo.buttons[button] = { 
+                ph: pHashFromCanvas(binarizeButton(leftCanvas)),
+                color: getColorGridFromCanvas(leftCanvas)
+            };
+            output.trackinfo.diffs[diff] = { 
+                ph: pHashFromCanvas(binarizeDifficulty(rightCanvas))
+            };
         } 
         else if (basename.includes('button_')) {
             const parts = basename.split('_');
             const bIdx = parts.indexOf('button');
             const button = parts[bIdx + 1].toUpperCase();
-            output.trackinfo.buttons[button] = { ph: pHashFromCanvas(binarizeButton(canvas)) };
+            const imgCanvas = createCanvas(img.width, img.height);
+            imgCanvas.getContext('2d').drawImage(img, 0, 0);
+            output.trackinfo.buttons[button] = { 
+                ph: pHashFromCanvas(binarizeButton(imgCanvas)),
+                color: getColorGridFromCanvas(imgCanvas)
+            };
         } 
         else if (basename.includes('diff_')) {
             const parts = basename.split('_');
             const dIdx = parts.indexOf('diff');
             const diff = parts[dIdx + 1].toUpperCase();
-            output.trackinfo.diffs[diff] = { ph: pHashFromCanvas(binarizeDifficulty(canvas)) };
+            const imgCanvas = createCanvas(img.width, img.height);
+            imgCanvas.getContext('2d').drawImage(img, 0, 0);
+            output.trackinfo.diffs[diff] = { 
+                ph: pHashFromCanvas(binarizeDifficulty(imgCanvas))
+            };
         }
     }
     console.log(`${Object.keys(output.trackinfo.buttons).length}개의 버튼, ${Object.keys(output.trackinfo.diffs).length}개의 난이도 해시를 준비했습니다.`);

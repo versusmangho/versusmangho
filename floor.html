@@ -658,9 +658,29 @@
                 return { id: ref.id, score: hDist + (cDist * W_COLOR) };
             }).sort((a, b) => a.score - b.score);
         }
-        function bestMatchPhash(targetPh, refMap) {
-            let best = { key: null, dist: Infinity };
-            for (const key of Object.keys(refMap)) { const dist = hamDist(targetPh, refMap[key].ph); if (dist < best.dist) best = { key, dist }; }
+        function bestMatch(targetPh, targetColor, refMap) {
+            let best = { key: null, score: Infinity };
+            // 가중치: 색상에 더 높은 비중을 둠
+            const W_PHASH = 1.0;
+            const W_COLOR = 2.0; 
+            
+            for (const key of Object.keys(refMap)) {
+                const ref = refMap[key];
+                if (!ref.ph) continue;
+                
+                const pDist = hamDist(targetPh, ref.ph);
+                let cDist = 0;
+                
+                // 참조 데이터에 색상 정보가 있으면 가중치 적용
+                if (ref.color && targetColor) {
+                    cDist = colorDist(targetColor, ref.color);
+                }
+                
+                const score = pDist * W_PHASH + cDist * W_COLOR;
+                if (score < best.score) {
+                    best = { key, score };
+                }
+            }
             return best;
         }
         function showTemporaryMessage(msg, duration = 2500) {
@@ -730,6 +750,7 @@
                     const left = cropToCanvas(bar, 0, 0, bar.width * BAR_SPLIT, bar.height), right = cropToCanvas(bar, left.width, 0, bar.width * (1 - BAR_SPLIT), bar.height);
                     row.matches = getSortedMatches(ah, dh, color); row.matchIndex = 0; 
                     row.btnPh = pHashFromCanvas(binarizeButton(left)); 
+                    row.btnColor = getColorGridFromCanvas(left);
                     row.diffPh = pHashFromCanvas(binarizeDifficulty(right));
                     displayMatch(row, 0);
                 }
@@ -835,7 +856,7 @@
         }
 
         function displayMatch(row, index) {
-            const m = row.matches[index], bM = bestMatchPhash(row.btnPh, buttonRefs), dM = bestMatchPhash(row.diffPh, diffRefs), btn = bM.key || "4B", diff = dM.key || "SC", tId = m.id, d = getSongDataSync(tId);
+            const m = row.matches[index], bM = bestMatch(row.btnPh, row.btnColor, buttonRefs), dM = bestMatch(row.diffPh, null, diffRefs), btn = bM.key || "4B", diff = dM.key || "SC", tId = m.id, d = getSongDataSync(tId);
             if (d && d.success) {
                 row.apiData = d; const p = d.patterns?.[btn]?.[diff], fV = p?.floor ?? "-", fN = p?.floorName ?? (fV !== "-" ? String(fV) : "NO DATA");
                 updateRow(row, { titleId: tId, name: d.name, button: btn, difficulty: diff, floorName: fN, floor: fV, level: p?.level || 0 });
