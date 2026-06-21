@@ -14,7 +14,14 @@
 </header>
 
 <main>
-  <section class="card">
+  <div class="row buttons-right toolbar">
+    <button id="floor-meter-btn" class="secondary">층수 측정기</button>
+    <button id="info-btn" class="secondary">티어별 난이도</button>
+    <button id="help-btn" class="secondary">도움말</button>
+  </div>
+
+  <div class="top-grid">
+  <section class="card compact">
     <h2>플레이어 관리</h2>
     <div class="row player-add-row">
       <input id="nickname-input" type="text" placeholder="닉네임 입력 (Enter로 추가)" />
@@ -23,11 +30,11 @@
     <div id="manage-msg" class="error"></div>
   </section>
 
-  <section class="card">
+  <section class="card compact">
     <h2>매칭</h2>
     <div class="row match-header">
       <p id="chooser-status">테이블에서 두 명을 클릭하세요.</p>
-      <div class="toggle-row" style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start;">
+      <div class="toggle-row">
         <div style="display: flex; align-items: center; gap: 8px;">
             <label class="switch">
                 <input type="checkbox" id="newcomer-toggle" checked />
@@ -52,20 +59,29 @@
     <div id="match-msg" class="error"></div>
     <div id="match-msg-success" class="success"></div>
   </section>
+  </div>
 
-  <section class="card">
-    <h2>플레이어 현황</h2>
+  <section class="card" id="players-card">
+    <div class="card-head">
+      <h2>플레이어 현황</h2>
+      <button id="more-cols-btn" class="secondary" aria-pressed="false">＋ 더 많은 정보 보기</button>
+    </div>
     <table>
       <thead>
-        <tr><th class="sortable" data-sort-key="priority">가중치</th><th class="sortable" data-sort-key="nickname">닉네임</th><th class="sortable" data-sort-key="chooserCount">원디골</th><th class="sortable" data-sort-key="w_curr">현재 대기</th><th class="sortable" data-sort-key="w_avg">평균 대기</th></tr>
+        <tr>
+          <th class="sortable" data-sort-key="priority">가중치</th>
+          <th class="sortable" data-sort-key="nickname">닉네임</th>
+          <th class="sortable extra-col" data-sort-key="chooserCount">원디골</th>
+          <th class="sortable" data-sort-key="w_curr">현재 대기</th>
+          <th class="sortable" data-sort-key="w_avg">평균 대기</th>
+          <th class="extra-col">매치</th>
+          <th class="extra-col">총 대기</th>
+          <th class="extra-col">보류</th>
+          <th class="extra-col">입장</th>
+        </tr>
       </thead>
       <tbody id="player-table-body"></tbody>
     </table>
-    <div class="row buttons-right" style="margin-top: 10px;">
-      <button id="priority-copy-btn" class="secondary">📋 현재 1순위 문구 복사</button>
-    </div>
-    <div id="priority-copy-msg" class="success" style="display:none; margin-top: 8px;"></div>
-
   </section>
 
   <section class="card log-card">
@@ -75,6 +91,12 @@
     </div>
 
     <div class="collapsible-body" id="log-content" style="display: none;">
+      <div class="log-filters" id="log-filters">
+        <button class="log-filter-btn active" data-filter="all">전체</button>
+        <button class="log-filter-btn" data-filter="match">매치</button>
+        <button class="log-filter-btn" data-filter="inout">입퇴장</button>
+        <button class="log-filter-btn" data-filter="hold">보류/복귀</button>
+      </div>
       <div id="log-container"></div>
     </div>
   </section>
@@ -123,13 +145,6 @@
     <canvas id="thumbCanvas" width="16" height="16" style="display:none;"></canvas>
   </section>
 
-  <section class="card footer-help">
-    <div class="row buttons-right">
-      <button id="floor-meter-btn" class="secondary">층수 측정기</button>
-      <button id="info-btn" class="secondary">티어별 난이도</button>
-      <button id="help-btn" class="secondary">도움말</button>
-    </div>
-  </section>
 </main>
 
 <div id="help-modal" class="modal" aria-hidden="true">
@@ -145,8 +160,8 @@
         <li><b>우선순위 (가중치):</b> 기본적으로 <b>가중치</b> 점수가 높은 순으로 정렬됩니다. 가중치는 현재 대기, 평균 대기, 원디골 비율 등을 종합하여 계산된 값입니다.</li>
         <li><b>테이블 정렬:</b> '가중치', '닉네임' 등 테이블의 제목(헤더)을 클릭하면 해당 기준으로 목록을 오름차순/내림차순 정렬할 수 있습니다.</li>
         <li><b>보류/복귀:</b> 플레이어 목록의 '보류' 버튼을 눌러 잠시 매칭에서 제외할 수 있습니다. '복귀'를 누르면 보류한 시간만큼 대기 시간이 보정되어 복귀됩니다.</li>
-        <li><b>신입 우선권:</b> 이 옵션을 켜면, 방에 새로 들어온 플레이어('신입' 태그)가 빠르게 게임을 할 수 있도록 가중치에 보너스를 받습니다.</li>
-        <li><b>세이프가드:</b> 이 옵션을 켜면, <b>4판 이상 대기한 플레이어</b>가 있을 경우 다른 모든 규칙을 무시하고 해당 플레이어에게 최상위 우선순위가 부여됩니다.</li>
+        <li><b>신입 우선권:</b> 이 옵션을 켜면, 방에 새로 들어온 플레이어('신입' 태그)가 기존 경험자들보다 <b>상위 우선순위</b>로 올라가 빠르게 첫 게임을 하게 됩니다. (단, 세이프가드로 올라온 장기 대기자보다는 아래입니다. 첫 판을 뛰면 신입 자격이 해제됩니다.)</li>
+        <li><b>세이프가드:</b> 이 옵션을 켜면, <b><span class="safeguard-threshold">4</span>판 이상 대기한 플레이어</b>가 있을 경우 다른 모든 규칙을 무시하고 해당 플레이어에게 최상위 우선순위가 부여됩니다.</li>
       </ul>
     </div>
 
@@ -171,7 +186,6 @@
       <ul class="help-list">
         <li><b>자동 저장:</b> 모든 데이터는 브라우저에 자동 저장되어 새로고침해도 유지됩니다.</li>
         <li><b>실행 취소/다시 실행:</b> 실수로 매칭을 하거나 플레이어를 잘못 삭제했을 때 이전/다음 상태로 되돌릴 수 있습니다.</li>
-        <li><b>1순위 문구 복사:</b> '현재 1순위 문구 복사' 버튼을 누르면, 현재 가장 우선순위가 높은 플레이어의 대기 상태를 설명하는 문구가 클립보드에 복사됩니다.</li>
         <li><b>초기화:</b> '전체 초기화' 버튼을 누르면 모든 데이터가 삭제됩니다.</li>
       </ul>
     </div>
