@@ -139,14 +139,16 @@
             font-family: 'Orbitron', sans-serif; font-size: 0.85rem; 
             transition: background 0.2s;
         }
-        .grid-header { background: #0f172a; font-weight: 700; color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; }
-        .grid-row-label { background: #0f172a; font-weight: 700; color: #64748b; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; }
+        .grid-header { background: #0f172a; font-weight: 700; color: #64748b; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; padding: 6px 4px; }
+        .grid-row-label { background: #0f172a; font-weight: 700; color: #64748b; display: flex; align-items: center; justify-content: center; font-size: 1rem; padding: 6px 4px; }
         .grid-value {
             font-weight: 900;
             font-size: 1.7rem;
             text-shadow: 2px 2px 3px rgba(0, 0, 0, 0.5);
         }
         .grid-value.empty { color: #334155; font-weight: normal; background: #161e2e; }
+        /* 데이터 없는 칸은 실제 층수 값과 같은 크기로 찍히면 빈 칸이 데이터보다 커 보인다 */
+        .grid-value.nodata { font-size: 0.8rem; font-weight: 400; letter-spacing: 0.1em; }
 
         /* Select Styles */
         select {
@@ -440,7 +442,7 @@
                     bgColor = 'bg-indigo-900/40'; textColor = 'text-indigo-300'; borderColor = 'border-indigo-700/50';
                 }
                 
-                return `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${bgColor} ${textColor} ${borderColor}">[${tag.text}]</span>`;
+                return `<span class="px-1.5 py-0.5 rounded text-xs font-bold border ${bgColor} ${textColor} ${borderColor}">[${tag.text}]</span>`;
             }).join('')}</div>`;
         }
 
@@ -798,18 +800,18 @@
 
             // 헤더 생성 (NM, HD, MX, SC) - 높이 통일을 위해 h-10(40px) 적용
             let grid = `<div class="general-grid mt-6"><div class="grid-cell grid-header flex items-center justify-center h-10"></div>${diffList.map(d => `<div class="grid-cell grid-header ${dC[d]} text-white flex items-center justify-center h-10">${d}</div>`).join('')}`;
-            
+
             btnList.forEach(btn => {
                 // 왼쪽 버튼 라벨 (4B, 5B...) - 데이터 셀과 높이 통일을 위해 h-24(96px) 적용
                 grid += `<div class="grid-cell grid-row-label ${bC[btn]} text-white flex items-center justify-center h-24">${btn}</div>`;
-                
+
                 diffList.forEach(diff => {
                     const p = data.patterns?.[btn]?.[diff];
                     const hasPattern = !!p;
                     const fVal = p?.floor ?? '-';
                     const l = p?.level ?? 0;
                     const fName = p?.floorName ?? (fVal !== '-' ? String(fVal) : '-');
-                    
+
                     let displayChar = fName;
                     let bgColor = '';
                     let textColor = 'text-white';
@@ -845,7 +847,7 @@
 
                     // 데이터 셀 - 고정 높이 h-24(96px) 적용
                     grid += `<div class="grid-cell flex flex-col items-center justify-center ${textColor} ${opacity} h-24" style="${bgColor}">
-                        <span class="grid-value">${levelChar ? `<span class="align-middle opacity-80 font-light">${levelChar}</span> ` : ''}${displayChar}</span>
+                        <span class="grid-value${displayChar === 'NO DATA' ? ' nodata' : ''}">${levelChar ? `<span class="align-middle opacity-80 ${diff === 'SC' ? 'font-normal' : 'font-light'}">${levelChar}</span> ` : ''}${displayChar}</span>
                         ${pTagsHtml}
                     </div>`;
                 });
@@ -886,6 +888,7 @@
         function updateRow(row, info) {
             row.setAttribute('data-title-id', info.titleId);
             row.dataset.floorName = info.floorName;
+            row.dataset.level = info.level;
             const bL = ['4B', '5B', '6B', '8B'], dL = ['NM', 'HD', 'MX', 'SC'];
             
             if (currentMode === 'versus') {
@@ -899,17 +902,17 @@
                         </div>
                     </div>
                     <div class="flex items-center space-x-1 w-full">
-                        <select class="btn-select flex-1 px-1 py-1 rounded-md text-[10px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">
+                        <select class="btn-select flex-1 px-1 py-1 rounded-md text-xs font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">
                             ${bL.map(b => `<option value="${b}" ${b===info.button?'selected':''}>${b}</option>`).join('')}
                         </select>
-                        <select class="diff-select flex-1 px-1 py-1 rounded-md text-[10px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">
+                        <select class="diff-select flex-1 px-1 py-1 rounded-md text-xs font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">
                             ${dL.map(d => `<option value="${d}" ${d===info.difficulty?'selected':''}>${d}</option>`).join('')}
                         </select>
                     </div>
-                    <div class="tags-container w-full min-h-[40px]">${getSongTagsHtml(info.titleId, info.button, info.difficulty)}</div>
+                    <div class="tags-container w-full min-h-[40px] flex-1">${getSongTagsHtml(info.titleId, info.button, info.difficulty)}</div>
                     <div class="flex items-center space-x-1 w-full pt-1">
-                        <button class="recheck-btn flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] py-1.5 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button>
-                        <button class="copy-btn flex-1 bg-blue-900/40 hover:bg-blue-800/60 text-blue-300 text-[10px] py-1.5 rounded-md uppercase font-bold tracking-tighter border border-blue-700/50" onclick="event.stopPropagation(); copyRowInfo(this)">Copy</button>
+                        <button class="recheck-btn flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs py-1.5 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button>
+                        <button class="copy-btn flex-1 bg-blue-900/40 hover:bg-blue-800/60 text-blue-300 text-xs py-1.5 rounded-md uppercase font-bold tracking-tighter border border-blue-700/50" onclick="event.stopPropagation(); copyRowInfo(this)">Copy</button>
                     </div>
                 `;
             } else {
@@ -924,7 +927,9 @@
             const title = row.querySelector('h3').innerText;
             const button = row.querySelector('.btn-select').value;
             const diff = row.querySelector('.diff-select').value;
-            const floor = row.dataset.floorName || row.querySelector('.floor-value').innerText;
+            const floorName = row.dataset.floorName || row.querySelector('.floor-value').innerText;
+            const levelChar = circledLevel(row.dataset.level);
+            const floor = levelChar ? `${levelChar} ${floorName}` : floorName;
             
             const tagsContainer = row.querySelector('.tags-container');
             const tags = tagsContainer ? Array.from(tagsContainer.querySelectorAll('span')).map(s => s.innerText).join(' ') : '';
@@ -946,6 +951,7 @@
             if (fE) {
                 const fV = p?.floor ?? "-", fN = p?.floorName ?? (fV !== "-" ? String(fV) : "NO DATA"), l = p?.level || 0;
                 row.dataset.floorName = fN;
+                row.dataset.level = l;
                 fE.textContent = `${circledLevel(l)} ${fN}`;
                 if (fA) {
                     fA.style.backgroundColor = getDifficultyBgColor(l, diff, fV);
@@ -1010,7 +1016,6 @@
             } else {
                 box.innerHTML = songSearchMatches.map((m, i) => `
                     <div class="song-search-item px-5 py-3 cursor-pointer flex items-center justify-between border-b border-slate-800/60 last:border-b-0 ${i === songSearchActiveIndex ? 'bg-slate-800/80' : 'hover:bg-slate-800/80'}"
-                        onmouseenter="songSearchActiveIndex = ${i}; renderSongSearchResults();"
                         onclick="selectSongFromSearch('${m.id}')">
                         <span class="text-white text-sm font-medium">${escapeSearchHtml(m.name)}</span>
                         ${m.matchedAka ? `<span class="text-[10px] text-slate-500 ml-3 whitespace-nowrap">${escapeSearchHtml(String(m.matchedAka))}</span>` : ''}
