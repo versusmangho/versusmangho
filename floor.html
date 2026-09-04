@@ -600,7 +600,7 @@
         }
 
         async function loadHashes() {
-            updateStatus("v-archive에서 곡 정보를 받아오는 중..");
+            updateStatus("v-archive에서 정보를 가져오는 중..");
             const songApiUrl = 'https://v-archive.net/db/v2/songs.json', proxyUrl = 'https://api.allorigins.win/raw?url=';
             try {
                 let res; try { res = await fetch(songApiUrl, { mode: 'cors' }); } catch (err) { res = await fetch(proxyUrl + encodeURIComponent(songApiUrl)); }
@@ -611,52 +611,27 @@
                 } else throw new Error();
             } catch (e) { updateStatus("<span class='text-red-500 font-bold'>실패!</span>", true); }
 
-            // v-archive에 없는 곡을 로페봇으로 보충한다.
-            // 두 쪽 다 title/name/patterns 구조가 같아 그대로 꽂아 넣을 수 있고,
-            // 이미 v-archive에 있는 곡은 덮어쓰지 않는다(v-archive 우선).
-            updateStatus("로페봇에서 빠진 곡을 보충하는 중..");
-            try {
-                let res; try { res = await fetch(LOPE_SONGS_URL, { mode: 'cors' }); } catch (err) { res = await fetch(proxyUrl + encodeURIComponent(LOPE_SONGS_URL)); }
-                if (res && res.ok) {
-                    const songs = await res.json();
-                    let added = 0;
-                    songs.forEach(s => {
-                        if (s && s.title !== undefined && songDatabase[s.title] === undefined) {
-                            songDatabase[s.title] = Object.assign({}, s, { fromLope: true });
-                            added++;
-                        }
-                    });
-                    updateStatus(`<span class='text-green-500 font-bold'>완료! (${added}곡 보충)</span>`, true);
-                } else throw new Error();
-            } catch (e) {
-                console.error("[Lope] Error loading songs:", e);
-                updateStatus("<span class='text-yellow-500 font-bold'>실패!</span>", true);
-            }
-
-            updateStatus("곡 상세 태그 정보를 받아오는 중..");
+            // 로페봇 곡 상세 태그(BPM/패턴 태그) — v-archive에 없는 정보라 항상 받는다.
+            // 곡 정보 자체는 v-archive로 충분하면 받지 않고,
+            // 없는 곡을 처음 만났을 때만 ensureLopeSongs()가 한 번 받아온다.
+            updateStatus("로페봇에서 정보를 가져오는 중..");
             const tagApiUrl = 'https://data.xn--2o2bk9ff9x.com/tags/new_tags.json';
             try {
                 let res; try { res = await fetch(tagApiUrl, { mode: 'cors' }); } catch (err) { res = await fetch(proxyUrl + encodeURIComponent(tagApiUrl)); }
-                if (res && res.ok) { 
-                    const d = await res.json(); 
-                    if (d.items && Array.isArray(d.items)) {
-                        d.items.forEach(i => { 
-                            if (i.song_title !== undefined && i.song_title !== null) {
-                                // 새 구조에서는 song_title이 숫자 ID임
-                                const idKey = String(i.song_title);
-                                songTagsDatabase[idKey] = i; 
-                            }
-                        }); 
-                        console.log(`[Tags] Successfully loaded ${Object.keys(songTagsDatabase).length} tag entries by ID.`);
-                    }
-                    updateStatus("<span class='text-green-500 font-bold'>완료!</span>", true); 
-                } else throw new Error();
-            } catch (e) { 
+                if (!res || !res.ok) throw new Error();
+                const d = await res.json();
+                if (d.items && Array.isArray(d.items)) {
+                    // 새 구조에서는 song_title이 숫자 ID임
+                    d.items.forEach(i => { if (i.song_title !== undefined && i.song_title !== null) songTagsDatabase[String(i.song_title)] = i; });
+                    console.log(`[Tags] Successfully loaded ${Object.keys(songTagsDatabase).length} tag entries by ID.`);
+                }
+                updateStatus("<span class='text-green-500 font-bold'>완료!</span>", true);
+            } catch (e) {
                 console.error("[Tags] Error loading tags:", e);
-                updateStatus("<span class='text-yellow-500 font-bold'>실패!</span>", true); 
+                updateStatus("<span class='text-yellow-500 font-bold'>실패!</span>", true);
             }
 
-            updateStatus("이미지분석을 위한 데이터를 불러오는 중..");
+            updateStatus("자켓 해시를 가져오는 중..");
             try {
                 const hRes = await fetch('hashes.json');
                 if (hRes.ok) {
@@ -798,7 +773,7 @@
             } else {
                 const row = createLoadingRow(1); resultList.appendChild(row);
                 const x = RATIO_GENERAL_X * W, y = RATIO_GENERAL_Y * H, tw = RATIO_GENERAL_W * W, th = RATIO_GENERAL_H * H;
-                const thumb = cropToCanvas(img, x, y, tw, th), ah = aHashFromCanvas(thumb), dh = dHashFromCanvas(thumb), color = getColorGridFromCanvas(thumb), matches = getSortedMatches(ah, dh, color), best = matches[0], data = getSongDataSync(best.id);
+                const thumb = cropToCanvas(img, x, y, tw, th), ah = aHashFromCanvas(thumb), dh = dHashFromCanvas(thumb), color = getColorGridFromCanvas(thumb), matches = getSortedMatches(ah, dh, color), best = matches[0], data = await ensureSongData(best.id);
                 row.matches = matches; row.matchIndex = 0; updateGeneralRow(row, data, best.id);
             }
         }
@@ -923,8 +898,8 @@
             `;
         }
 
-        function displayMatch(row, index) {
-            const m = row.matches[index], bM = bestMatch(row.btnPh, row.btnColor, buttonRefs), dM = bestMatch(row.diffPh, null, diffRefs), btn = bM.key || "4B", diff = dM.key || "SC", tId = m.id, d = getSongDataSync(tId);
+        async function displayMatch(row, index) {
+            const m = row.matches[index], bM = bestMatch(row.btnPh, row.btnColor, buttonRefs), dM = bestMatch(row.diffPh, null, diffRefs), btn = bM.key || "4B", diff = dM.key || "SC", tId = m.id, d = await ensureSongData(tId);
             if (d && d.success) {
                 row.apiData = d; const p = d.patterns?.[btn]?.[diff], fV = p?.floor ?? "-", fN = p?.floorName ?? (fV !== "-" ? String(fV) : "NO DATA");
                 updateRow(row, { titleId: tId, name: d.name, button: btn, difficulty: diff, floorName: fN, floor: fV, level: p?.level || 0, fromLope: d.fromLope });
@@ -1039,6 +1014,40 @@
 
         function getSongDataSync(tId) { const s = songDatabase[parseInt(tId)]; return s ? { success: true, id: s.title, name: s.name, patterns: s.patterns, fromLope: !!s.fromLope } : { success: false }; }
 
+        /* 로페봇 곡 정보는 v-archive에 없는 곡을 만났을 때만 한 번 받아온다.
+           v-archive로 다 커버되면 요청이 아예 나가지 않는다. */
+        let lopeSongsPromise = null;
+        function ensureLopeSongs() {
+            if (lopeSongsPromise) return lopeSongsPromise;
+            lopeSongsPromise = (async () => {
+                const proxyUrl = 'https://api.allorigins.win/raw?url=';
+                try {
+                    let res; try { res = await fetch(LOPE_SONGS_URL, { mode: 'cors' }); } catch (err) { res = await fetch(proxyUrl + encodeURIComponent(LOPE_SONGS_URL)); }
+                    if (!res || !res.ok) throw new Error();
+                    const songs = await res.json();
+                    let added = 0;
+                    // v-archive와 title/name/patterns 구조가 같아 그대로 꽂아 넣을 수 있고,
+                    // 이미 v-archive에 있는 곡은 덮어쓰지 않는다(v-archive 우선).
+                    songs.forEach(s => {
+                        if (s && s.title !== undefined && songDatabase[s.title] === undefined) {
+                            songDatabase[s.title] = Object.assign({}, s, { fromLope: true });
+                            added++;
+                        }
+                    });
+                    console.log(`[Lope] Supplemented ${added} songs missing from v-archive.`);
+                } catch (e) { console.error("[Lope] Error loading songs:", e); }
+            })();
+            return lopeSongsPromise;
+        }
+
+        /* v-archive에 없으면 로페봇을 보충한 뒤 다시 조회한다 */
+        async function ensureSongData(tId) {
+            const d = getSongDataSync(tId);
+            if (d.success) return d;
+            await ensureLopeSongs();
+            return getSongDataSync(tId);
+        }
+
         function escapeSearchHtml(str) {
             const d = document.createElement('div'); d.textContent = str; return d.innerHTML;
         }
@@ -1145,7 +1154,7 @@
         async function handleRecheck(btn) {
             const r = btn.closest('.track-row'); if (!r || !r.matches) return;
             r.matchIndex = (r.matchIndex + 1) % Math.min(r.matches.length, 10);
-            if (currentMode === 'general') { const m = r.matches[r.matchIndex], d = getSongDataSync(m.id); updateGeneralRow(r, d, m.id); }
+            if (currentMode === 'general') { const m = r.matches[r.matchIndex], d = await ensureSongData(m.id); updateGeneralRow(r, d, m.id); }
             else displayMatch(r, r.matchIndex);
         }
 
