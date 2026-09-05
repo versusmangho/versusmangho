@@ -96,7 +96,26 @@
         }
         .track-row.banned::before { background: #ef4444; }
 
-        #screenshotContainer { margin-bottom: 2rem; display: none; justify-content: center; }
+        /* 스크린샷 뷰어 — 좌우 화살표로 이전에 붙여넣은 스샷을 다시 본다 */
+        #shotViewer { display: none; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 2.5rem; }
+        #screenshotContainer { display: none; justify-content: center; }
+        .shot-nav-btn {
+            flex: none; width: 44px; height: 44px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 999px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            backdrop-filter: blur(8px);
+            transition: all 0.2s;
+        }
+        .shot-nav-btn:hover:not(:disabled) { background: var(--accent-blue); color: #fff; border-color: transparent; transform: scale(1.08); }
+        .shot-nav-btn:disabled { opacity: 0.2; cursor: default; }
+        #shotCounter {
+            margin-top: 0.75rem; text-align: center;
+            font-family: 'Orbitron', sans-serif; font-size: 0.7rem;
+            letter-spacing: 0.15em; color: var(--text-secondary);
+        }
         #screenshotPreview {
             max-width: 320px;
             cursor: pointer;
@@ -301,6 +320,7 @@
                     <li>곡 카드를 <strong>클릭</strong>하면 <span class="text-green-400">초록색(플레이)</span>으로 표시됩니다.</li>
                     <li>곡 카드를 <strong>우클릭</strong>하면 <span class="text-red-400">빨간색(밴)</span>으로 표시됩니다.</li>
                     <li>입력된 스크린샷은 클릭하면 확대해서 볼 수 있습니다.</li>
+                    <li>스크린샷 좌우의 <strong>&lsaquo; &rsaquo;</strong> 버튼으로 이전에 붙여넣은 스샷을 다시 볼 수 있습니다. 그때 찍어둔 밴픽 표시와 버튼/난이도 수정값도 그대로 남습니다. (새로고침하면 초기화)</li>
                 </ul>
                 <!-- HELP CONTENT END -->
             </div>
@@ -351,7 +371,22 @@
             <p class="text-slate-500 mt-4 text-xs">로컬 환경에서는 hashes.json 파일을 직접 선택해야 합니다.</p>
         </div>
 
-        <div id="screenshotContainer"><img id="screenshotPreview" alt="Original Screenshot" class="mb-10"></div>
+        <div id="shotViewer">
+            <button id="shotPrev" class="shot-nav-btn" title="이전 스크린샷" onclick="navigateShot(-1)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7" />
+                </svg>
+            </button>
+            <div class="flex flex-col items-center min-w-0">
+                <div id="screenshotContainer"><img id="screenshotPreview" alt="Original Screenshot"></div>
+                <div id="shotCounter"></div>
+            </div>
+            <button id="shotNext" class="shot-nav-btn" title="다음 스크린샷" onclick="navigateShot(1)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
+                </svg>
+            </button>
+        </div>
         <div id="resultList" class="versus-grid"><div class="text-center py-20 text-slate-600 italic tracking-widest text-sm uppercase">Initializing System...</div></div>
     </div>
     
@@ -397,9 +432,15 @@
             document.getElementById('songSearchInput').value = '';
 
             window.lastProcessedImg = null; lastImageHash = null;
-            renderStatus();
-            document.getElementById('screenshotContainer').style.display = 'none';
-            document.getElementById('dropZone').style.display = 'block';
+            // 모드별로 히스토리를 따로 들고 있어서, 돌아오면 보던 스샷과 밴픽이 그대로 살아난다
+            if (shotHistory[mode].length > 0) {
+                showShot(shotIndex[mode] >= 0 ? shotIndex[mode] : shotHistory[mode].length - 1);
+            } else {
+                renderStatus();
+                document.getElementById('screenshotContainer').style.display = 'none';
+                document.getElementById('dropZone').style.display = 'block';
+                updateShotNav();
+            }
         }
 
         const BAR_SPLIT = 0.5, W_AHASH = 1.0, W_DHASH = 1.0;
@@ -704,6 +745,53 @@
             setTimeout(() => { if (z.textContent === msg) z.textContent = ''; }, duration);
         }
 
+        /* ── 스크린샷 히스토리 ─────────────────
+           붙여넣은 스샷을 모드별로 쌓아두고 좌우 버튼으로 되돌아본다.
+           결과 카드 DOM 자체를 보관하므로 밴픽(플레이/밴) 표시와
+           버튼/난이도 수정값까지 그대로 남는다. (새로고침하면 초기화) */
+        const SHOT_HISTORY_MAX = 20;
+        const shotHistory = { versus: [], general: [] };
+        const shotIndex = { versus: -1, general: -1 };
+
+        function addShot(src, rows, hash) {
+            const list = shotHistory[currentMode];
+            list.push({ src, rows, hash: hash || null });
+            while (list.length > SHOT_HISTORY_MAX) {
+                const dropped = list.shift();
+                if (dropped.src && dropped.src.startsWith('blob:')) URL.revokeObjectURL(dropped.src);
+            }
+            showShot(list.length - 1);
+        }
+
+        function showShot(i) {
+            const list = shotHistory[currentMode];
+            if (i < 0 || i >= list.length) return;
+            shotIndex[currentMode] = i;
+            const entry = list[i];
+            lastImageHash = entry.hash;
+            const cont = document.getElementById('screenshotContainer');
+            if (entry.src) {
+                document.getElementById('screenshotPreview').src = entry.src;
+                cont.style.display = 'flex';
+            } else cont.style.display = 'none';
+            document.getElementById('dropZone').style.display = 'none';
+            resultList.innerHTML = '';
+            entry.rows.forEach(r => resultList.appendChild(r));
+            updateShotNav();
+        }
+
+        function navigateShot(delta) { showShot(shotIndex[currentMode] + delta); }
+
+        function updateShotNav() {
+            const list = shotHistory[currentMode], i = shotIndex[currentMode];
+            document.getElementById('shotViewer').style.display = list.length > 0 ? 'flex' : 'none';
+            document.getElementById('shotPrev').disabled = i <= 0;
+            document.getElementById('shotNext').disabled = i >= list.length - 1;
+            const entry = list[i];
+            document.getElementById('shotCounter').textContent =
+                list.length > 0 ? `${i + 1} / ${list.length}${entry && !entry.src ? ' (검색)' : ''}` : '';
+        }
+
         window.addEventListener('paste', async (e) => {
             const now = Date.now(); if (isProcessing) return;
             if (now - (window.lastProcessTime || 0) < COOLDOWN_MS) { showTemporaryMessage("쿨다운 중..."); return; }
@@ -713,11 +801,13 @@
                     const blob = item.getAsFile(), img = new Image(); img.src = URL.createObjectURL(blob);
                     img.onload = () => {
                         const prev = document.getElementById('screenshotPreview'), cont = document.getElementById('screenshotContainer'), drop = document.getElementById('dropZone');
-                        if (drop) drop.style.display = 'none'; cont.style.display = 'flex'; prev.src = img.src;
                         const full = document.createElement('canvas'); full.width = img.width; full.height = img.height; full.getContext('2d').drawImage(img, 0, 0);
                         const hash = dHashFromCanvas(full); if (lastImageHash && hamDist(lastImageHash, hash) === 0) { showTemporaryMessage("동일 이미지"); return; }
+                        if (drop) drop.style.display = 'none';
+                        document.getElementById('shotViewer').style.display = 'flex';
+                        cont.style.display = 'flex'; prev.src = img.src;
                         isProcessing = true; lastImageHash = hash; window.lastProcessTime = Date.now();
-                        processImage(img).finally(() => { isProcessing = false; });
+                        processImage(img, hash).finally(() => { isProcessing = false; });
                     };
                 }
             }
@@ -755,12 +845,12 @@
             return newCanvas;
         }
 
-        async function processImage(img) {
+        async function processImage(img, hash) {
             window.lastProcessedImg = img; statusLogs = []; resultList.innerHTML = '';
-            const W = img.width, H = img.height;
+            const W = img.width, H = img.height, rows = [];
             if (currentMode === 'versus') {
                 for (let i = 0; i < 5; i++) {
-                    const row = createLoadingRow(i + 1); resultList.appendChild(row);
+                    const row = createLoadingRow(i + 1); resultList.appendChild(row); rows.push(row);
                     const x = (RATIO_X_START + (RATIO_THUMB_W + RATIO_GAP) * i) * W, y = RATIO_Y_START * H, tw = RATIO_THUMB_W * W, th = RATIO_THUMB_H * H, by = (RATIO_Y_START + RATIO_THUMB_H) * H, bh = RATIO_BAR_H * H;
                     const thumb = cropToCanvas(img, x, y, tw, th), ah = aHashFromCanvas(thumb), dh = dHashFromCanvas(thumb), color = getColorGridFromCanvas(thumb), bar = cropToCanvas(img, x, by, tw, bh);
                     const left = cropToCanvas(bar, 0, 0, bar.width * BAR_SPLIT, bar.height), right = cropToCanvas(bar, left.width, 0, bar.width * (1 - BAR_SPLIT), bar.height);
@@ -771,11 +861,12 @@
                     displayMatch(row, 0);
                 }
             } else {
-                const row = createLoadingRow(1); resultList.appendChild(row);
+                const row = createLoadingRow(1); resultList.appendChild(row); rows.push(row);
                 const x = RATIO_GENERAL_X * W, y = RATIO_GENERAL_Y * H, tw = RATIO_GENERAL_W * W, th = RATIO_GENERAL_H * H;
                 const thumb = cropToCanvas(img, x, y, tw, th), ah = aHashFromCanvas(thumb), dh = dHashFromCanvas(thumb), color = getColorGridFromCanvas(thumb), matches = getSortedMatches(ah, dh, color), best = matches[0], data = await ensureSongData(best.id);
                 row.matches = matches; row.matchIndex = 0; updateGeneralRow(row, data, best.id);
             }
+            addShot(img.src, rows, hash);
         }
 
         function circledLevel(level) {
@@ -1144,6 +1235,7 @@
             resultList.appendChild(row);
             row.matches = null; row.matchIndex = 0;
             updateGeneralRow(row, data, id);
+            addShot(null, [row], null);
         }
 
         document.addEventListener('click', (e) => {
