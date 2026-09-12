@@ -354,7 +354,7 @@
                     <li><strong>일망호 모드</strong>: 방장이 고른 곡이 <strong>2초 이상</strong> 그대로 있으면 그 곡의 층수 표를 자동으로 띄웁니다. 곡을 넘겨보는 중에는 띄우지 않고, 이미 띄운 곡은 방장이 다른 곡을 고를 때까지 다시 띄우지 않습니다.</li>
                     <li>밴픽 뒤 <strong>라운드 화면</strong>이 뜨면 밴된 곡은 <span class="text-red-400">빨간색</span>, 플레이된 곡은 <span class="text-green-400">초록색</span>과 라운드 번호(R1~R3)로 자동 표시됩니다. 라운드/결과 화면 스샷을 <code>Ctrl+V</code>로 붙여넣어도 똑같이 표시됩니다.</li>
                     <li>밴픽창을 놓쳤으면 라운드/결과 화면에서 <strong>확인된 곡만으로</strong> 카드를 만듭니다. 라운드 곡은 버튼·난이도까지 읽고, 밴된 곡은 자켓만 보여서 난이도가 '패턴 미확인'으로 표시됩니다.</li>
-                    <li>게임은 <strong>테두리 없는 창 모드</strong>를 권장합니다. 전체화면(독점) 모드에서는 화면이 검게 잡힐 수 있습니다.</li>
+                    <li>게임은 <strong>테두리 없는 창 모드</strong>를 권장합니다. 전체화면(독점) 모드에서는 화면이 검게 잡힐 수 있습니다. 일반 창 모드로 게임 창을 공유해 제목 표시줄·테두리가 같이 잡혀도 자동으로 잘라내고 봅니다. 단, 모니터 전체를 공유하면서 게임을 작은 창으로 띄워 두면 인식하지 못하니 이때는 게임 창을 선택하세요.</li>
                     <li>페이지를 새로고침하면 다시 연결해야 합니다. 인식이 안 되면 기존처럼 <code>Ctrl+V</code>로 붙여넣으면 됩니다.</li>
                 </ul>
 
@@ -460,7 +460,7 @@
                 </svg>
             </div>
             <p class="text-slate-300 mb-2 font-medium">스크린샷을 복사한 후 <kbd class="px-2 py-1 rounded text-white text-xs">Ctrl + V</kbd>를 누르세요</p>
-            <p class="text-xs text-slate-500 uppercase tracking-widest">16:9 비율에서만 작동합니다.</p>
+            <p class="text-xs text-slate-500 uppercase tracking-widest">16:9 게임 화면 · 창 모드 테두리는 자동으로 제외</p>
         </div>
 
         <div id="messageZone" class="text-center text-blue-400 mb-4 h-6 text-xs font-bold uppercase tracking-widest"></div>
@@ -1131,7 +1131,7 @@
             for (let item of items) {
                 if (item.type.indexOf('image') !== -1) {
                     const blob = item.getAsFile(), img = new Image(); img.src = URL.createObjectURL(blob);
-                    img.onload = () => analyzeScreenshot(img);
+                    img.onload = () => fitGameArea(img).then(g => analyzeScreenshot(g)).catch(err => console.error('[Paste]', err));
                 }
             }
         });
@@ -1159,6 +1159,69 @@
             processImage(img, hash).finally(() => { isProcessing = false; });
         }
 
+        /* ── 창 테두리 제외 ─────────────────
+           창 모드 게임을 '창'으로 공유하거나 Alt+PrintScreen으로 찍으면 제목 표시줄과 창 테두리가 같이 들어와 16:9가 아니게 된다.
+           게임 화면(16:9)만 잘라 넘기면 이후 좌표 계산은 그대로 쓸 수 있다.
+           Windows 창 테두리는 좌·우·아래 두께가 같고 제목 표시줄은 위에만 있으므로,
+           좌우 끝의 한 색 세로줄 두께(= 테두리)만 재면 게임 화면 자리가 정해진다. */
+        const GAME_RATIO = 16 / 9, GAME_RATIO_TOL = 0.02;
+        const FRAME_MAX_BORDER = 12;    // 이보다 두꺼운 창 테두리는 없다고 본다
+        const FRAME_MAX_TITLE = 0.1;    // 제목 표시줄은 게임 화면 높이의 10% 이하 (배율 200%의 720p 창까지 들어온다)
+        const FRAME_CORNER = 16;        // Windows 11 창은 모서리가 둥글어 빈 픽셀로 잡히므로 아래 테두리는 양 끝을 빼고 본다
+        const LINE_MAX_RANGE = 16;      // 한 줄 안의 밝기 차이가 이하면 한 색 줄(테두리)
+        const LINE_MAX_STEP = 24;       // 옆 줄과 색이 이만큼 다르면 거기서 게임 화면이 시작된 것
+
+        const isFullRect = (r, W, H) => r.x === 0 && r.y === 0 && r.w === W && r.h === H;
+
+        // 캔버스 데이터의 한 줄(세로 또는 가로)이 한 색이면 평균 색 [r,g,b], 아니면 null
+        function uniformLine(d, cw, ch, index, vertical) {
+            const n = vertical ? ch : cw, min = [255, 255, 255], max = [0, 0, 0], sum = [0, 0, 0];
+            for (let k = 0; k < n; k++) {
+                const i = (vertical ? k * cw + index : index * cw + k) * 4;
+                for (let c = 0; c < 3; c++) { const v = d[i + c]; if (v < min[c]) min[c] = v; if (v > max[c]) max[c] = v; sum[c] += v; }
+            }
+            for (let c = 0; c < 3; c++) if (max[c] - min[c] > LINE_MAX_RANGE) return null;
+            return sum.map(s => s / n);
+        }
+
+        // 가장자리에서 안쪽으로 같은 색 한 색 줄이 몇 개 이어지는지 (= 테두리 두께)
+        function borderDepth(src, x, y, w, h, vertical, fromEnd) {
+            const c = cropToCanvas(src, x, y, w, h), d = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data;
+            const n = vertical ? c.width : c.height;
+            let depth = 0, prev = null;
+            for (; depth < n; depth++) {
+                const line = uniformLine(d, c.width, c.height, fromEnd ? n - 1 - depth : depth, vertical);
+                if (!line || (prev && line.some((v, k) => Math.abs(v - prev[k]) > LINE_MAX_STEP))) break;
+                prev = line;
+            }
+            return depth;
+        }
+
+        /* 화면 안의 게임 화면(16:9) 자리. 16:9면 전체, 창 테두리가 붙은 모양이면 테두리를 뺀 자리, 그 외엔 null.
+           sure: 좌·우·아래 테두리가 서로 맞아떨어졌는지 — 암전처럼 온통 한 색인 화면에서는 테두리를 잘못 잴 수 있다 */
+        function findGameRect(src, W, H) {
+            if (Math.abs(W / H - GAME_RATIO) <= GAME_RATIO_TOL) return { x: 0, y: 0, w: W, h: H, sure: true };
+            if (W / H > GAME_RATIO) return null; // 제목 표시줄은 세로만 늘린다 — 가로로 긴 화면은 창 테두리 모양이 아니다
+            const n = FRAME_MAX_BORDER + 1, y0 = Math.round(H * 0.2), sh = Math.round(H * 0.6); // 제목 표시줄·둥근 모서리를 피해 가운데만 본다
+            const left = borderDepth(src, 0, y0, n, sh, true, false), right = borderDepth(src, W - n, y0, n, sh, true, true);
+            const b = Math.min(left, right);
+            if (b > FRAME_MAX_BORDER) return null; // 좌우 끝이 온통 한 색 — 테두리를 잴 수 없다
+            const w = W - 2 * b, h = w / GAME_RATIO, y = H - b - h;
+            if (y < 0 || y > h * FRAME_MAX_TITLE) return null;
+            const bottom = b ? borderDepth(src, b + FRAME_CORNER, H - n, w - 2 * FRAME_CORNER, n, false, true) : 0;
+            return { x: b, y, w, h, sure: left === right && bottom >= b };
+        }
+
+        /* 붙여넣은 스샷에서 게임 화면만 남긴다. 창 테두리 모양이 아니면 예전처럼 전체를 쓴다 */
+        async function fitGameArea(img) {
+            const W = img.naturalWidth || img.width, H = img.naturalHeight || img.height, r = findGameRect(img, W, H);
+            if (!r || isFullRect(r, W, H)) return img;
+            const cut = cropToCanvas(img, r.x, r.y, r.w, r.h), out = await frameToImage(cut, cut.width, cut.height);
+            URL.revokeObjectURL(img.src);
+            showTemporaryMessage(`창 테두리 제외 (${W}×${H} → ${cut.width}×${cut.height})`);
+            return out;
+        }
+
         /* ── 게임 화면 자동 인식 ─────────────────
            화면 공유(getDisplayMedia)로 게임 화면을 받아 0.5초마다 검사한다.
            버망호: 5개 슬롯의 자켓이 확실히 일치하는 슬롯이 충분하고 같은 곡 구성이 연속으로 보이면
@@ -1173,7 +1236,18 @@
         const AUTO_MIN_CONFIDENT = 4;   // 5개 중 이만큼 일치하면 밴픽 화면 (DB에 없는 신곡 1개는 허용)
         const AUTO_STABLE_TICKS = 2;    // 같은 곡 구성이 연속으로 이만큼 보여야 인식 (화면 전환 중 오인식 방지)
         const autoCap = { stream: null, video: null, imageCapture: null, stopTicker: null, busy: false, lastKey: null, pendingKey: null, pendingCount: 0, markPendingKey: null, statusHold: 0,
-            genCandId: null, genSince: 0, genShownId: null }; // 일망호: 지금 머물고 있는 곡 / 머물기 시작한 시각 / 마지막으로 띄운 곡
+            genCandId: null, genSince: 0, genShownId: null, // 일망호: 지금 머물고 있는 곡 / 머물기 시작한 시각 / 마지막으로 띄운 곡
+            rectKey: null, rect: null, cropped: false };    // 게임 화면 자리: 확실히 잰 해상도 / 그 자리 / 창 테두리를 잘라내고 보는 중인지
+        const autoAreaNote = () => autoCap.cropped ? ' · 창 테두리 제외' : '';
+
+        // 해상도가 같으면 확실히 잰 자리를 다시 쓴다 (매번 재지 않고, 암전 화면에서 잘못 잰 값은 굳히지 않는다)
+        function autoGameRect(frame, W, H) {
+            const key = `${W}x${H}`;
+            if (autoCap.rectKey === key) return autoCap.rect;
+            const r = findGameRect(frame, W, H);
+            if (r && r.sure) { autoCap.rectKey = key; autoCap.rect = r; }
+            return r;
+        }
 
         function versusSlotRect(i, W, H) {
             return { x: (RATIO_X_START + (RATIO_THUMB_W + RATIO_GAP) * i) * W, y: RATIO_Y_START * H, w: RATIO_THUMB_W * W, h: RATIO_THUMB_H * H };
@@ -1420,7 +1494,7 @@
             video.muted = true; video.playsInline = true; video.srcObject = stream;
             try { await video.play(); } catch (e) { /* ImageCapture로 대신 받는다 */ }
 
-            Object.assign(autoCap, { stream, video, imageCapture: ('ImageCapture' in window) ? new ImageCapture(track) : null, lastKey: null, pendingKey: null, pendingCount: 0, busy: false, genCandId: null, genShownId: null });
+            Object.assign(autoCap, { stream, video, imageCapture: ('ImageCapture' in window) ? new ImageCapture(track) : null, lastKey: null, pendingKey: null, pendingCount: 0, busy: false, genCandId: null, genShownId: null, rectKey: null, rect: null, cropped: false });
             autoCap.stopTicker = createTicker(AUTO_INTERVAL_MS, autoCaptureTick);
             updateAutoCaptureUI();
         }
@@ -1465,12 +1539,17 @@
         async function autoCaptureTick() {
             if (autoCap.busy || !autoCap.stream || isProcessing || thumbRefs.length === 0) return;
             autoCap.busy = true;
-            let frame = null;
+            let raw = null;
             try {
-                frame = await grabAutoFrame(); if (!frame || !autoCap.stream) return;
-                const W = frame.videoWidth || frame.width, H = frame.videoHeight || frame.height;
-                if (!W || !H) return;
-                if (Math.abs(W / H - 16 / 9) > 0.02) { setAutoStatus(`16:9 화면이 아닙니다 (${W}×${H})`, 'warn'); return; }
+                raw = await grabAutoFrame(); if (!raw || !autoCap.stream) return;
+                const rawW = raw.videoWidth || raw.width, rawH = raw.videoHeight || raw.height;
+                if (!rawW || !rawH) return;
+                const rect = autoGameRect(raw, rawW, rawH);
+                if (!rect) { setAutoStatus(`게임 화면을 찾지 못했습니다 (${rawW}×${rawH}) — 16:9 화면이나 게임 창을 공유하세요`, 'warn'); return; }
+                // 창 테두리가 붙어 있으면 게임 화면만 잘라서 본다 — 이후 좌표는 모두 잘라낸 화면 기준
+                autoCap.cropped = !isFullRect(rect, rawW, rawH);
+                const frame = autoCap.cropped ? cropToCanvas(raw, rect.x, rect.y, rect.w, rect.h) : raw;
+                const W = autoCap.cropped ? frame.width : rawW, H = autoCap.cropped ? frame.height : rawH;
                 if (currentMode === 'general') { await generalAutoTick(frame, W, H); return; }
 
                 const slots = [];
@@ -1490,7 +1569,7 @@
                 if (okCount < AUTO_MIN_CONFIDENT) {
                     autoCap.pendingKey = null; autoCap.pendingCount = 0;
                     if (await autoCaptureMatchScreen(frame, W, H)) return;
-                    if (!autoCap.statusHold || Date.now() > autoCap.statusHold) setAutoStatus(`● 자동 인식 중 — 밴픽 화면 대기 (일치 ${okCount}/5)`, 'live');
+                    if (!autoCap.statusHold || Date.now() > autoCap.statusHold) setAutoStatus(`● 자동 인식 중 — 밴픽 화면 대기 (일치 ${okCount}/5)${autoAreaNote()}`, 'live');
                     return;
                 }
 
@@ -1509,7 +1588,7 @@
             } catch (e) {
                 console.error('[AutoCapture]', e);
             } finally {
-                if (frame && typeof ImageBitmap !== 'undefined' && frame instanceof ImageBitmap) frame.close();
+                if (raw && typeof ImageBitmap !== 'undefined' && raw instanceof ImageBitmap) raw.close();
                 autoCap.busy = false;
             }
         }
@@ -1534,7 +1613,7 @@
            이미 띄운 곡은 다시 띄우지 않으므로, 그 사이 검색으로 다른 곡을 보고 있어도 방장이 곡을 바꿀 때까지 그대로 둔다 */
         async function generalAutoTick(frame, W, H) {
             const now = Date.now(), g = readGeneralJacket(frame, W, H);
-            const idle = () => { if (!autoCap.statusHold || now > autoCap.statusHold) setAutoStatus('● 자동 인식 중 — 선곡 대기', 'live'); };
+            const idle = () => { if (!autoCap.statusHold || now > autoCap.statusHold) setAutoStatus(`● 자동 인식 중 — 선곡 대기${autoAreaNote()}`, 'live'); };
             if (!g.confident) { autoCap.genCandId = null; idle(); return; }
             const id = String(g.matches[0].id);
             if (id !== autoCap.genCandId) { autoCap.genCandId = id; autoCap.genSince = now; }
