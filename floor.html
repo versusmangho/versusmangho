@@ -197,11 +197,11 @@
         
         select:hover { filter: brightness(1.1); }
 
-        .recheck-btn, .copy-btn {
+        .recheck-btn, .copy-btn, .memo-btn {
             transition: all 0.2s;
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        .recheck-btn:hover, .copy-btn:hover {
+        .recheck-btn:hover, .copy-btn:hover, .memo-btn:hover {
             background: #334155;
             transform: scale(1.05);
         }
@@ -283,6 +283,33 @@
         .help-body li { margin-bottom: 8px; padding-left: 20px; position: relative; color: #94a3b8; font-size: 0.9rem; }
         .help-body li::before { content: '•'; position: absolute; left: 0; color: #3b82f6; font-weight: bold; }
         .help-body code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #facc15; }
+
+        /* 패턴 메모(자작 태그) — 로페봇 태그와 구분되게 노란색 */
+        .grid-cell .memo-tag { background: rgba(0, 0, 0, 0.5); color: #fcd34d; box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.55); }
+        .memo-cell-btn {
+            position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 6px; font-size: 12px; line-height: 1;
+            background: rgba(0, 0, 0, 0.45); color: #fde68a;
+            opacity: 0; transition: opacity 0.15s, background 0.15s;
+        }
+        .grid-cell:hover .memo-cell-btn { opacity: 1; }
+        .memo-cell-btn:hover { background: rgba(0, 0, 0, 0.75); }
+        @media (hover: none) { .memo-cell-btn { opacity: 0.7; } }
+        .help-content.memo-content { max-width: 480px; padding: 28px; }
+        .memo-chip {
+            display: inline-flex; align-items: center; gap: 2px; padding: 3px 4px 3px 10px;
+            border-radius: 8px; font-size: 0.8rem; font-weight: 700;
+            background: rgba(120, 53, 15, 0.45); color: #fcd34d; border: 1px solid rgba(217, 119, 6, 0.5);
+        }
+        .memo-chip button { width: 20px; height: 20px; border-radius: 5px; color: #fbbf24; line-height: 1; }
+        .memo-chip button:hover { background: rgba(0, 0, 0, 0.35); color: #fff; }
+        .memo-suggest {
+            padding: 3px 9px; border-radius: 8px; font-size: 0.75rem; font-weight: 700;
+            color: #cbd5e1; background: rgba(51, 65, 85, 0.6); border: 1px dashed rgba(148, 163, 184, 0.4);
+            transition: all 0.15s;
+        }
+        .memo-suggest:hover { border-color: #fbbf24; color: #fcd34d; }
     </style>
 </head>
 <body class="min-h-screen p-4 md:p-8">
@@ -320,10 +347,11 @@
                     <li><code>Copy</code> 버튼을 누르면 '곡제목-버튼-난이도-층수-BPM-태그' 정보가 복사됩니다.</li>
                 </ul>
 
-                <h3>게임 화면 자동 인식 (버망호 모드)</h3>
+                <h3>게임 화면 자동 인식</h3>
                 <ul>
-                    <li><code>🎮 게임 화면 연결</code>을 누르고 게임이 떠 있는 화면(모니터) 또는 게임 창을 선택하세요.</li>
-                    <li>연결해 두면 밴픽 화면이 뜰 때마다 스크린샷 없이 자동으로 인식합니다. 같은 곡 구성은 다시 인식하지 않으므로 찍어둔 밴픽 표시가 유지됩니다.</li>
+                    <li><code>🎮 게임 화면 연결</code>을 누르고 게임이 떠 있는 화면(모니터) 또는 게임 창을 선택하세요. 연결은 모드를 바꿔도 유지됩니다.</li>
+                    <li><strong>버망호 모드</strong>: 밴픽 화면이 뜰 때마다 스크린샷 없이 자동으로 인식합니다. 같은 곡 구성은 다시 인식하지 않으므로 찍어둔 밴픽 표시가 유지됩니다.</li>
+                    <li><strong>일망호 모드</strong>: 방장이 고른 곡이 <strong>2초 이상</strong> 그대로 있으면 그 곡의 층수 표를 자동으로 띄웁니다. 곡을 넘겨보는 중에는 띄우지 않고, 이미 띄운 곡은 방장이 다른 곡을 고를 때까지 다시 띄우지 않습니다.</li>
                     <li>밴픽 뒤 <strong>라운드 화면</strong>이 뜨면 밴된 곡은 <span class="text-red-400">빨간색</span>, 플레이된 곡은 <span class="text-green-400">초록색</span>과 라운드 번호(R1~R3)로 자동 표시됩니다. 라운드/결과 화면 스샷을 <code>Ctrl+V</code>로 붙여넣어도 똑같이 표시됩니다.</li>
                     <li>밴픽창을 놓쳤으면 라운드/결과 화면에서 <strong>확인된 곡만으로</strong> 카드를 만듭니다. 라운드 곡은 버튼·난이도까지 읽고, 밴된 곡은 자켓만 보여서 난이도가 '패턴 미확인'으로 표시됩니다.</li>
                     <li>게임은 <strong>테두리 없는 창 모드</strong>를 권장합니다. 전체화면(독점) 모드에서는 화면이 검게 잡힐 수 있습니다.</li>
@@ -336,7 +364,22 @@
                     <li>방장이 선곡한 곡의 층수를 빠르게 확인하고 싶을 때 유용합니다.</li>
                     <li>검색창에 곡 제목이나 별명(태그)을 입력해 직접 곡을 찾아볼 수도 있습니다.</li>
                     <li>표에서 난이도 칸을 <strong>클릭</strong>하면 버망호 모드의 <code>Copy</code>와 같은 형식으로 해당 패턴 정보가 복사됩니다.</li>
+                    <li>난이도 칸을 <strong>우클릭</strong>하면 그 패턴에 내 태그(패턴 메모)를 붙일 수 있습니다.</li>
                 </ul>
+
+                <h3>패턴 메모 (자작 태그)</h3>
+                <ul>
+                    <li>버망호 카드의 <code>✎</code> 버튼, 또는 일망호 표에서 난이도 칸을 <strong>우클릭</strong>(또는 마우스를 올리면 나오는 <code>✎</code> 버튼)해서 패턴마다 나만의 태그를 붙일 수 있습니다.</li>
+                    <li>태그는 곡·버튼·난이도 조합별로 따로 저장되고 <span class="text-amber-300">노란색</span>으로 표시됩니다. 쉼표로 구분하면 여러 개를 한 번에 붙일 수 있습니다.</li>
+                    <li>메모는 이 브라우저(LocalStorage)에만 저장되며, <code>Copy</code>나 칸 클릭 복사에는 포함되지 않습니다.</li>
+                    <li>다른 브라우저로 옮기거나 백업하려면 메모 파일을 <strong>내보내기/가져오기</strong> 하세요. 가져오기는 기존 메모를 지우지 않고 합칩니다.</li>
+                </ul>
+                <div class="flex gap-2 mb-5">
+                    <button class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700" onclick="exportPatternMemos()">메모 내보내기</button>
+                    <label class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 cursor-pointer">
+                        메모 가져오기<input type="file" class="hidden" accept=".json,application/json" onchange="importPatternMemos(this)">
+                    </label>
+                </div>
 
                 <h3>조작 팁</h3>
                 <ul>
@@ -346,6 +389,43 @@
                     <li>스크린샷 좌우의 <strong>&lsaquo; &rsaquo;</strong> 버튼으로 이전에 붙여넣은 스샷을 다시 볼 수 있습니다. 그때 찍어둔 밴픽 표시와 버튼/난이도 수정값도 그대로 남습니다. (새로고침하면 초기화)</li>
                 </ul>
                 <!-- HELP CONTENT END -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 패턴 메모(자작 태그) 편집 -->
+    <div id="memoModal" class="help-modal" onclick="if(event.target === this) closeMemoEditor()">
+        <div class="help-content memo-content glass">
+            <div class="close-help" onclick="closeMemoEditor()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </div>
+            <p class="text-[10px] text-amber-400 font-black uppercase tracking-widest mb-2">패턴 메모</p>
+            <h3 id="memoSongName" class="font-bold text-white text-xl leading-tight pr-10"></h3>
+            <div id="memoPatternInfo" class="flex items-center gap-1.5 mt-2"></div>
+            <div id="memoRefTags" class="flex flex-wrap gap-1 mt-3"></div>
+
+            <p class="text-xs text-slate-400 font-bold mt-6 mb-2">내 태그</p>
+            <div id="memoTagList" class="flex flex-wrap gap-1.5 min-h-[30px]"></div>
+            <div class="flex gap-2 mt-3">
+                <input type="text" id="memoInput" maxlength="60" autocomplete="off" placeholder="태그 입력 후 Enter (쉼표로 여러 개)"
+                    class="flex-1 min-w-0 px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-amber-500"
+                    onkeydown="handleMemoKeydown(event)">
+                <button class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold transition-all" onclick="addMemoFromInput()">추가</button>
+            </div>
+            <div id="memoSuggestWrap" class="mt-5">
+                <p class="text-xs text-slate-400 font-bold mb-2">자주 쓴 태그 <span class="font-normal text-slate-500">— 클릭해서 추가</span></p>
+                <div id="memoSuggestList" class="flex flex-wrap gap-1.5"></div>
+            </div>
+            <div class="flex items-center justify-between gap-3 mt-6 pt-4 border-t border-slate-700/60">
+                <p class="text-[11px] text-slate-500">메모는 이 브라우저에만 저장되며 Copy에는 포함되지 않습니다.</p>
+                <div class="flex gap-1.5 flex-none">
+                    <button class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold border border-slate-700" onclick="exportPatternMemos()">내보내기</button>
+                    <label class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold border border-slate-700 cursor-pointer">
+                        가져오기<input type="file" class="hidden" accept=".json,application/json" onchange="importPatternMemos(this)">
+                    </label>
+                </div>
             </div>
         </div>
     </div>
@@ -430,7 +510,11 @@
         const LOPE_SONGS_URL = 'https://xn--2o2bk9ff9x.com/data/songs.json';
         const LOPE_IMG_BASE = 'https://img.xn--2o2bk9ff9x.com/';
         const VA_IMG_BASE = 'https://v-archive.net/s3/images/jackets/';
-        
+
+        // 버튼/난이도 색 — 드롭다운, 일망호 표, 메모 편집창이 같이 쓴다
+        const BTN_COLORS = { '4B': 'bg-emerald-600', '5B': 'bg-sky-600', '6B': 'bg-amber-600', '8B': 'bg-indigo-600' };
+        const DIFF_COLORS = { 'SC': 'bg-purple-600', 'MX': 'bg-rose-600', 'HD': 'bg-orange-600', 'NM': 'bg-yellow-500' };
+
         function toggleHelp(show) {
             const modal = document.getElementById('helpModal');
             if (show) {
@@ -456,8 +540,9 @@
             }
 
             document.getElementById('generalSearchContainer').classList.toggle('hidden', mode !== 'general');
-            // 자동 인식은 버망호 전용 — 연결은 유지하고 일망호에 있는 동안만 검사를 쉰다
-            document.getElementById('autoCaptureBar').classList.toggle('hidden', mode !== 'versus');
+            // 연결은 모드와 상관없이 유지하고, 모드에 따라 보는 화면만 바뀐다 (버망호: 밴픽/라운드, 일망호: 방장 선곡)
+            autoCap.genCandId = null;
+            updateAutoCaptureUI();
             document.getElementById('songSearchResults').classList.add('hidden');
             document.getElementById('songSearchInput').value = '';
 
@@ -488,15 +573,14 @@
         function getSongTagList(titleId, currentButton = null, currentDifficulty = null) {
             const tagData = songTagsDatabase[String(titleId)];
             const displayTags = [];
-            if (!tagData) return displayTags;
-            
+
             // 1. BPM 정보 추가 (BPM: 접두사 포함)
-            if (tagData.bpm && tagData.bpm.text) {
+            if (tagData?.bpm?.text) {
                 displayTags.push({ text: `BPM:${tagData.bpm.text}`, type: 'bpm' });
             }
-            
+
             // 2. 패턴 전용 특징 태그 추가 (일반 태그는 제외)
-            if (currentButton && currentDifficulty && tagData.pattern_tags && tagData.pattern_tags[currentButton]) {
+            if (currentButton && currentDifficulty && tagData?.pattern_tags?.[currentButton]) {
                 const pTags = tagData.pattern_tags[currentButton];
                 pTags.forEach(pt => {
                     // 난이도가 일치하거나(SC/MX/HD/NM), 태그에 난이도 정보가 없는 경우 포함
@@ -505,26 +589,228 @@
                     }
                 });
             }
+
+            // 3. 내가 붙인 패턴 메모(자작 태그) — 로페봇 태그가 없는 곡에도 붙는다
+            if (currentButton && currentDifficulty) {
+                getPatternMemo(titleId, currentButton, currentDifficulty).forEach(t => displayTags.push({ text: t, type: 'custom' }));
+            }
             return displayTags;
         }
 
-        function getSongTagsHtml(titleId, currentButton = null, currentDifficulty = null) {
+        function getSongTagsHtml(titleId, currentButton = null, currentDifficulty = null, justifyClass = currentMode === 'versus' ? 'justify-center' : 'justify-start') {
             const displayTags = getSongTagList(titleId, currentButton, currentDifficulty);
             if (displayTags.length === 0) return '';
-            
-            const justifyClass = currentMode === 'versus' ? 'justify-center' : 'justify-start';
+
             return `<div class="flex flex-wrap gap-1 ${justifyClass} mt-1.5">${displayTags.map(tag => {
                 let bgColor = 'bg-slate-800/60', textColor = 'text-slate-300', borderColor = 'border-slate-700/50';
-                
+
                 if (tag.type === 'bpm') {
                     bgColor = 'bg-blue-900/40'; textColor = 'text-blue-300'; borderColor = 'border-blue-700/50';
                 } else if (tag.type === 'pattern') {
                     bgColor = 'bg-indigo-900/40'; textColor = 'text-indigo-300'; borderColor = 'border-indigo-700/50';
+                } else if (tag.type === 'custom') {
+                    bgColor = 'bg-amber-900/40'; textColor = 'text-amber-300'; borderColor = 'border-amber-600/50';
                 }
-                
-                return `<span class="px-1.5 py-0.5 rounded text-xs font-bold border ${bgColor} ${textColor} ${borderColor}">[${tag.text}]</span>`;
+
+                const memoAttr = tag.type === 'custom' ? ' memo-tag" title="내 메모 태그' : ''; // memo-tag: Copy에서 빠지는 표시
+                return `<span class="px-1.5 py-0.5 rounded text-xs font-bold border ${bgColor} ${textColor} ${borderColor}${memoAttr}">[${escapeHtml(tag.text)}]</span>`;
             }).join('')}</div>`;
         }
+
+        /* 일망호 표 칸의 태그 줄. 칸 높이가 고정이라 넘치면 잘리므로 내 메모 태그를 먼저 둔다 */
+        function generalCellTagsHtml(titleId, btn, diff) {
+            const memoTags = getPatternMemo(titleId, btn, diff);
+            const lopeTags = songTagsDatabase[String(titleId)]?.pattern_tags?.[btn]?.filter(pt => pt.diff === diff || !pt.diff) || [];
+            if (!memoTags.length && !lopeTags.length) return '';
+            return `<div class="cell-tags flex flex-wrap justify-center gap-1 mt-0.5 overflow-hidden max-h-[38px]">
+                ${memoTags.map(t => `<span class="memo-tag text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap">${escapeHtml(t)}</span>`).join('')}${lopeTags.map(mt => `<span class="text-[11px] px-1.5 py-0.5 bg-black/30 rounded-sm whitespace-nowrap">${mt.name}</span>`).join('')}
+            </div>`;
+        }
+
+        /* ── 패턴 메모(자작 태그) ─────────────────
+           곡·버튼·난이도 조합마다 직접 붙이는 태그. LocalStorage에만 저장되고
+           Copy 문구에는 넣지 않는다 (방에 공유되는 로페봇 태그와 달리 개인 메모).
+           구조: { [titleId]: { '4B_SC': ['태그', ...] } } */
+        const MEMO_STORAGE_KEY = 'floorPatternMemosV1';
+        const MEMO_TAG_MAX_LEN = 20;
+        const MEMO_FILE_TYPE = 'floorPatternMemos';
+        let patternMemos = loadPatternMemos();
+        const memoEditor = { open: false, titleId: null, button: null, difficulty: null, name: '' };
+
+        function loadPatternMemos() {
+            try {
+                const d = JSON.parse(localStorage.getItem(MEMO_STORAGE_KEY));
+                return (d && typeof d === 'object' && !Array.isArray(d)) ? d : {};
+            } catch (e) { return {}; }
+        }
+
+        function savePatternMemos() {
+            try { localStorage.setItem(MEMO_STORAGE_KEY, JSON.stringify(patternMemos)); }
+            catch (e) { showTemporaryMessage('메모 저장 실패 (브라우저 저장소를 쓸 수 없음)', 4000); }
+        }
+
+        function getPatternMemo(titleId, button, difficulty) {
+            const tags = patternMemos[String(titleId)]?.[`${button}_${difficulty}`];
+            return Array.isArray(tags) ? tags : [];
+        }
+
+        function setPatternMemo(titleId, button, difficulty, tags) {
+            const id = String(titleId), key = `${button}_${difficulty}`;
+            if (tags.length) (patternMemos[id] = patternMemos[id] || {})[key] = tags;
+            else if (patternMemos[id]) { delete patternMemos[id][key]; if (!Object.keys(patternMemos[id]).length) delete patternMemos[id]; }
+            savePatternMemos();
+            refreshMemoViews();
+        }
+
+        /* 대괄호는 표시할 때 붙이므로 벗기고, 공백은 하나로 줄이고, 쉼표는 구분자라 뺀다 */
+        function normalizeMemoTag(s) {
+            return String(s).replace(/[\[\],]/g, '').replace(/\s+/g, ' ').trim().slice(0, MEMO_TAG_MAX_LEN);
+        }
+
+        /* 메모가 바뀌면 지금 보이는 카드뿐 아니라 스샷 히스토리에 보관된 카드도 다시 그린다 */
+        function refreshMemoViews() {
+            shotHistory.versus.forEach(entry => entry.rows.forEach(row => {
+                const tC = row.querySelector('.tags-container'), bS = row.querySelector('.btn-select'), dS = row.querySelector('.diff-select');
+                if (tC && bS && dS) tC.innerHTML = getSongTagsHtml(row.getAttribute('data-title-id'), bS.value, dS.value, 'justify-center');
+            }));
+            shotHistory.general.forEach(entry => entry.rows.forEach(row => {
+                const tId = row.getAttribute('data-title-id');
+                row.querySelectorAll('.grid-cell[data-btn]').forEach(cell => {
+                    cell.querySelector('.cell-tags')?.remove();
+                    cell.insertAdjacentHTML('beforeend', generalCellTagsHtml(tId, cell.dataset.btn, cell.dataset.diff));
+                });
+            }));
+        }
+
+        function openMemoFromRow(btn) {
+            const row = btn.closest('.track-row');
+            openMemoEditor(row.getAttribute('data-title-id'), row.querySelector('.btn-select').value, row.querySelector('.diff-select').value, row.querySelector('h3')?.innerText);
+        }
+
+        function openMemoFromCell(btn) {
+            const cell = btn.closest('.grid-cell');
+            openMemoEditor(cell.closest('.track-row').getAttribute('data-title-id'), cell.dataset.btn, cell.dataset.diff);
+        }
+
+        function openMemoEditor(titleId, button, difficulty, fallbackName = '') {
+            if (!titleId) return;
+            const d = getSongDataSync(titleId);
+            Object.assign(memoEditor, { open: true, titleId: String(titleId), button, difficulty, name: d.success ? d.name : fallbackName });
+            renderMemoEditor();
+            document.getElementById('memoModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+            const input = document.getElementById('memoInput');
+            input.value = ''; input.focus();
+        }
+
+        function closeMemoEditor() {
+            memoEditor.open = false;
+            document.getElementById('memoModal').classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        function renderMemoEditor() {
+            const { titleId, button, difficulty, name } = memoEditor;
+            const p = getSongDataSync(titleId).patterns?.[button]?.[difficulty];
+            document.getElementById('memoSongName').textContent = name || `ID ${titleId}`;
+
+            const chip = (cls, text, style = '') => `<span class="px-2 py-0.5 rounded-md text-xs font-black text-white ${cls}"${style ? ` style="${style}"` : ''}>${text}</span>`;
+            document.getElementById('memoPatternInfo').innerHTML = chip(BTN_COLORS[button] || 'bg-slate-700', button) + chip(DIFF_COLORS[difficulty] || 'bg-slate-700', difficulty)
+                + (p ? chip('', escapeHtml(`${circledLevel(p.level)} ${patternFloorName(p)}`.trim()), `background-color: ${getDifficultyBgColor(p.level, difficulty, p.floor ?? '-')}`) : '');
+
+            // 참고용: 로페봇이 이미 붙여둔 태그
+            const refTags = getSongTagList(titleId, button, difficulty).filter(t => t.type !== 'custom');
+            document.getElementById('memoRefTags').innerHTML = refTags.map(t => `<span class="px-1.5 py-0.5 rounded text-[11px] font-bold border bg-slate-800/60 text-slate-400 border-slate-700/50">[${escapeHtml(t.text)}]</span>`).join('');
+
+            const tags = getPatternMemo(titleId, button, difficulty);
+            document.getElementById('memoTagList').innerHTML = tags.length
+                ? tags.map((t, i) => `<span class="memo-chip">${escapeHtml(t)}<button title="삭제" onclick="removeMemoTag(${i})">×</button></span>`).join('')
+                : `<span class="text-xs text-slate-500 self-center">아직 붙인 태그가 없습니다</span>`;
+
+            // 다른 패턴에 붙였던 태그를 많이 쓴 순으로 — 같은 표현을 일관되게 쓰기 쉽게
+            const counts = new Map();
+            Object.values(patternMemos).forEach(song => Object.values(song).forEach(list => list.forEach(t => counts.set(t, (counts.get(t) || 0) + 1))));
+            const suggest = [...counts].filter(([t]) => !tags.includes(t)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko')).slice(0, 24);
+            document.getElementById('memoSuggestWrap').classList.toggle('hidden', !suggest.length);
+            document.getElementById('memoSuggestList').innerHTML = suggest.map(([t]) => `<button class="memo-suggest" data-tag="${escapeHtml(t)}" onclick="addMemoTags(this.dataset.tag)">${escapeHtml(t)}</button>`).join('');
+        }
+
+        function addMemoTags(text) {
+            const { titleId, button, difficulty } = memoEditor;
+            const tags = [...getPatternMemo(titleId, button, difficulty)], before = tags.length;
+            String(text).split(',').map(normalizeMemoTag).forEach(t => { if (t && !tags.includes(t)) tags.push(t); });
+            if (tags.length !== before) { setPatternMemo(titleId, button, difficulty, tags); renderMemoEditor(); }
+            document.getElementById('memoInput').focus();
+        }
+
+        function addMemoFromInput() {
+            const input = document.getElementById('memoInput');
+            if (!input.value.trim()) return;
+            addMemoTags(input.value);
+            input.value = '';
+        }
+
+        function removeMemoTag(i) {
+            const { titleId, button, difficulty } = memoEditor;
+            setPatternMemo(titleId, button, difficulty, getPatternMemo(titleId, button, difficulty).filter((_, j) => j !== i));
+            renderMemoEditor();
+        }
+
+        function handleMemoKeydown(e) {
+            if (e.isComposing || e.keyCode === 229) return; // 한글 조합 중 Enter는 글자 확정용 — 여기서 받으면 마지막 글자가 따로 추가된다
+            if (e.key === 'Enter') { e.preventDefault(); addMemoFromInput(); }
+        }
+
+        /* ── 메모 파일 내보내기/가져오기 ─────────────────
+           LocalStorage는 브라우저·주소(file:// 와 서버)마다 따로라서, 옮기거나 백업할 때 쓴다.
+           가져오기는 덮어쓰지 않고 합친다 (같은 패턴이면 태그를 합집합) */
+        function exportPatternMemos() {
+            const count = Object.values(patternMemos).reduce((n, song) => n + Object.values(song).reduce((m, l) => m + l.length, 0), 0);
+            if (!count) { showTemporaryMessage('내보낼 메모가 없습니다'); return; }
+            const file = { type: MEMO_FILE_TYPE, version: 1, exportedAt: new Date().toISOString(), memos: patternMemos };
+            const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }));
+            const a = document.createElement('a');
+            a.href = url; a.download = `floor-memos-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            showTemporaryMessage(`메모 ${count}개 내보냄`);
+        }
+
+        function importPatternMemos(input) {
+            const f = input.files[0]; input.value = ''; // 같은 파일을 다시 골라도 onchange가 오도록
+            if (!f) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                let data;
+                try { data = JSON.parse(e.target.result); } catch (err) { alert('메모 파일을 읽을 수 없습니다 (JSON 형식 아님)'); return; }
+                const memos = data?.type === MEMO_FILE_TYPE ? data.memos : data;
+                if (!memos || typeof memos !== 'object' || Array.isArray(memos)) { alert('메모 파일 형식이 아닙니다'); return; }
+                let added = 0;
+                for (const [id, song] of Object.entries(memos)) {
+                    if (!song || typeof song !== 'object') continue;
+                    for (const [key, list] of Object.entries(song)) {
+                        if (!/^[4568]B_(NM|HD|MX|SC)$/.test(key) || !Array.isArray(list)) continue;
+                        const cur = patternMemos[id]?.[key] || [], merged = [...cur];
+                        list.map(normalizeMemoTag).forEach(t => { if (t && !merged.includes(t)) merged.push(t); });
+                        if (merged.length === cur.length) continue;
+                        added += merged.length - cur.length;
+                        (patternMemos[id] = patternMemos[id] || {})[key] = merged;
+                    }
+                }
+                savePatternMemos(); refreshMemoViews();
+                if (memoEditor.open) renderMemoEditor();
+                showTemporaryMessage(added ? `메모 ${added}개 가져옴` : '새로 추가된 메모가 없습니다 (이미 모두 있음)', 4000);
+            };
+            reader.readAsText(f);
+        }
+
+        // 다른 탭에서 메모를 고치면 이 탭에도 반영
+        window.addEventListener('storage', (e) => {
+            if (e.key !== MEMO_STORAGE_KEY) return;
+            patternMemos = loadPatternMemos(); refreshMemoViews();
+            if (memoEditor.open) renderMemoEditor();
+        });
+        document.addEventListener('keydown', (e) => { if (memoEditor.open && e.key === 'Escape') closeMemoEditor(); });
 
         function getGrayscaleFromCanvas(canvas, w, h) {
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -838,6 +1124,7 @@
         }
 
         window.addEventListener('paste', async (e) => {
+            if (memoEditor.open) return; // 메모 입력칸에 글자를 붙여넣는 중
             const now = Date.now(); if (isProcessing) return;
             if (now - (window.lastProcessTime || 0) < COOLDOWN_MS) { showTemporaryMessage("쿨다운 중..."); return; }
             const items = e.clipboardData.items;
@@ -849,11 +1136,12 @@
             }
         });
 
-        /* 붙여넣기와 게임 화면 자동 인식이 함께 쓰는 진입점 */
-        function analyzeScreenshot(img) {
+        /* 붙여넣기와 게임 화면 자동 인식이 함께 쓰는 진입점.
+           force: 동일 이미지 검사를 건너뛴다 — 일망호 방 화면은 자켓이 작아서 곡이 달라도 전체 해시가 같게 나올 수 있다 */
+        function analyzeScreenshot(img, force = false) {
             const prev = document.getElementById('screenshotPreview'), cont = document.getElementById('screenshotContainer'), drop = document.getElementById('dropZone');
             const full = document.createElement('canvas'); full.width = img.width; full.height = img.height; full.getContext('2d').drawImage(img, 0, 0);
-            const hash = dHashFromCanvas(full); if (lastImageHash && hamDist(lastImageHash, hash) === 0) { showTemporaryMessage("동일 이미지"); return; }
+            const hash = dHashFromCanvas(full); if (!force && lastImageHash && hamDist(lastImageHash, hash) === 0) { showTemporaryMessage("동일 이미지"); return; }
             // 라운드/결과 화면을 붙여넣은 경우: 새 밴픽으로 분석하지 않고 밴·플레이만 표시
             // (밴픽창이 없던 판이면 확인된 곡만으로 카드를 만든다)
             const info = currentMode === 'versus' ? readMatchScreen(img, img.width, img.height, currentMatchEntry()?.rows || []) : null;
@@ -871,18 +1159,21 @@
             processImage(img, hash).finally(() => { isProcessing = false; });
         }
 
-        /* ── 게임 화면 자동 인식 (버망호 모드 전용) ─────────────────
-           화면 공유(getDisplayMedia)로 게임 화면을 받아 0.5초마다 5개 슬롯을 검사한다.
-           자켓이 확실히 일치하는 슬롯이 충분하고 같은 곡 구성이 연속으로 보이면
+        /* ── 게임 화면 자동 인식 ─────────────────
+           화면 공유(getDisplayMedia)로 게임 화면을 받아 0.5초마다 검사한다.
+           버망호: 5개 슬롯의 자켓이 확실히 일치하는 슬롯이 충분하고 같은 곡 구성이 연속으로 보이면
            밴픽 화면으로 보고, 곡 구성이 직전과 달라졌을 때만 새로 분석한다.
-           (같은 곡 구성이면 다시 분석하지 않으므로 찍어둔 밴픽 표시가 유지된다) */
+           (같은 곡 구성이면 다시 분석하지 않으므로 찍어둔 밴픽 표시가 유지된다)
+           일망호: 방 화면의 선곡 자켓 한 칸을 보고, 같은 곡이 GENERAL_HOLD_MS 이상 유지되면 층수 표를 띄운다. */
         const AUTO_INTERVAL_MS = 500;
+        const GENERAL_HOLD_MS = 2000;   // 방장이 곡을 넘겨보는 중에는 계속 바뀌므로, 이만큼 머문 곡만 띄운다
         // 실제 스샷 기준: 밴픽창 슬롯은 1위 41~69점 / 2위와 차이 156~199, 라운드·결과 화면은 1위 229점 이상 / 차이 37 이하
         const AUTO_MAX_SCORE = 140;     // 1위 후보 점수가 이보다 낮아야 '자켓 일치'
         const AUTO_MIN_GAP = 60;        // 1위와 2위 후보의 점수 차 — 작으면 아무 곡과도 뚜렷이 안 맞는 것
         const AUTO_MIN_CONFIDENT = 4;   // 5개 중 이만큼 일치하면 밴픽 화면 (DB에 없는 신곡 1개는 허용)
         const AUTO_STABLE_TICKS = 2;    // 같은 곡 구성이 연속으로 이만큼 보여야 인식 (화면 전환 중 오인식 방지)
-        const autoCap = { stream: null, video: null, imageCapture: null, stopTicker: null, busy: false, lastKey: null, pendingKey: null, pendingCount: 0, markPendingKey: null, statusHold: 0 };
+        const autoCap = { stream: null, video: null, imageCapture: null, stopTicker: null, busy: false, lastKey: null, pendingKey: null, pendingCount: 0, markPendingKey: null, statusHold: 0,
+            genCandId: null, genSince: 0, genShownId: null }; // 일망호: 지금 머물고 있는 곡 / 머물기 시작한 시각 / 마지막으로 띄운 곡
 
         function versusSlotRect(i, W, H) {
             return { x: (RATIO_X_START + (RATIO_THUMB_W + RATIO_GAP) * i) * W, y: RATIO_Y_START * H, w: RATIO_THUMB_W * W, h: RATIO_THUMB_H * H };
@@ -1109,7 +1400,9 @@
             btn.textContent = on ? '연결 해제' : '🎮 게임 화면 연결';
             btn.classList.toggle('bg-rose-600', on); btn.classList.toggle('hover:bg-rose-500', on);
             btn.classList.toggle('bg-blue-600', !on); btn.classList.toggle('hover:bg-blue-500', !on);
-            if (!on) setAutoStatus('게임 화면을 연결하면 밴픽 화면을 자동으로 인식합니다');
+            const general = currentMode === 'general';
+            if (!on) setAutoStatus(general ? '게임 화면을 연결하면 방장이 고른 곡을 자동으로 인식합니다' : '게임 화면을 연결하면 밴픽 화면을 자동으로 인식합니다');
+            else { autoCap.statusHold = 0; setAutoStatus(general ? '● 자동 인식 중 — 선곡 대기' : '● 자동 인식 중 — 밴픽 화면 대기', 'live'); }
         }
 
         function toggleAutoCapture() { if (autoCap.stream) stopAutoCapture(); else startAutoCapture(); }
@@ -1127,10 +1420,9 @@
             video.muted = true; video.playsInline = true; video.srcObject = stream;
             try { await video.play(); } catch (e) { /* ImageCapture로 대신 받는다 */ }
 
-            Object.assign(autoCap, { stream, video, imageCapture: ('ImageCapture' in window) ? new ImageCapture(track) : null, lastKey: null, pendingKey: null, pendingCount: 0, busy: false });
+            Object.assign(autoCap, { stream, video, imageCapture: ('ImageCapture' in window) ? new ImageCapture(track) : null, lastKey: null, pendingKey: null, pendingCount: 0, busy: false, genCandId: null, genShownId: null });
             autoCap.stopTicker = createTicker(AUTO_INTERVAL_MS, autoCaptureTick);
             updateAutoCaptureUI();
-            setAutoStatus('● 자동 인식 중 — 밴픽 화면 대기', 'live');
         }
 
         function stopAutoCapture() {
@@ -1171,7 +1463,7 @@
         }
 
         async function autoCaptureTick() {
-            if (autoCap.busy || !autoCap.stream || currentMode !== 'versus' || isProcessing || thumbRefs.length === 0) return;
+            if (autoCap.busy || !autoCap.stream || isProcessing || thumbRefs.length === 0) return;
             autoCap.busy = true;
             let frame = null;
             try {
@@ -1179,6 +1471,7 @@
                 const W = frame.videoWidth || frame.width, H = frame.videoHeight || frame.height;
                 if (!W || !H) return;
                 if (Math.abs(W / H - 16 / 9) > 0.02) { setAutoStatus(`16:9 화면이 아닙니다 (${W}×${H})`, 'warn'); return; }
+                if (currentMode === 'general') { await generalAutoTick(frame, W, H); return; }
 
                 const slots = [];
                 for (let i = 0; i < 5; i++) {
@@ -1219,6 +1512,44 @@
                 if (frame && typeof ImageBitmap !== 'undefined' && frame instanceof ImageBitmap) frame.close();
                 autoCap.busy = false;
             }
+        }
+
+        /* 일망호 방 화면의 선곡 자켓 → 후보 목록(Recheck 순서)과 확신 여부.
+           자켓 시그니처가 확실히 맞으면 그 곡을 1위로 올린다 (BPM 글자·바를 뺀 부분만 보므로 더 정확).
+           confident는 자동 인식이 '곡이 떠 있는 화면'인지 가를 때만 쓴다 — 붙여넣기는 항상 1위를 보여준다 */
+        function readGeneralJacket(src, W, H) {
+            const x = RATIO_GENERAL_X * W, y = RATIO_GENERAL_Y * H, w = RATIO_GENERAL_W * W, h = RATIO_GENERAL_H * H;
+            const thumb = cropToCanvas(src, x, y, w, h);
+            const matches = getSortedMatches(aHashFromCanvas(thumb), dHashFromCanvas(thumb), getColorGridFromCanvas(thumb));
+            const sigHit = sigTable.length ? nearestSig(jacketSig(src, x, y, w, h), sigTable) : null;
+            if (sigHit) {
+                const i = matches.findIndex(m => String(m.id) === String(sigHit.item.id));
+                if (i > 0) matches.unshift(...matches.splice(i, 1));
+            }
+            const confident = !!sigHit || (matches[0].score <= AUTO_MAX_SCORE && (matches[1].score - matches[0].score) >= AUTO_MIN_GAP);
+            return { matches, confident };
+        }
+
+        /* 일망호 자동 인식: 같은 곡이 GENERAL_HOLD_MS 이상 떠 있으면 그 곡의 층수 표를 띄운다.
+           이미 띄운 곡은 다시 띄우지 않으므로, 그 사이 검색으로 다른 곡을 보고 있어도 방장이 곡을 바꿀 때까지 그대로 둔다 */
+        async function generalAutoTick(frame, W, H) {
+            const now = Date.now(), g = readGeneralJacket(frame, W, H);
+            const idle = () => { if (!autoCap.statusHold || now > autoCap.statusHold) setAutoStatus('● 자동 인식 중 — 선곡 대기', 'live'); };
+            if (!g.confident) { autoCap.genCandId = null; idle(); return; }
+            const id = String(g.matches[0].id);
+            if (id !== autoCap.genCandId) { autoCap.genCandId = id; autoCap.genSince = now; }
+            if (id === autoCap.genShownId) { idle(); return; }
+
+            const name = getSongDataSync(id).name || `ID ${id}`, held = now - autoCap.genSince;
+            // 새 곡이 머물기 시작하면 이전 '곡 인식됨' 표시는 내린다 (안 그러면 곡이 사라져도 '확인 중'이 남는다)
+            if (held < GENERAL_HOLD_MS) { autoCap.statusHold = 0; setAutoStatus(`● 선곡 확인 중 — ${name} (${(held / 1000).toFixed(1)}초)`, 'live'); return; }
+
+            const img = await frameToImage(frame, W, H);
+            if (currentMode !== 'general' || isProcessing) { URL.revokeObjectURL(img.src); return; }
+            autoCap.genShownId = id;
+            analyzeScreenshot(img, true);
+            setAutoStatus(`● 곡 인식됨: ${name} (${new Date().toLocaleTimeString('ko-KR')})`, 'hit');
+            autoCap.statusHold = Date.now() + 8000;
         }
 
         function binarizeButton(canvas) {
@@ -1268,8 +1599,7 @@
                 }
             } else {
                 const row = createLoadingRow(1); resultList.appendChild(row); rows.push(row);
-                const x = RATIO_GENERAL_X * W, y = RATIO_GENERAL_Y * H, tw = RATIO_GENERAL_W * W, th = RATIO_GENERAL_H * H;
-                const thumb = cropToCanvas(img, x, y, tw, th), ah = aHashFromCanvas(thumb), dh = dHashFromCanvas(thumb), color = getColorGridFromCanvas(thumb), matches = getSortedMatches(ah, dh, color), best = matches[0], data = await ensureSongData(best.id);
+                const { matches } = readGeneralJacket(img, W, H), best = matches[0], data = await ensureSongData(best.id);
                 row.matches = matches; row.matchIndex = 0; updateGeneralRow(row, data, best.id);
             }
             addShot(img.src, rows, hash);
@@ -1321,8 +1651,7 @@
             }
             
             // 색상 정의
-            const bC = { '4B': 'bg-emerald-600', '5B': 'bg-sky-600', '6B': 'bg-amber-600', '8B': 'bg-indigo-600' };
-            const dC = { 'SC': 'bg-purple-600', 'MX': 'bg-rose-600', 'HD': 'bg-orange-600', 'NM': 'bg-yellow-500' };
+            const bC = BTN_COLORS, dC = DIFF_COLORS;
 
             // 헤더 생성 (NM, HD, MX, SC) - 높이 통일을 위해 h-10(40px) 적용
             let grid = `<div class="general-grid mt-6"><div class="grid-cell grid-header flex items-center justify-center h-10"></div>${diffList.map(d => `<div class="grid-cell grid-header ${dC[d]} text-white flex items-center justify-center h-10">${d}</div>`).join('')}`;
@@ -1356,24 +1685,17 @@
                         bgColor = `background-color: ${getDifficultyBgColor(l, diff, fVal)};`;
                     }
 
-                    // 해당 패턴의 태그 가져오기
-                    const tagData = songTagsDatabase[String(titleId)];
-                    let pTagsHtml = '';
-                    if (tagData && tagData.pattern_tags && tagData.pattern_tags[btn]) {
-                        const matchedTags = tagData.pattern_tags[btn].filter(pt => pt.diff === diff || !pt.diff);
-                        if (matchedTags.length > 0) {
-                            pTagsHtml = `<div class="flex flex-wrap justify-center gap-1 mt-0.5 overflow-hidden max-h-[38px]">
-                                ${matchedTags.map(mt => `<span class="text-[11px] px-1.5 py-0.5 bg-black/30 rounded-sm whitespace-nowrap">${mt.name}</span>`).join('')}
-                            </div>`;
-                        }
-                    }
+                    // 해당 패턴의 태그 가져오기 (내 메모 태그 + 로페봇 태그)
+                    const pTagsHtml = generalCellTagsHtml(titleId, btn, diff);
 
                     // 인게임 레벨(원문자) - 커뮤니티 층수와 병기
                     const levelChar = hasPattern ? circledLevel(l) : '';
 
                     // 데이터 셀 - 고정 높이 h-24(96px) 적용
-                    const copyAttr = hasPattern ? ` data-btn="${btn}" data-diff="${diff}" onclick="copyGeneralCell(this)" title="클릭하면 복사"` : '';
-                    grid += `<div class="grid-cell${hasPattern ? ' copyable' : ''} flex flex-col items-center justify-center ${textColor} ${opacity} h-24" style="${bgColor}"${copyAttr}>
+                    const copyAttr = hasPattern ? ` data-btn="${btn}" data-diff="${diff}" onclick="copyGeneralCell(this)" title="클릭: 복사 · 우클릭: 내 태그"` : '';
+                    const memoBtn = hasPattern ? `<button class="memo-cell-btn" title="패턴 메모 (자작 태그)" onclick="event.stopPropagation(); openMemoFromCell(this)">✎</button>` : '';
+                    grid += `<div class="grid-cell${hasPattern ? ' copyable' : ''} relative flex flex-col items-center justify-center ${textColor} ${opacity} h-24" style="${bgColor}"${copyAttr}>
+                        ${memoBtn}
                         <span class="grid-value${(displayChar === 'NO DATA' || displayChar === 'NO FLOOR') ? ' nodata' : ''}">${levelChar ? `<span class="align-middle opacity-80 ${diff === 'SC' ? 'font-normal' : 'font-light'}">${levelChar}</span> ` : ''}${displayChar}</span>
                         ${pTagsHtml}
                     </div>`;
@@ -1474,6 +1796,7 @@
                     <div class="flex items-center space-x-1 w-full pt-1">
                         <button class="recheck-btn flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs py-1.5 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button>
                         <button class="copy-btn flex-1 bg-blue-900/40 hover:bg-blue-800/60 text-blue-300 text-xs py-1.5 rounded-md uppercase font-bold tracking-tighter border border-blue-700/50" onclick="event.stopPropagation(); copyRowInfo(this)">Copy</button>
+                        <button class="memo-btn flex-none bg-amber-900/30 hover:bg-amber-800/50 text-amber-300 text-xs px-2.5 py-1.5 rounded-md font-bold" title="패턴 메모 (자작 태그)" onclick="event.stopPropagation(); openMemoFromRow(this)">✎</button>
                     </div>
                 `;
             } else {
@@ -1494,7 +1817,7 @@
             const floor = levelChar ? `${levelChar} ${floorName}` : floorName;
             
             const tagsContainer = row.querySelector('.tags-container');
-            const tags = tagsContainer ? Array.from(tagsContainer.querySelectorAll('span')).map(s => s.innerText).join(' ') : '';
+            const tags = tagsContainer ? Array.from(tagsContainer.querySelectorAll('span:not(.memo-tag)')).map(s => s.innerText).join(' ') : '';
             
             const text = `${title} ${button} ${diff} ${floor}${tags ? ' ' + tags : ''}`;
             copyTextWithMessage(text);
@@ -1511,7 +1834,7 @@
             const floorName = patternFloorName(p);
             const levelChar = circledLevel(p?.level);
             const floor = levelChar ? `${levelChar} ${floorName}` : floorName;
-            const tags = getSongTagList(titleId, button, diff).map(t => `[${t.text}]`).join(' ');
+            const tags = getSongTagList(titleId, button, diff).filter(t => t.type !== 'custom').map(t => `[${t.text}]`).join(' ');
 
             const text = `${data.name} ${button} ${diff} ${floor}${tags ? ' ' + tags : ''}`;
             copyTextWithMessage(text);
@@ -1542,7 +1865,7 @@
         }
 
         function updateSelectColors(bE, dE) {
-            const bC = { '4B': 'bg-emerald-600', '5B': 'bg-sky-600', '6B': 'bg-amber-600', '8B': 'bg-indigo-600' }, dC = { 'SC': 'bg-purple-600', 'MX': 'bg-rose-600', 'HD': 'bg-orange-600', 'NM': 'bg-yellow-500' };
+            const bC = BTN_COLORS, dC = DIFF_COLORS;
             const all = ['bg-slate-800', 'bg-slate-700', 'bg-slate-600', ...Object.values(bC), ...Object.values(dC)];
             all.forEach(c => { bE.classList.remove(c); dE.classList.remove(c); });
             if (bC[bE.value]) bE.classList.add(bC[bE.value]); if (dC[dE.value]) dE.classList.add(dC[dE.value]);
@@ -1584,8 +1907,9 @@
             return getSongDataSync(tId);
         }
 
-        function escapeSearchHtml(str) {
-            const d = document.createElement('div'); d.textContent = str; return d.innerHTML;
+        /* 속성값(data-tag="...")에도 넣으므로 따옴표까지 바꾼다 */
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
         }
 
         let songSearchMatches = [];
@@ -1633,8 +1957,8 @@
                 box.innerHTML = songSearchMatches.map((m, i) => `
                     <div class="song-search-item px-5 py-3 cursor-pointer flex items-center justify-between border-b border-slate-800/60 last:border-b-0 ${i === songSearchActiveIndex ? 'bg-slate-800/80' : 'hover:bg-slate-800/80'}"
                         onclick="selectSongFromSearch('${m.id}')">
-                        <span class="text-white text-sm font-medium">${escapeSearchHtml(m.name)}</span>
-                        ${m.matchedAka ? `<span class="text-[10px] text-slate-500 ml-3 whitespace-nowrap">${escapeSearchHtml(String(m.matchedAka))}</span>` : ''}
+                        <span class="text-white text-sm font-medium">${escapeHtml(m.name)}</span>
+                        ${m.matchedAka ? `<span class="text-[10px] text-slate-500 ml-3 whitespace-nowrap">${escapeHtml(String(m.matchedAka))}</span>` : ''}
                     </div>
                 `).join('');
                 if (songSearchActiveIndex >= 0 && box.children[songSearchActiveIndex]) {
@@ -1715,6 +2039,8 @@
         // 손으로 플레이를 풀거나 밴으로 바꾸면 자동으로 붙은 라운드 번호도 뗀다
         function clearRoundIfNotPlayed(r) { if (!r.classList.contains('played') && r.dataset.round) { delete r.dataset.round; renderRoundBadge(r); } }
         resultList.addEventListener('click', (e) => { if (currentMode !== 'versus') return; const r = e.target.closest('.track-row'); if (r && !e.target.closest('select') && !e.target.closest('button')) { r.classList.toggle('played'); r.classList.remove('banned'); clearRoundIfNotPlayed(r); } });
+        // 일망호 표에서는 우클릭이 밴 대신 그 패턴의 메모(자작 태그) 편집
+        resultList.addEventListener('contextmenu', (e) => { if (currentMode !== 'general') return; const cell = e.target.closest('.grid-cell[data-btn]'); if (cell) { e.preventDefault(); openMemoFromCell(cell); } });
         resultList.addEventListener('contextmenu', (e) => { if (currentMode !== 'versus') return; const r = e.target.closest('.track-row'); if (r && !e.target.closest('select') && !e.target.closest('button')) { e.preventDefault(); r.classList.toggle('banned'); r.classList.remove('played'); clearRoundIfNotPlayed(r); } });
         document.getElementById('screenshotPreview').addEventListener('click', function() { this.classList.toggle('expanded'); });
         window.onload = init;
