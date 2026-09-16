@@ -44,11 +44,17 @@
         return Object.keys(b).map(id => ({ id, fp: b[id].fp, thumb: b[id].thumb }));
     }
 
-    /* 명패 지문 → 이미 아는 사람 id. 장부에 없거나 애매하면 null (장부를 건드리지 않는다).
-       화면이 넘어가는 중의 프레임으로 장부가 더러워지지 않도록, 등록은 확정된 뒤에만 한다. */
-    function lookupHit(plate) {
+    /* 명패 지문 → 장부 조회 결과 그대로 ({ match } | { ambiguous, candidates } | null). 장부를 건드리지 않는다.
+       화면이 넘어가는 중의 프레임으로 장부가 더러워지지 않도록, 등록은 확정된 뒤에만 한다.
+       ids를 주면 그 사람들 안에서만 찾는다 (opts는 Room.findMatch로 넘어간다) */
+    function lookupRaw(plate, ids, opts) {
         if (!plate || plate.empty || plate.unknown) return null;
-        const hit = Room.findMatch(plate.fp, bookEntries(), e => e.fp);
+        const entries = ids ? bookEntries().filter(e => ids.includes(e.id)) : bookEntries();
+        return Room.findMatch(plate.fp, entries, e => e.fp, opts);
+    }
+
+    function lookupHit(plate) {
+        const hit = lookupRaw(plate);
         return (hit && hit.match) ? hit : null;
     }
 
@@ -63,15 +69,17 @@
         if (hit.refreshName) Room.mergeName(book()[hit.match.id].fp, plate.fp);
     }
 
-    /* 아는 사람이면 그 id, 처음 보는 명패면 새 id를 만들어 장부에 올린다 */
+    /* 아는 사람이면 그 id, 처음 보는 명패면 새 id를 만들어 장부에 올린다.
+       누구인지 엇비슷하면(아바타가 같은 사람이 둘 이상) 새로 만들지 않고 null — 만들면 같은 사람이 계속 불어난다 */
     function resolveId(plate) {
         if (!plate || plate.empty || plate.unknown) return null;
         const b = book();
-        const hit = lookupHit(plate);
-        if (hit) {
+        const hit = lookupRaw(plate);
+        if (hit && hit.match) {
             refreshName(plate, hit);
             return hit.match.id;
         }
+        if (hit && hit.ambiguous) return null;
         const id = '명패' + (++room.autoSeq);
         b[id] = { fp: plate.fp, thumb: plate.thumb() };
         return id;
@@ -115,26 +123,41 @@
 
         // 같은 명단이 연속으로 보여야 반영한다. 아직 모르는 명패는 'new'로만 세어
         // (등록은 확정된 뒤에 하므로) 화면 전환 중 프레임이 장부에 끼어들지 않게 한다
-        const knownIds = [], knownHits = [], unknownPlates = [];
+        const knownIds = [], knownHits = [], unknownPlates = [], ambiguousRows = [];
         for (const row of occupied) {
-            const hit = lookupHit(row);
-            if (hit) { knownIds.push(hit.match.id); knownHits.push([row, hit]); } else unknownPlates.push(row);
+            const hit = lookupRaw(row);
+            if (hit && hit.match) { knownIds.push(hit.match.id); knownHits.push([row, hit]); }
+            else if (hit && hit.ambiguous) ambiguousRows.push([row, hit.candidates.map(c => c.id)]);
+            else unknownPlates.push(row);
         }
-        const key = knownIds.slice().sort().join('|') + '/new:' + unknownPlates.length + '/x:' + unreadable;
+        // 누구인지 엇비슷한 칸: 다른 칸이 이미 차지한 사람을 빼고 한 명만 남으면 그 사람이다
+        for (const [row, ids] of ambiguousRows) {
+            const left = ids.filter(id => !knownIds.includes(id));
+            if (left.length === 1) { knownIds.push(left[0]); row.id = left[0]; }
+        }
+        const stillAmbiguous = ambiguousRows.filter(([row]) => !row.id).length;
+        const key = knownIds.slice().sort().join('|') + '/new:' + unknownPlates.length + '/x:' + unreadable + '/a:' + stillAmbiguous;
         if (key !== state.rosterKey) { state.rosterKey = key; state.rosterCount = 1; return { pending: true }; }
         state.rosterCount++;
         if (state.rosterCount !== ROSTER_STABLE_TICKS) return { pending: true }; // 반영은 딱 한 번만
 
         // 여기서부터 확정 — 아는 사람의 닉네임 지문을 채우고, READY를 바꾼 사람을 잇고, 처음 보는 명패를 장부에 올린다
         for (const [row, hit] of knownHits) refreshName(row, hit);
+        for (const [row, hit] of knownHits) row.id = hit.match.id;
         const relinked = relinkStateChanges(unknownPlates, knownIds);
-        const seen = knownIds.concat(unknownPlates.map(row => relinked.get(row) || resolveId(row)).filter(Boolean));
+        for (const row of unknownPlates) row.id = relinked.get(row) || resolveId(row);
+        const seen = knownIds.concat(unknownPlates.map(row => row.id).filter(Boolean));
 
-        // PLAYER 1·2 자리를 기억해 둔다 (결과 화면에서 명패를 못 읽었을 때 쓴다)
-        const p1 = lobby.pair[0], p2 = lobby.pair[1];
-        if (p1 && !p1.empty && !p1.unknown && p2 && !p2.empty && !p2.unknown) {
-            const a = resolveId(p1), b = resolveId(p2);
-            if (a && b && a !== b) state.lastPair = [a, b];
+        // PLAYER 1·2 자리를 기억해 둔다 (라운드·결과 화면에서 누구인지 헷갈릴 때 쓴다)
+        const a = lobby.pair[0] && lobby.pair[0].id, b = lobby.pair[1] && lobby.pair[1].id;
+        if (a && b && a !== b) state.lastPair = [a, b];
+
+        // 누구인지 못 가린 칸이 남아 있으면, 방에 있던 사람을 그 칸 때문에 내보내지 않는다
+        if (stillAmbiguous) {
+            const inRoom = (id) => room.players.some(p => p.nickname === id);
+            for (const [row, ids] of ambiguousRows) {
+                if (!row.id) ids.forEach(id => { if (inRoom(id) && !seen.includes(id)) seen.push(id); });
+            }
         }
 
         const present = new Set(seen);
@@ -163,6 +186,22 @@
         return Room.fpSame(p.fp, q.fp);
     }
 
+    /* 라운드·결과 화면의 명패 → id.
+       맞붙은 사람은 방금까지 로비에 있던 사람이다. 그래서 먼저 방 안에서만 느슨하게 찾는다 —
+       로비에서 내내 READY였던 사람은 장부에 READY 모양밖에 없는데, 여기선 평소 명패로 나오기 때문이다.
+       방 안에 아바타가 같은 사람이 둘이면 로비의 PLAYER 1·2 쪽을 고른다 */
+    function pairId(plate) {
+        if (!plate || plate.empty || plate.unknown) return null;
+        const inRoom = room.players.filter(p => p.auto).map(p => p.nickname);
+        const hit = lookupRaw(plate, inRoom, { loose: true });
+        if (hit && hit.match) { refreshName(plate, hit); return hit.match.id; }
+        if (hit && hit.ambiguous) {
+            const c = hit.candidates.map(x => x.id).filter(id => (state.lastPair || []).includes(id));
+            return c.length === 1 ? c[0] : null;
+        }
+        return resolveId(plate);
+    }
+
     /* 라운드·결과 화면: 맞붙은 두 명을 가려 한 판 기록한다 */
     function syncPair(pair) {
         const left = pair.left, right = pair.right;
@@ -175,13 +214,16 @@
         if (state.pairCount < PAIR_STABLE_TICKS) return { pending: true };
         if (state.matchLocked) return { already: true };
 
-        let a = resolveId(left), b = resolveId(right);
+        let a = pairId(left), b = pairId(right);
+        if (a && a === b) a = b = null;
 
-        // 명패를 못 읽었으면(기본 명패 등) 로비에서 본 PLAYER 1·2로 메운다
+        // 명패를 못 읽었으면(기본 명패, 누구인지 엇비슷함) 로비에서 본 PLAYER 1·2로 메운다.
+        // 한쪽만 알면, 그 사람이 PLAYER 1·2 중 하나일 때만 나머지를 채운다
         if ((!a || !b) && state.lastPair) {
             const [p1, p2] = state.lastPair;
-            if (!a && b) a = (b === p1) ? p2 : p1;
-            else if (a && !b) b = (a === p1) ? p2 : p1;
+            const other = (id) => id === p1 ? p2 : id === p2 ? p1 : null;
+            if (!a && b) a = other(b);
+            else if (a && !b) b = other(a);
             else if (!a && !b) { a = p1; b = p2; }
         }
         if (!a || !b || a === b) return { failed: true };
