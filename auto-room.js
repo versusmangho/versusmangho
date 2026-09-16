@@ -57,10 +57,10 @@
         return hit ? hit.match.id : null;
     }
 
-    /* 장부의 닉네임 지문이 없거나(밝은 배경이라 못 읽었거나 옛 항목) 다른 해상도에서 뜬 것 —
-       확정된 지금 것으로 바꿔 둬야 아바타가 같은 다른 사람과 엄격한 기준으로 갈린다 */
+    /* 장부에 지금 상태(READY/평소)의 닉네임 모양이 없거나 다른 해상도에서 뜬 것 —
+       확정된 지금 것을 넣어 둬야 다음부터 같은 상태끼리 엄격하게 비교된다 */
     function refreshName(plate, hit) {
-        if (hit.refreshName) Object.assign(book()[hit.match.id].fp, { name: plate.fp.name, nameH: plate.fp.nameH });
+        if (hit.refreshName) Room.mergeName(book()[hit.match.id].fp, plate.fp);
     }
 
     /* 아는 사람이면 그 id, 처음 보는 명패면 새 id를 만들어 장부에 올린다 */
@@ -79,6 +79,35 @@
 
     /* ── 화면 처리 ───────────────── */
 
+    /* READY를 켜고 끈 사람 잇기.
+       밝은 배경 그림 위 흰 글자는 그림 부스러기가 섞여, READY(주황이 그림을 가림) 때 모양과 어긋날 수 있다.
+       그러면 로비에선 "한 명이 빠지고 처음 보는 명패가 하나 생긴" 것처럼 보인다. 빠진 사람과 아바타가 같고
+       그 사람의 장부에 지금 상태(READY/평소)의 닉네임 모양이 아직 없으면 — 한 사람씩 딱 맞을 때만 — 같은 사람으로 잇는다.
+       → Map(명패 → id) */
+    function relinkStateChanges(unknownPlates, knownIds) {
+        const b = book();
+        const vanished = room.players
+            .filter(p => p.auto && !knownIds.includes(p.nickname) && b[p.nickname])
+            .map(p => p.nickname);
+        const pick = new Map();
+        for (const row of unknownPlates) {
+            const st = row.fp.nameState;
+            if (!st) continue;
+            const c = vanished.filter(id => Room.fpAvatarSame(row.fp, b[id].fp) && !(b[id].fp.names || {})[st]);
+            if (c.length === 1) pick.set(row, c[0]);
+        }
+        // 두 명패가 같은 사람을 고르면 어느 쪽도 잇지 않는다
+        const claims = {};
+        for (const id of pick.values()) claims[id] = (claims[id] || 0) + 1;
+        const out = new Map();
+        for (const [row, id] of pick) {
+            if (claims[id] !== 1) continue;
+            Room.mergeName(b[id].fp, row.fp);
+            out.set(row, id);
+        }
+        return out;
+    }
+
     /* 로비: 지금 보이는 8칸과 방 명단을 맞춘다 */
     function syncRoster(lobby) {
         const occupied = lobby.rows.filter(r => !r.empty && !r.unknown);
@@ -96,9 +125,10 @@
         state.rosterCount++;
         if (state.rosterCount !== ROSTER_STABLE_TICKS) return { pending: true }; // 반영은 딱 한 번만
 
-        // 여기서부터 확정 — 아는 사람의 닉네임 지문을 채우고, 처음 보는 명패를 장부에 올린다
+        // 여기서부터 확정 — 아는 사람의 닉네임 지문을 채우고, READY를 바꾼 사람을 잇고, 처음 보는 명패를 장부에 올린다
         for (const [row, hit] of knownHits) refreshName(row, hit);
-        const seen = knownIds.concat(unknownPlates.map(resolveId).filter(Boolean));
+        const relinked = relinkStateChanges(unknownPlates, knownIds);
+        const seen = knownIds.concat(unknownPlates.map(row => relinked.get(row) || resolveId(row)).filter(Boolean));
 
         // PLAYER 1·2 자리를 기억해 둔다 (결과 화면에서 명패를 못 읽었을 때 쓴다)
         const p1 = lobby.pair[0], p2 = lobby.pair[1];
