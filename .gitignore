@@ -1,0 +1,27 @@
+# 코드만 올린다 — 전부 무시한 뒤 필요한 것만 다시 허용한다.
+/*
+
+# 페이지
+!/index.html
+!/floor.html
+!/style.css
+
+# 스크립트
+!/script.js
+!/auto-room.js
+!/generate-hashes.js
+!/lib/
+!/floor/
+
+# 층수 탭이 실행 중에 fetch하는 데이터 (없으면 곡 인식이 안 된다)
+!/hashes.json
+
+# 저장소 기본 파일
+!/.gitignore
+!/README.md
+
+# 허용한 폴더 안에서도 JS만
+/lib/*
+!/lib/*.js
+/floor/*
+!/floor/*.js

@@ -214,6 +214,35 @@ function binarizeDifficulty(canvas) {
     return newCanvas;
 }
 
+// 자켓 시그니처: 라운드/결과 화면에서 BPM 글자(위)와 버튼/난이도 바(아래)가 덮지 않는 영역을
+// 12x8 칸으로 나눠 칸별 평균 RGB를 담은 288바이트(base64). floor.html의 jacketSig()와 같은 계산이어야 한다.
+const SIG_W = 12, SIG_H = 8, SIG_X0 = 0.06, SIG_X1 = 0.94, SIG_Y0 = 0.2, SIG_Y1 = 0.78;
+function jacketSigFromCanvas(canvas) {
+    const w = canvas.width, h = canvas.height;
+    const sx = w * SIG_X0, sy = h * SIG_Y0, sw = w * (SIG_X1 - SIG_X0), sh = h * (SIG_Y1 - SIG_Y0);
+    const cw = Math.max(1, Math.round(sw)), ch = Math.max(1, Math.round(sh));
+    const c = createCanvas(cw, ch);
+    c.getContext('2d').drawImage(canvas, sx, sy, sw, sh, 0, 0, cw, ch);
+    const d = c.getContext('2d').getImageData(0, 0, cw, ch).data;
+    const out = Buffer.alloc(SIG_W * SIG_H * 3);
+    for (let cy = 0; cy < SIG_H; cy++) {
+        for (let cx = 0; cx < SIG_W; cx++) {
+            const xa = Math.floor(cx * cw / SIG_W), xb = Math.max(xa + 1, Math.floor((cx + 1) * cw / SIG_W));
+            const ya = Math.floor(cy * ch / SIG_H), yb = Math.max(ya + 1, Math.floor((cy + 1) * ch / SIG_H));
+            let r = 0, g = 0, b = 0, n = 0;
+            for (let y = ya; y < yb; y++) {
+                for (let x = xa; x < xb; x++) {
+                    const i = (y * cw + x) * 4;
+                    r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
+                }
+            }
+            const o = (cy * SIG_W + cx) * 3;
+            out[o] = Math.round(r / n); out[o + 1] = Math.round(g / n); out[o + 2] = Math.round(b / n);
+        }
+    }
+    return out.toString('base64');
+}
+
 async function main() {
     const output = {
         trackinfo: {
@@ -279,11 +308,11 @@ async function main() {
     }
     console.log(`${Object.keys(output.trackinfo.buttons).length}개의 버튼, ${Object.keys(output.trackinfo.diffs).length}개의 난이도 해시를 준비했습니다.`);
 
-    // 썸네일 처리 (png 파일만 처리)
+    // 썸네일 처리 (jpg 파일만 처리)
     console.log("thumbnails 이미지를 처리하는 중...");
-    const thumbnailFiles = await glob('thumbnails/*.png');
+    const thumbnailFiles = await glob('thumbnails/*.jpg');
     for (const file of thumbnailFiles) {
-        const id = parseInt(path.basename(file, '.png'), 10);
+        const id = parseInt(path.basename(file, '.jpg'), 10);
         if (isNaN(id)) continue;
 
         const img = await loadImage(file);
@@ -295,7 +324,8 @@ async function main() {
             id,
             ah: aHashFromCanvas(canvas),
             dh: dHashFromCanvas(canvas),
-            color: getColorGridFromCanvas(canvas)
+            color: getColorGridFromCanvas(canvas),
+            sig: jacketSigFromCanvas(canvas)
         });
     }
     console.log(`${thumbnailFiles.length}개의 thumbnails 이미지를 처리했습니다.`);

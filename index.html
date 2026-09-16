@@ -4,24 +4,377 @@
   <meta charset="utf-8" />
   <title>버망호 도우미</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" />
+
+  <!-- 층수 측정기 화면이 Tailwind 유틸리티 클래스를 쓴다.
+       preflight(전역 리셋)는 매칭 화면의 표·버튼까지 갈아엎으므로 끈다.
+       층수 화면이 기대하는 만큼은 style.css의 .floor-scope 규칙이 대신 깔아준다.
+       (config는 CDN 스크립트 '뒤'에서 넣어야 먹는다 — 앞에 두면 CDN이 덮어쓴다) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { corePlugins: { preflight: false } };</script>
+
+  <style>
+  /* 층수 측정기에서 가져온 스타일 — 전부 .floor-scope 안에서만 먹는다.
+     (합치기 전에는 floor.html의 전역 스타일이었다) */
+  :root {
+            --bg-main: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --bg-card-hover: rgba(30, 41, 59, 0.9);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --accent-blue: #3b82f6;
+            --accent-indigo: #6366f1;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+        }
+  .floor-scope {
+            background: var(--bg-main);
+            color: var(--text-primary);
+            font-family: 'Noto Sans KR', sans-serif;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(99, 102, 241, 0.05) 0%, transparent 40%);
+            background-attachment: fixed;
+  }
+  .floor-scope .header-font { font-family: 'Orbitron', sans-serif; letter-spacing: 0.05em;
+  }
+  /* Glassmorphism effects */
+  .floor-scope .glass {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+  }
+  .floor-scope .track-row {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+  }
+  .floor-scope .track-row::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 4px; height: 100%;
+            background: transparent;
+            transition: background 0.3s;
+  }
+  .floor-scope .track-row:hover {
+            border-color: rgba(59, 130, 246, 0.4);
+            background: var(--bg-card-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.3);
+  }
+  .floor-scope .track-row:hover::before {
+            background: var(--accent-blue);
+  }
+  .floor-scope .floor-value {
+            font-family: 'Orbitron', sans-serif;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            line-height: 1;
+  }
+  .floor-scope .loading-shimmer {
+            background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite linear;
+  }
+  @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+  .floor-scope .track-row.played {
+            background: rgba(34, 197, 94, 0.08);
+            border-color: rgba(34, 197, 94, 0.4) !important;
+  }
+  .floor-scope .track-row.played::before { background: #22c55e;
+  }
+  .floor-scope .track-row.banned {
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.4) !important;
+            opacity: 0.6;
+  }
+  .floor-scope .track-row.banned::before { background: #ef4444;
+  }
+  /* 플레이된 라운드 번호 — 라운드 화면에서 자동으로 붙는다 */
+  .floor-scope .round-badge {
+            position: absolute; top: 6px; left: 6px; z-index: 5; pointer-events: none;
+            font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 0.85rem; line-height: 1;
+            padding: 5px 8px; border-radius: 8px;
+            background: #16a34a; color: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  }
+  .floor-scope .track-row:not(.played) .round-badge { display: none;
+  }
+  /* 스크린샷 뷰어 — 좌우 화살표로 이전에 붙여넣은 스샷을 다시 본다 */
+  .floor-scope #shotViewer { display: none; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 2.5rem;
+  }
+  .floor-scope #screenshotContainer { display: none; justify-content: center;
+  }
+  .floor-scope .shot-nav-btn {
+            flex: none; width: 44px; height: 44px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 999px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            backdrop-filter: blur(8px);
+            transition: all 0.2s;
+  }
+  .floor-scope .shot-nav-btn:hover:not(:disabled) { background: var(--accent-blue); color: #fff; border-color: transparent; transform: scale(1.08);
+  }
+  .floor-scope .shot-nav-btn:disabled { opacity: 0.2; cursor: default;
+  }
+  .floor-scope #shotCounter {
+            margin-top: 0.75rem; text-align: center;
+            font-family: 'Orbitron', sans-serif; font-size: 0.7rem;
+            letter-spacing: 0.15em; color: var(--text-secondary);
+  }
+  .floor-scope #screenshotPreview {
+            max-width: 320px;
+            cursor: pointer;
+            border-radius: 1rem;
+            border: 1px solid var(--border-color);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+  }
+  .floor-scope #screenshotPreview.expanded { 
+            max-width: 100%; 
+            border-color: var(--accent-blue); 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  }
+  .floor-scope .mode-toggle-container {
+            position: absolute; top: 2rem; right: 2rem; display: flex;
+            background: rgba(15, 23, 42, 0.6); padding: 4px; border-radius: 14px;
+            border: 1px solid var(--border-color); z-index: 50;
+            backdrop-filter: blur(8px);
+  }
+  .floor-scope .mode-btn { 
+            padding: 8px 18px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; 
+            color: var(--text-secondary);
+  }
+  .floor-scope .mode-btn.active { 
+            background: var(--accent-blue); color: white; 
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  }
+  .floor-scope .mode-btn:not(.active):hover { background: rgba(255, 255, 255, 0.08); color: white;
+  }
+  /* General Mode Grid Refinement */
+  .floor-scope .general-grid {
+            display: grid; grid-template-columns: 60px repeat(4, 1fr); gap: 1px;
+            background: var(--border-color); border: 1px solid var(--border-color); 
+            border-radius: 12px; overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  }
+  .floor-scope .grid-cell { 
+            background: #1e293b; padding: 14px 8px; text-align: center; 
+            font-family: 'Orbitron', sans-serif; font-size: 0.85rem; 
+            transition: background 0.2s;
+  }
+  .floor-scope .grid-header { background: #0f172a; font-weight: 700; color: #64748b; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; padding: 6px 4px;
+  }
+  .floor-scope .grid-row-label { background: #0f172a; font-weight: 700; color: #64748b; display: flex; align-items: center; justify-content: center; font-size: 1rem; padding: 6px 4px;
+  }
+  .floor-scope .grid-value {
+            font-weight: 900;
+            font-size: 1.7rem;
+            text-shadow: 2px 2px 3px rgba(0, 0, 0, 0.5);
+  }
+  .floor-scope .grid-value.empty { color: #334155; font-weight: normal; background: #161e2e;
+  }
+  /* 데이터 없는 칸은 실제 층수 값과 같은 크기로 찍히면 빈 칸이 데이터보다 커 보인다 */
+  .floor-scope .grid-value.nodata { font-size: 0.8rem; font-weight: 400; letter-spacing: 0.1em;
+  }
+  /* 패턴이 있는 칸은 클릭하면 버망호 Copy와 같은 형식으로 복사된다 */
+  .floor-scope .grid-cell.copyable { cursor: pointer;
+  }
+  .floor-scope .grid-cell.copyable:hover { filter: brightness(1.15);
+  }
+  /* Select Styles */
+  .floor-scope select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.4rem center;
+            background-size: 0.8rem;
+            padding-right: 1.4rem !important;
+            cursor: pointer;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  .floor-scope select:hover { filter: brightness(1.1);
+  }
+  .floor-scope .recheck-btn, .floor-scope .copy-btn, .floor-scope .memo-btn {
+            transition: all 0.2s;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  /* 버튼·난이도 선택·Recheck/Copy도 층수 숫자와 같은 Orbitron으로 맞춘다 (전부 영문·숫자라 한글 대체 글꼴이 안 섞인다) */
+  .floor-scope .recheck-btn, .floor-scope .copy-btn,
+  .floor-scope .btn-select, .floor-scope .diff-select, .floor-scope .btn-select option, .floor-scope .diff-select option {
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 0.04em;
+  }
+  /* Orbitron은 폭이 넓어 5열 카드에서 RECHECK가 넘치므로 조금 작게, 자간은 좁게 */
+  .floor-scope .recheck-btn, .floor-scope .copy-btn { font-weight: 700; font-size: 0.66rem; letter-spacing: 0.02em;
+  }
+  /* 누르기 쉽게 — 글씨 크기가 아니라 높이로 키운다 (폭은 5열 카드에 맞춰 그대로) */
+  .floor-scope .recheck-btn, .floor-scope .copy-btn, .floor-scope .memo-btn { min-height: 34px; border-radius: 8px;
+  }
+  .floor-scope .memo-btn { min-width: 34px;
+  }
+  .floor-scope .btn-select, .floor-scope .diff-select { min-height: 30px;
+  }
+  .floor-scope .recheck-btn:hover, .floor-scope .copy-btn:hover, .floor-scope .memo-btn:hover {
+            background: #334155;
+            transform: scale(1.05);
+  }
+  /* Keyboard Shortcut Hint */
+  .floor-scope kbd {
+            font-family: monospace;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-bottom-width: 3px;
+            color: #e2e8f0;
+  }
+  /* Versus Mode Horizontal Layout */
+  .floor-scope #resultList.versus-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 1rem;
+            align-items: stretch;
+  }
+  .floor-scope #resultList.versus-grid .track-row {
+            flex-direction: column;
+            text-align: center;
+            padding: 1rem;
+            height: 100%;
+            display: flex;
+            align-items: center;
+  }
+  .floor-scope #resultList.versus-grid .track-row::before {
+            width: 100%; height: 4px; top: 0; left: 0;
+  }
+  /* Mobile Adjustments */
+  @media (max-width: 768px) {
+    .floor-scope .mode-toggle-container { position: relative; top: 0; right: 0; margin-bottom: 2rem; justify-content: center;
+    }
+    .floor-scope .help-btn-container { position: relative; top: 0; left: 0; margin-bottom: 1rem; display: flex; justify-content: center;
+    }
+    .floor-scope #resultList.versus-grid { grid-template-columns: 1fr;
+    }
+    .floor-scope .track-row { flex-direction: column; align-items: flex-start;
+    }
+    .floor-scope .track-row .text-right { text-align: left; align-items: flex-start; margin-top: 1rem; width: 100%;
+    }
+  }
+  /* Help Modal Styles */
+  .floor-scope .help-btn-container {
+            position: absolute; top: 2rem; left: 2rem; z-index: 50;
+  }
+  .floor-scope .help-btn {
+            background: #3b82f6 !important;
+            color: white !important;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  .floor-scope .help-btn:hover {
+            background: #2563eb !important;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+  }
+  .floor-scope .help-modal {
+            display: none; position: fixed; inset: 0; z-index: 100;
+            background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px);
+            align-items: center; justify-content: center; padding: 20px;
+  }
+  .floor-scope .help-modal.active { display: flex;
+  }
+  .floor-scope .help-content {
+            background: #1e293b; border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 700px; width: 100%; max-height: 85vh; overflow-y: auto;
+            border-radius: 24px; padding: 40px; position: relative;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  }
+  .floor-scope .close-help {
+            position: absolute; top: 20px; right: 20px; cursor: pointer;
+            color: #94a3b8; transition: all 0.2s;
+  }
+  .floor-scope .close-help:hover { color: white; transform: rotate(90deg);
+  }
+  .floor-scope .help-body h2 { font-family: 'Orbitron', sans-serif; color: #3b82f6; font-size: 1.5rem; margin-bottom: 20px; font-weight: 700; border-bottom: 1px solid rgba(59, 130, 246, 0.2); padding-bottom: 10px;
+  }
+  .floor-scope .help-body h3 { font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin-top: 20px; margin-bottom: 10px;
+  }
+  .floor-scope .help-body p { margin-bottom: 15px; line-height: 1.7; color: #cbd5e1; font-size: 0.95rem;
+  }
+  .floor-scope .help-body ul { list-style: none; padding: 0; margin-bottom: 20px;
+  }
+  .floor-scope .help-body li { margin-bottom: 8px; padding-left: 20px; position: relative; color: #94a3b8; font-size: 0.9rem;
+  }
+  .floor-scope .help-body li::before { content: '•'; position: absolute; left: 0; color: #3b82f6; font-weight: bold;
+  }
+  .floor-scope .help-body code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #facc15;
+  }
+  /* 패턴 메모(자작 태그) — 로페봇 태그와 구분되게 노란색 */
+  .floor-scope .grid-cell .memo-tag { background: rgba(0, 0, 0, 0.5); color: #fcd34d; box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.55);
+  }
+  .floor-scope .memo-cell-btn {
+            position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 6px; font-size: 12px; line-height: 1;
+            background: rgba(0, 0, 0, 0.45); color: #fde68a;
+            opacity: 0; transition: opacity 0.15s, background 0.15s;
+  }
+  .floor-scope .grid-cell:hover .memo-cell-btn { opacity: 1;
+  }
+  .floor-scope .memo-cell-btn:hover { background: rgba(0, 0, 0, 0.75);
+  }
+  @media (hover: none) {
+    .floor-scope .memo-cell-btn { opacity: 0.7;
+    }
+  }
+  .floor-scope .help-content.memo-content { max-width: 480px; padding: 28px;
+  }
+  .floor-scope .memo-chip {
+            display: inline-flex; align-items: center; gap: 2px; padding: 3px 4px 3px 10px;
+            border-radius: 8px; font-size: 0.8rem; font-weight: 700;
+            background: rgba(120, 53, 15, 0.45); color: #fcd34d; border: 1px solid rgba(217, 119, 6, 0.5);
+  }
+  .floor-scope .memo-chip button { width: 20px; height: 20px; border-radius: 5px; color: #fbbf24; line-height: 1;
+  }
+  .floor-scope .memo-chip button:hover { background: rgba(0, 0, 0, 0.35); color: #fff;
+  }
+  .floor-scope .memo-suggest {
+            padding: 3px 9px; border-radius: 8px; font-size: 0.75rem; font-weight: 700;
+            color: #cbd5e1; background: rgba(51, 65, 85, 0.6); border: 1px dashed rgba(148, 163, 184, 0.4);
+            transition: all 0.15s;
+  }
+  .floor-scope .memo-suggest:hover { border-color: #fbbf24; color: #fcd34d;
+  }
+  </style>
+
+  <!-- 층수 스타일보다 뒤에 둔다 — .floor-toolbar 같은 조정 규칙이 이겨야 하기 때문 -->
   <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
 <header>
   <h1>버망호 도우미</h1>
-  <span id="round-info">라운드: 0</span>
-</header>
-
-<main>
-  <div class="row buttons-right toolbar">
-    <button id="floor-meter-btn" class="secondary">층수 측정기</button>
-    <button id="info-btn" class="secondary">티어별 난이도</button>
-    <button id="help-btn" class="secondary">도움말</button>
+  <div class="tabs" role="tablist">
+    <button class="tab-btn active" data-tab-btn="match" role="tab" aria-selected="true">매칭 도우미</button>
+    <button class="tab-btn" data-tab-btn="floor" role="tab" aria-selected="false">층수 측정기</button>
+    <button class="tab-btn" data-tab-btn="tier" role="tab" aria-selected="false">티어별 난이도</button>
+    <button class="tab-btn" data-tab-btn="help" role="tab" aria-selected="false">도움말</button>
   </div>
-
+  <div class="header-right">
+    <span id="round-info">라운드: 0</span>
+    <button id="auto-capture-btn" class="secondary">🎮 게임 화면 연결</button>
+  </div>
+</header>
+<div data-tab-panel="match">
+<main>
   <div class="top-grid">
-  <section class="card compact">
+  <section class="card compact hide-while-sharing">
     <h2>플레이어 관리</h2>
     <div class="row player-add-row">
       <input id="nickname-input" type="text" placeholder="닉네임 입력 (Enter로 추가)" />
@@ -31,7 +384,7 @@
   </section>
 
   <section class="card compact">
-    <h2>매칭</h2>
+    <h2>매칭 도우미</h2>
     <div class="row match-header">
       <p id="chooser-status">테이블에서 두 명을 클릭하세요.</p>
       <div class="toggle-row">
@@ -101,9 +454,23 @@
     </div>
   </section>
 
-  <section class="card analysis-card">
+  <section class="card auto-card">
+    <div class="card-head">
+      <h2>🎮 게임 화면 자동 인식</h2>
+      <button class="secondary" data-goto-help="help-auto">도움말</button>
+    </div>
+    <div id="auto-status" class="auto-status idle">게임 화면을 연결하면 입·퇴장과 대진이 자동으로 기록됩니다</div>
+
+    <div class="collapsible-header auto-log-head" id="auto-log-toggle" role="button" tabindex="0" aria-expanded="false">
+      <h3>인식 기록<span id="auto-log-count"></span></h3>
+      <span class="toggle-icon" id="auto-log-icon">▼</span>
+    </div>
+    <div id="auto-activity" class="auto-activity" style="display:none;"></div>
+  </section>
+
+  <section class="card analysis-card hide-while-sharing">
     <div class="analysis-header" id="analysis-toggle-btn">
-      <h2>📸 입장/퇴장 분석</h2>
+      <h2>📸 입장/퇴장 분석 (수동 · 스크린샷 붙여넣기)</h2>
       <span class="toggle-icon">▼</span>
     </div>
     
@@ -146,76 +513,319 @@
   </section>
 
 </main>
-
-<div id="help-modal" class="modal" aria-hidden="true">
-  <div class="modal-backdrop" data-close="1"></div>
-  <div class="modal-panel">
-    <h2>사용 가이드</h2>
-    
-    <div class="help-section">
-      <h3>1. 플레이어 & 매칭</h3>
-      <ul class="help-list">
-        <li><b>등록:</b> 닉네임을 입력하고 엔터를 누르세요. (최대 8명)</li>
-        <li><b>매칭:</b> 대기 목록에서 <b>두 명의 플레이어를 클릭</b>하면 매칭이 성사됩니다. 먼저 클릭한 사람이 선택자(원디골)가 됩니다.</li>
-        <li><b>우선순위 (가중치):</b> 기본적으로 <b>가중치</b> 점수가 높은 순으로 정렬됩니다. 가중치는 현재 대기, 평균 대기, 원디골 비율 등을 종합하여 계산된 값입니다.</li>
-        <li><b>테이블 정렬:</b> '가중치', '닉네임' 등 테이블의 제목(헤더)을 클릭하면 해당 기준으로 목록을 오름차순/내림차순 정렬할 수 있습니다.</li>
-        <li><b>보류/복귀:</b> 플레이어 목록의 '보류' 버튼을 눌러 잠시 매칭에서 제외할 수 있습니다. '복귀'를 누르면 보류한 시간만큼 대기 시간이 보정되어 복귀됩니다.</li>
-        <li><b>신입 우선권:</b> 이 옵션을 켜면, 방에 새로 들어온 플레이어('신입' 태그)가 기존 경험자들보다 <b>상위 우선순위</b>로 올라가 빠르게 첫 게임을 하게 됩니다. (단, 세이프가드로 올라온 장기 대기자보다는 아래입니다. 첫 판을 뛰면 신입 자격이 해제됩니다.)</li>
-        <li><b>세이프가드:</b> 이 옵션을 켜면, <b><span class="safeguard-threshold">4</span>판 이상 대기한 플레이어</b>가 있을 경우 다른 모든 규칙을 무시하고 해당 플레이어에게 최상위 우선순위가 부여됩니다.</li>
-      </ul>
-    </div>
-
-    <div class="help-section" style="margin-top: 15px;">
-      <h3>2. 📸 입장/퇴장 분석기</h3>
-      <ul class="help-list">
-        <li><b>사용법:</b> 화면 아무 곳에나 버망호 로비의 스크린샷을 <b>Ctrl+V</b>로 붙여넣으세요.</li>
-        <li><b>작동 원리:</b> 두 장의 스크린샷(이전/현재)을 비교하여 자동으로 분석합니다.</li>
-        <li><b>*</b> 이미지 유사도를 기반으로 판단하기에, 가끔 오류가 날 수 있습니다. (특히 레디<->레디해제 중 스크린샷이 찍히는 경우)</li>
-        <li><b>분석 결과:</b>
-          <ul>
-            <li>🔴 <b>퇴장:</b> 방을 나간 인원</li>
-            <li>🔵 <b>잔류:</b> 자리를 지킨 인원</li>
-            <li>🟢 <b>입장:</b> 새로 들어온 인원</li>
-          </ul>
-        </li>
-      </ul>
-    </div>
-
-    <div class="help-section" style="margin-top: 15px;">
-      <h3>3. 기타</h3>
-      <ul class="help-list">
-        <li><b>자동 저장:</b> 모든 데이터는 브라우저에 자동 저장되어 새로고침해도 유지됩니다.</li>
-        <li><b>실행 취소/다시 실행:</b> 실수로 매칭을 하거나 플레이어를 잘못 삭제했을 때 이전/다음 상태로 되돌릴 수 있습니다.</li>
-        <li><b>초기화:</b> '전체 초기화' 버튼을 누르면 모든 데이터가 삭제됩니다.</li>
-      </ul>
-    </div>
-
-    <div class="row buttons-right" style="margin-top: 20px;">
-      <button id="help-close-btn" class="secondary">닫기</button>
-    </div>
-  </div>
 </div>
 
-<div id="info-modal" class="modal" aria-hidden="true">
-  <div class="modal-backdrop" data-close="1"></div>
-  <div class="modal-panel">
-    <h2>티어별 난이도</h2>
-    <p class="muted" style="margin-top:0;">
-      티어를 선택한 뒤, 복사 버튼을 누르면 채팅에 붙여넣기 좋게 티어별 난이도가 클립보드에 복사됩니다.
+<div data-tab-panel="floor" class="floor-scope" hidden>
+  <div class="floor-toolbar">
+    <div class="mode-toggle-container">
+        <div id="mode-versus" class="mode-btn active" onclick="setMode('versus')">버망호 모드</div>
+        <div id="mode-general" class="mode-btn" onclick="setMode('general')">일망호 모드</div>
+    </div>
+    <button class="mode-btn help-btn" onclick="toggleHelp(true)">도움말</button>
+  </div>
+
+    <div class="max-w-6xl mx-auto floor-body">
+        <div id="autoCaptureBar" class="mb-6 px-5 py-3 rounded-2xl glass text-center">
+            <span id="autoCaptureStatus" class="text-xs font-bold tracking-wide text-slate-400">게임 화면을 연결하면 밴픽 화면을 자동으로 인식합니다</span>
+        </div>
+
+        <div id="generalSearchContainer" class="hidden mb-8 relative">
+            <input type="text" id="songSearchInput" autocomplete="off" placeholder="곡 제목 또는 별명(태그)으로 검색..."
+                class="w-full px-5 py-4 rounded-2xl bg-slate-900/80 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 glass"
+                oninput="handleSongSearchInput(this.value)" onfocus="handleSongSearchInput(this.value)" onkeydown="handleSongSearchKeydown(event)">
+            <div id="songSearchResults" class="hidden absolute left-0 right-0 mt-2 max-h-80 overflow-y-auto rounded-2xl border border-slate-700 shadow-2xl glass" style="background: rgba(15, 23, 42, 0.97); z-index: 40;"></div>
+        </div>
+
+        <div id="dropZone" class="mb-8 border-2 border-dashed border-slate-700 rounded-3xl p-10 text-center cursor-pointer hover:border-blue-500 hover:bg-slate-800/40 transition-all duration-300 glass group">
+            <div class="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-slate-400 group-hover:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+            </div>
+            <p class="text-slate-300 mb-2 font-medium">스크린샷을 복사한 후 <kbd class="px-2 py-1 rounded text-white text-xs">Ctrl + V</kbd>를 누르세요</p>
+            <p class="text-xs text-slate-500 uppercase tracking-widest">16:9 게임 화면 · 창 모드 테두리는 자동으로 제외</p>
+        </div>
+
+        <div id="messageZone" class="text-center text-blue-400 mb-4 h-6 text-xs font-bold uppercase tracking-widest"></div>
+
+        <div id="hashUploadContainer" class="hidden mb-8 p-8 bg-slate-900/80 border border-yellow-500/30 rounded-3xl text-center glass">
+            <p class="text-yellow-500 mb-4 text-sm font-bold flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                </svg>
+                해시 데이터(hashes.json)를 불러오지 못했습니다.
+            </p>
+            <label class="bg-yellow-600 hover:bg-yellow-500 text-white px-6 py-2.5 rounded-xl cursor-pointer transition-all inline-block font-bold text-sm shadow-lg shadow-yellow-900/20">
+                해시 파일 선택
+                <input type="file" id="hashFileInput" class="hidden" accept=".json" onchange="handleHashUpload(this)">
+            </label>
+            <p class="text-slate-500 mt-4 text-xs">로컬 환경에서는 hashes.json 파일을 직접 선택해야 합니다.</p>
+        </div>
+
+        <div id="shotViewer">
+            <button id="shotPrev" class="shot-nav-btn" title="이전 스크린샷" onclick="navigateShot(-1)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7" />
+                </svg>
+            </button>
+            <div class="flex flex-col items-center min-w-0">
+                <div id="screenshotContainer"><img id="screenshotPreview" alt="Original Screenshot"></div>
+                <div id="shotCounter"></div>
+            </div>
+            <button id="shotNext" class="shot-nav-btn" title="다음 스크린샷" onclick="navigateShot(1)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
+                </svg>
+            </button>
+        </div>
+        <div id="resultList" class="versus-grid"><div class="text-center py-20 text-slate-600 italic tracking-widest text-sm uppercase">Initializing System...</div></div>
+    </div>
+
+    <!-- 패턴 메모(자작 태그) 편집 -->
+    <div id="memoModal" class="help-modal" onclick="if(event.target === this) closeMemoEditor()">
+        <div class="help-content memo-content glass">
+            <div class="close-help" onclick="closeMemoEditor()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </div>
+            <p class="text-[10px] text-amber-400 font-black uppercase tracking-widest mb-2">패턴 메모</p>
+            <h3 id="memoSongName" class="font-bold text-white text-xl leading-tight pr-10"></h3>
+            <div id="memoPatternInfo" class="flex items-center gap-1.5 mt-2"></div>
+            <div id="memoRefTags" class="flex flex-wrap gap-1 mt-3"></div>
+
+            <p class="text-xs text-slate-400 font-bold mt-6 mb-2">내 태그</p>
+            <div id="memoTagList" class="flex flex-wrap gap-1.5 min-h-[30px]"></div>
+            <div class="flex gap-2 mt-3">
+                <input type="text" id="memoInput" maxlength="60" autocomplete="off" placeholder="태그 입력 후 Enter (쉼표로 여러 개)"
+                    class="flex-1 min-w-0 px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-amber-500"
+                    onkeydown="handleMemoKeydown(event)">
+                <button class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold transition-all" onclick="addMemoFromInput()">추가</button>
+            </div>
+            <div id="memoSuggestWrap" class="mt-5">
+                <p class="text-xs text-slate-400 font-bold mb-2">자주 쓴 태그 <span class="font-normal text-slate-500">— 클릭해서 추가</span></p>
+                <div id="memoSuggestList" class="flex flex-wrap gap-1.5"></div>
+            </div>
+            <div class="flex items-center justify-between gap-3 mt-6 pt-4 border-t border-slate-700/60">
+                <p class="text-[11px] text-slate-500">메모는 이 브라우저에만 저장되며 Copy에는 포함되지 않습니다.</p>
+                <div class="flex gap-1.5 flex-none">
+                    <button class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold border border-slate-700" onclick="exportPatternMemos()">내보내기</button>
+                    <label class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold border border-slate-700 cursor-pointer">
+                        가져오기<input type="file" class="hidden" accept=".json,application/json" onchange="importPatternMemos(this)">
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── 티어별 난이도 탭 ─────────────────
+     표는 script.js의 TIER_DIFFICULTY 하나에서 그려진다 -->
+<div data-tab-panel="tier" hidden>
+<main>
+  <section class="card tier-card">
+    <div class="card-head">
+      <h2>티어별 난이도</h2>
+      <div class="head-btns">
+        <button id="tier-expand-btn" class="secondary" aria-pressed="false">＋ 모두 펼치기</button>
+        <button class="secondary" data-goto-help="help-tier">도움말</button>
+      </div>
+    </div>
+    <p class="guide-text">
+      티어별 출현 난이도입니다.
+      <b>칸을 클릭하면</b> 난이도 정보가 클립보드에 복사됩니다.
     </p>
-    <div class="row" style="gap: 10px; flex-wrap: wrap;">
-      <select id="tier-select" style="flex: 1; min-width: 220px; padding: 8px; border-radius: 6px; border: 1px solid #334155; background: #020617; color: white;"></select>
-      <button id="tier-copy-btn" class="secondary">📋 난이도 문구 복사</button>
+    <p class="guide-text">
+      가로축은 <b>패드 기준</b>이고, 스시는 <b>패드 12 = 스시 2 · 13 = 4 · 14 = 6 · 15 = 8</b>로 환산해 같은 자리에 맞춰 그렸습니다
+      (패드 한 칸 = 스시 두 칸).
+    </p>
+    <div class="tier-legend">
+      <span><i class="sw pad"></i>패드 (NM·HD·MX)</span>
+      <span><i class="sw sc"></i>스시 (SC)</span>
+      <span><i class="sw oob"></i>그 체계에 자리가 없는 구간</span>
     </div>
-    <div id="tier-preview" class="muted" style="margin-top: 10px;"></div>
-    <div id="tier-copy-msg" class="success" style="display:none; margin-top: 8px;"></div>
-
-    <div class="row buttons-right" style="margin-top: 20px;">
-      <button id="info-close-btn" class="secondary">닫기</button>
-    </div>
-  </div>
+    <div id="tier-chart" class="tier-chart"></div>
+    <div id="tier-copy-msg" class="success"></div>
+  </section>
+</main>
 </div>
+
+<!-- ── 도움말 탭 ─────────────────
+     매칭·층수 측정기·티어 설명이 전부 여기 모여 있다 (예전에는 모달 두 개로 나뉘어 있었다) -->
+<div data-tab-panel="help" hidden>
+<main>
+  <section class="card">
+    <div class="card-head"><h2>도움말</h2></div>
+    <p class="guide-text">버망호 도우미의 모든 설명이 여기 모여 있습니다. 보고 싶은 곳을 누르세요.</p>
+    <div class="help-index">
+      <button data-help-go="help-tabs">탭 구성</button>
+      <button data-help-go="help-match">플레이어 &amp; 매칭</button>
+      <button data-help-go="help-weight">가중치 계산</button>
+      <button data-help-go="help-auto">게임 화면 자동 인식</button>
+      <button data-help-go="help-manual">입장/퇴장 분석기(수동)</button>
+      <button data-help-go="help-floor">층수 측정기</button>
+      <button data-help-go="help-memo">패턴 메모</button>
+      <button data-help-go="help-tier">티어별 난이도</button>
+      <button data-help-go="help-etc">기타</button>
+    </div>
+  </section>
+
+  <section class="card help-section" id="help-tabs">
+    <h3>탭 구성</h3>
+    <ul class="help-list">
+      <li><b>매칭 도우미:</b> 방 인원과 대기 순서, 대진 기록.</li>
+      <li><b>층수 측정기:</b> 밴픽에 뜬 곡들의 층수.</li>
+      <li><b>티어별 난이도:</b> 방 공지에 붙여넣을 난이도 문구.</li>
+      <li><b>도움말:</b> 지금 보고 있는 이 화면.</li>
+      <li><b>탭을 바꿔도 아무것도 꺼지지 않습니다.</b> 양쪽 기록이 그대로 남고, 게임 화면 자동 인식도 보이지 않는 탭에서 계속 돕니다.</li>
+    </ul>
+  </section>
+
+  <section class="card help-section" id="help-match">
+    <h3>플레이어 &amp; 매칭</h3>
+    <ul class="help-list">
+      <li><b>등록:</b> 닉네임을 입력하고 엔터를 누르세요. (최대 8명) — 화면을 연결해 두면 이름 없이 명패로 자동 등록되므로 쓸 일이 없습니다.</li>
+      <li><b>매칭 도우미:</b> 대기 목록에서 <b>두 명의 플레이어를 클릭</b>하면 매칭이 성사됩니다. 먼저 클릭한 사람이 선택자(원디골)가 됩니다.</li>
+      <li><b>테이블 정렬:</b> '가중치', '닉네임' 등 테이블의 제목(헤더)을 클릭하면 해당 기준으로 목록을 오름차순/내림차순 정렬할 수 있습니다.</li>
+      <li><b>보류/복귀:</b> 플레이어 목록의 '보류' 버튼을 눌러 잠시 매칭에서 제외할 수 있습니다. '복귀'를 누르면 보류한 시간만큼 대기 시간이 보정되어 복귀됩니다.</li>
+      <li><b>로그:</b> '로그' 칸의 제목을 누르면 접거나 펼칠 수 있고, 접힘 상태는 다음에 열 때도 그대로 유지됩니다. 매치·입퇴장·보류를 버튼으로 걸러 볼 수 있습니다.</li>
+    </ul>
+  </section>
+
+  <section class="card help-section" id="help-weight">
+    <h3>가중치 계산</h3>
+    <ul class="help-list">
+      <li><b>우선순위:</b> 기본적으로 <b>가중치</b>가 높은 순으로 정렬됩니다.</li>
+      <li><b>계산식:</b> 현재 대기 + 실시간 평균 대기 − (원디골 비율 × 0.5) + 0.5.
+      <li><b>신입 우선권:</b> 이 옵션을 켜면, 방에 새로 들어온 플레이어('신입' 태그)가 기존 경험자들보다 <b>상위 우선순위</b>로 올라가 빠르게 첫 게임을 하게 됩니다. (단, 세이프가드로 올라온 장기 대기자보다는 아래입니다. 첫 판을 뛰면 신입 자격이 해제됩니다.)</li>
+      <li><b>세이프가드:</b> 이 옵션을 켜면, <b><span class="safeguard-threshold">4</span>판 이상 대기한 플레이어</b>가 있을 경우 다른 모든 규칙을 무시하고 해당 플레이어에게 최상위 우선순위가 부여됩니다.</li>
+    </ul>
+  </section>
+
+  <section class="card help-section" id="help-auto">
+    <h3>🎮 게임 화면 자동 인식</h3>
+    <ul class="help-list">
+      <li><b>사용법:</b> 오른쪽 위 <b>게임 화면 연결</b>을 한 번 누르고 DJMAX 화면(또는 게임 창)을 고르면 끝입니다. 이후엔 손댈 게 없습니다.</li>
+      <li><b>연결은 한 번뿐입니다.</b> 같은 화면 공유를 <b>매칭 도우미 탭</b>과 <b>층수 측정기 탭</b>이 같이 씁니다. 로비·결과 화면은 매칭 쪽이, 밴픽·라운드 화면은 층수 쪽이 각각 알아서 가져갑니다.</li>
+      <li><b>16:9 비율에서 작동하도록 설계되었습니다.</b> 이외의 해상도에서는 작동하지 않습니다.</li>
+      <li><b>매칭 도우미 탭에서 자동으로 되는 것:</b>
+        <ul>
+          <li>🟢 <b>입·퇴장:</b> 로비의 PLAYERS 칸을 읽어 방 인원을 계속 맞춥니다.</li>
+          <li>🔵 <b>대진 기록:</b> 곡 고르기 전 <b>라운드 화면</b>이 뜨면 대결이 성사된 것으로 보고 맞붙은 두 명을 한 판으로 기록합니다. 라운드 화면을 놓쳤으면 <b>결과 화면</b>에서 기록하고, 한 판은 로비로 돌아와야 끝나므로 같은 판이 두 번 기록되지는 않습니다.</li>
+        </ul>
+      </li>
+      <li><b>층수 측정기 탭에서 자동으로 되는 것:</b>
+        <ul>
+          <li><b>버망호 모드</b>: 밴픽 화면이 뜰 때마다 스크린샷 없이 자동으로 인식합니다. 같은 곡 구성은 다시 인식하지 않으므로 찍어둔 밴픽 표시가 유지됩니다.</li>
+          <li><b>일망호 모드</b>: 방장이 고른 곡이 <b>2초 이상</b> 그대로 있으면 그 곡의 층수 표를 자동으로 띄웁니다. 곡을 넘겨보는 중에는 띄우지 않습니다.</li>
+          <li>밴픽 뒤 <b>라운드 화면</b>이 뜨면 밴된 곡은 빨간색, 플레이된 곡은 초록색과 라운드 번호(R1~R3)로 자동 표시됩니다.</li>
+        </ul>
+      </li>
+      <li><b>이름을 안 물어보는 이유:</b> 사람을 닉네임이 아니라 <b>게임 안 명패</b>로 구분합니다. 그래서 표와 로그에 명패가 그대로 보이고, 나갔다 들어와도 전적이 이어집니다.</li>
+      <li><b>프로필 그림이 같은 사람:</b> 명패 그림까지 똑같아도 <b>닉네임 글자 모양</b>으로 따로 구분합니다(레벨은 판마다 오르므로 보지 않습니다). READY로 명패가 주황색이 되어도 그대로 알아봅니다. 다만 명패 그림이 밝아 닉네임이 배경에 묻히는 경우는 글자를 못 읽어 구분하지 못하고, 게임 화면 공유 해상도를 바꾼 직후에는 한 획 차이 닉네임(예: 도기/토기)끼리 헷갈릴 수 있습니다.</li>
+      <li><b>원디골:</b> 게임 화면에 나오지 않으므로, 맞붙은 두 명 중 <b>가중치가 높은 쪽</b>을 원디골로 기록합니다.</li>
+      <li><b>연결 중에는 손으로 하는 칸이 사라집니다.</b> '플레이어 관리'와 '수동 입장/퇴장 분석' 칸이 화면에서 빠집니다 — 같은 명단을 두 경로로 건드리면 어긋나기 때문입니다. 연결을 해제하면 그대로 돌아옵니다.</li>
+      <li><b>인식 기록:</b> 자동 인식 칸의 '인식 기록'을 누르면 방금 무엇을 읽었는지 시간순으로 펼쳐 볼 수 있습니다.</li>
+      <li><b>*</b> 게임은 <b>테두리 없는 창 모드</b>를 권장합니다. 전체화면(독점) 모드에서는 화면이 검게 잡힐 수 있습니다. 일반 창 모드의 제목 표시줄·테두리는 자동으로 잘라냅니다. 단, 모니터 전체를 공유하면서 게임을 작은 창으로 띄워 두면 인식하지 못하니 이때는 게임 창을 고르세요.</li>
+    </ul>
+  </section>
+
+  <section class="card help-section" id="help-manual">
+    <h3>📸 입장/퇴장 분석기 (수동)</h3>
+    <ul class="help-list">
+      <li>화면 자동 인식을 쓸 수 없거나 연결하지 않았을 때를 위한 예전 방식입니다. <b>화면 연결 중에는 이 칸이 숨겨집니다.</b></li>
+      <li><b>사용법:</b> 매칭 도우미 탭에서 버망호 로비의 스크린샷을 <b>Ctrl+V</b>로 붙여넣으세요.</li>
+      <li><b>작동 원리:</b> 두 장의 스크린샷(이전/현재)을 비교하여 자동으로 분석합니다.</li>
+      <li><b>*</b> 이미지 유사도를 기반으로 판단하기에, 가끔 오류가 날 수 있습니다. (특히 레디↔레디해제 중 스크린샷이 찍히는 경우)</li>
+      <li><b>분석 결과:</b>
+        <ul>
+          <li>🔴 <b>퇴장:</b> 방을 나간 인원</li>
+          <li>🔵 <b>잔류:</b> 자리를 지킨 인원</li>
+          <li>🟢 <b>입장:</b> 새로 들어온 인원</li>
+        </ul>
+      </li>
+    </ul>
+  </section>
+
+  <section class="card help-section" id="help-floor">
+    <h3>층수 측정기</h3>
+    <ul class="help-list">
+      <li><b>기본 사용법:</b> 게임에 밴픽창이 떠있는 상황에서 <code>PrintScreen</code>으로 스크린샷을 찍은 뒤, <b>층수 측정기 탭</b>에서 <code>Ctrl+V</code>로 붙여넣으세요.</li>
+      <li><b>버망호 모드:</b> 5개의 곡 슬롯을 자동으로 인식하여 각 곡의 '층수'를 표시합니다.
+        <ul>
+          <li>잘못 인식된 경우 <code>Recheck</code> 버튼을 눌러 다음 후보군으로 바꿀 수 있습니다.</li>
+          <li><code>Copy</code> 버튼을 누르면 '곡제목-버튼-난이도-층수-BPM-태그' 정보가 복사됩니다.</li>
+          <li>곡 카드를 <b>클릭</b>하면 초록색(플레이), <b>우클릭</b>하면 빨간색(밴)으로 표시됩니다.</li>
+        </ul>
+      </li>
+      <li><b>일망호 모드:</b> 선택된 한 곡의 전체 난이도별 층수 표를 보여줍니다.
+        <ul>
+          <li>검색창에 곡 제목이나 별명(태그)을 입력해 직접 곡을 찾아볼 수 있습니다.</li>
+          <li>표에서 난이도 칸을 <b>클릭</b>하면 버망호 모드의 <code>Copy</code>와 같은 형식으로 복사됩니다.</li>
+          <li>난이도 칸을 <b>우클릭</b>하면 그 패턴에 내 태그(패턴 메모)를 붙일 수 있습니다.</li>
+        </ul>
+      </li>
+      <li>붙여넣은 스크린샷은 클릭하면 확대해서 볼 수 있고, 좌우의 <b>&lsaquo; &rsaquo;</b> 버튼으로 이전 스샷을 다시 볼 수 있습니다. 그때 찍어둔 밴픽 표시와 버튼/난이도 수정값도 그대로 남습니다. (새로고침하면 초기화)</li>
+      <li>밴픽창을 놓쳤으면 라운드/결과 화면에서 <b>확인된 곡만으로</b> 카드를 만듭니다. 이때 밴된 곡은 자켓만 보여서 난이도 자리에 <code>NO DATA</code>가 표시됩니다.</li>
+    </ul>
+  </section>
+
+  <section class="card help-section" id="help-memo">
+    <h3>패턴 메모 (자작 태그)</h3>
+    <ul class="help-list">
+      <li>버망호 카드의 <code>✎</code> 버튼, 또는 일망호 표에서 난이도 칸을 <b>우클릭</b>(또는 마우스를 올리면 나오는 <code>✎</code> 버튼)해서 패턴마다 나만의 태그를 붙일 수 있습니다.</li>
+      <li>태그는 곡·버튼·난이도 조합별로 따로 저장되고 노란색으로 표시됩니다. 쉼표로 구분하면 여러 개를 한 번에 붙일 수 있습니다.</li>
+      <li>메모는 이 브라우저(LocalStorage)에만 저장되며, <code>Copy</code>나 칸 클릭 복사에는 포함되지 않습니다.</li>
+      <li>다른 브라우저로 옮기거나 백업하려면 메모 파일을 <b>내보내기/가져오기</b> 하세요. 가져오기는 기존 메모를 지우지 않고 합칩니다.</li>
+    </ul>
+    <div class="row" style="gap:8px;">
+      <button class="secondary" onclick="exportPatternMemos()">메모 내보내기</button>
+      <label class="file-btn secondary">메모 가져오기<input type="file" accept=".json,application/json" onchange="importPatternMemos(this)"></label>
+    </div>
+  </section>
+
+  <section class="card help-section" id="help-tier">
+    <h3>티어별 난이도</h3>
+    <ul class="help-list">
+      <li>버망호 방 공지에 쓰는 <b>티어별 권장 난이도</b>를 한눈에 보고, 필요한 줄만 복사하는 탭입니다.</li>
+      <li><b>복사:</b> 원하는 티어 칸을 <b>클릭</b>하면 그 티어의 정보가 클립보드에 들어갑니다.</li>
+      <li><b>접기:</b> 하위 등급(I~IV)은 기본으로 모두 보입니다. 티어 이름을 누르면 접히고, 접혀 있을 때의 막대는 그 티어 <b>전체가 아우르는 범위</b>입니다.</li>
+      <li><b>막대 보는 법:</b> 파란 막대가 <b>패드(NM·HD·MX)</b>, 보라 막대가 <b>스시(SC)</b>입니다.
+        가로축은 <b>패드 기준</b> 한 칸이 단위이고, 스시는 <b>패드 12 = 스시 2 · 13 = 4 · 14 = 6 · 15 = 8</b>로 환산해 같은 축에 얹었습니다(패드 한 칸 = 스시 두 칸).
+        위아래 막대가 <b>같은 가로 위치면 같은 체감 난이도</b>입니다.</li>
+      <li><b>빗금 구간:</b> 그 난이도 체계에 자리가 없는 곳입니다. 패드는 15 위쪽이, 스시는 패드 11 아래쪽이 빗금입니다. 그 티어에 아예 없는 난이도는 <b>해당 없음</b>으로 적힙니다.</li>
+    </ul>
+  </section>
+
+  <section class="card help-section" id="help-etc">
+    <h3>기타</h3>
+    <ul class="help-list">
+      <li><b>자동 저장:</b> 모든 데이터는 브라우저에 자동 저장되어 새로고침해도 유지됩니다.</li>
+      <li><b>실행 취소/다시 실행:</b> 실수로 매칭을 하거나 플레이어를 잘못 삭제했을 때 이전/다음 상태로 되돌릴 수 있습니다.</li>
+      <li><b>초기화:</b> '전체 초기화' 버튼을 누르면 모든 데이터가 삭제됩니다.</li>
+    </ul>
+  </section>
+</main>
+</div>
+
+
+<!-- 공용 라이브러리 → 매칭 본체 → 매칭 자동 인식 → 층수 측정기 순서로 읽혀야 한다 -->
+<script src="lib/util.js"></script>
+<script src="lib/imghash.js"></script>
+<script src="lib/screen-capture.js"></script>
+<script src="lib/capture-hub.js"></script>
+<script src="lib/tabs.js"></script>
+<script src="lib/djmax-room.js"></script>
 
 <script src="script.js"></script>
+<script src="auto-room.js"></script>
+
+<script src="floor/core.js"></script>
+<script src="floor/memo.js"></script>
+<script src="floor/song-db.js"></script>
+<script src="floor/shots.js"></script>
+<script src="floor/match-screen.js"></script>
+<script src="floor/auto-capture.js"></script>
+<script src="floor/app.js"></script>
 </body>
 </html>
