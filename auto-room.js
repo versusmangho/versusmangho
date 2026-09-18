@@ -97,7 +97,8 @@
     /* READY를 켜고 끈 사람 잇기.
        밝은 배경 그림 위 흰 글자는 그림 부스러기가 섞여, READY(주황이 그림을 가림) 때 모양과 어긋날 수 있다.
        그러면 로비에선 "한 명이 빠지고 처음 보는 명패가 하나 생긴" 것처럼 보인다. 빠진 사람과 아바타가 같고
-       그 사람의 장부에 지금 상태(READY/평소)의 닉네임 모양이 아직 없으면 — 한 사람씩 딱 맞을 때만 — 같은 사람으로 잇는다.
+       그 사람의 장부에 지금 상태(READY/평소)의 닉네임 모양이 아직 없고 READY 글자가 평소 모양 안에 들어가면
+       — 한 사람씩 딱 맞을 때만 — 같은 사람으로 잇는다.
        → Map(명패 → id) */
     function relinkStateChanges(unknownPlates, knownIds) {
         const b = book();
@@ -108,7 +109,8 @@
         for (const row of unknownPlates) {
             const st = row.fp.nameState;
             if (!st) continue;
-            const c = vanished.filter(id => Room.fpAvatarSame(row.fp, b[id].fp) && !(b[id].fp.names || {})[st]);
+            const c = vanished.filter(id => Room.fpAvatarSame(row.fp, b[id].fp) && !(b[id].fp.names || {})[st]
+                                            && Room.nameMayBeSame(row.fp, b[id].fp));
             if (c.length === 1) pick.set(row, c[0]);
         }
         // 두 명패가 같은 사람을 고르면 어느 쪽도 잇지 않는다
@@ -239,7 +241,9 @@
     /* 라운드·결과 화면의 명패 → id.
        맞붙은 사람은 방금까지 로비에 있던 사람이다. 그래서 먼저 방 안에서만 느슨하게 찾는다 —
        로비에서 내내 READY였던 사람은 장부에 READY 모양밖에 없는데, 여기선 평소 명패로 나오기 때문이다.
-       방 안에 아바타가 같은 사람이 둘이면 로비의 PLAYER 1·2 쪽을 고른다 */
+       방 안에 아바타가 같은 사람이 둘이면 로비의 PLAYER 1·2 쪽을 고른다.
+       여기선 새 사람을 장부에 올리지 않는다 — 방 안 사람을 못 알아본 것뿐인데 새로 만들면 한 사람이 둘로 쪼개진다
+       (READY로만 봤던 사람이 평소 명패로 나와 새로 입장한 적 있음). 못 가리면 null → 로비의 PLAYER 1·2로 채운다 */
     function pairId(plate) {
         if (!plate || plate.empty || plate.unknown) return null;
         const inRoom = room.players.filter(p => p.auto).map(p => p.nickname);
@@ -249,7 +253,7 @@
             const c = hit.candidates.map(x => x.id).filter(id => (state.lastPair || []).includes(id));
             return c.length === 1 ? c[0] : null;
         }
-        return resolveId(plate);
+        return lookupId(plate);   // 방엔 없지만 장부에 확실히 있는 사람 (로비를 못 보고 연결한 경우)
     }
 
     /* 라운드·결과 화면: 맞붙은 두 명을 가려 한 판 기록한다 */
