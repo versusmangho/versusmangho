@@ -17,6 +17,10 @@
     const Room = window.VMH.Room;
 
     const ROSTER_STABLE_TICKS = 3;   // 로비 명단이 이만큼 연속으로 같아야 반영 (화면 전환 중 오인식 방지)
+    // 입·퇴장 딜레이 — 명패를 잠깐 잘못 읽으면 같은 사람이 퇴장→입장을 반복하므로, 한 사람씩 이만큼 연속으로 봐야 반영한다.
+    // 로비 프레임 수 기준(500ms 간격). 퇴장이 더 길다 — READY를 바꾼 사람을 잇는 일(relink)이 입장 쪽에서 먼저 일어나야 한다
+    const JOIN_DELAY_TICKS = 6;      // 3초 — 방에 없던 명패가 이만큼 연속으로 보여야 입장
+    const LEAVE_DELAY_TICKS = 10;    // 5초 — 방에 있던 사람이 이만큼 연속으로 안 보여야 퇴장
     const PAIR_STABLE_TICKS = 2;     // 라운드·결과 화면도 등장 연출 중에 읽히면 어긋나므로 두 번 확인
     const MATCH_CLEAR_TICKS = 4;     // 로비가 이만큼 보여야 판이 끝난 것으로 보고 다음 판을 받는다
     const LOBBY_TAB_TICKS = 2;       // 로비가 이만큼 연속으로 보이면 매칭 탭으로 넘긴다 (화면 자동 전환 옵션)
@@ -24,6 +28,7 @@
 
     const state = {
         rosterKey: null, rosterCount: 0,     // 연속으로 같은 명단이 보인 횟수
+        absent: {}, present: {}, newStreak: 0, // 입·퇴장 딜레이: id별 연속으로 안 보인/보인 로비 프레임 수, 처음 보는 명패가 연속으로 있던 수
         pairPrev: null, pairCount: 0,        // 직전 라운드·결과 화면의 두 명패 / 연속으로 같은 두 명이 보인 횟수
         matchLocked: false, lobbyCount: 0,   // 이번 판을 이미 기록했다 — 로비로 돌아와야 풀린다
         lobbyStreak: 0,                      // 로비가 연속으로 보인 횟수 (탭 자동 전환용)
@@ -138,16 +143,43 @@
             if (left.length === 1) { knownIds.push(left[0]); row.id = left[0]; }
         }
         const stillAmbiguous = ambiguousRows.filter(([row]) => !row.id).length;
+
+        // 입·퇴장 딜레이 카운터 — 명단이 흔들리는 프레임에서도 센다. 한 번이라도 보이면(엇비슷한 후보여도) 퇴장 카운트는 0으로
+        const seenNow = new Set(knownIds);
+        for (const [row, ids] of ambiguousRows) if (!row.id) ids.forEach(id => seenNow.add(id));
+        const absent = {}, present = {};
+        for (const p of room.players) {
+            if (p.auto && !seenNow.has(p.nickname)) absent[p.nickname] = (state.absent[p.nickname] || 0) + 1;
+        }
+        for (const id of knownIds) {
+            if (!room.players.some(p => p.nickname === id)) present[id] = (state.present[id] || 0) + 1;
+        }
+        state.absent = absent; state.present = present;
+        state.newStreak = unknownPlates.length ? state.newStreak + 1 : 0;
+
         const key = knownIds.slice().sort().join('|') + '/new:' + unknownPlates.length + '/x:' + unreadable + '/a:' + stillAmbiguous;
         if (key !== state.rosterKey) { state.rosterKey = key; state.rosterCount = 1; return { pending: true }; }
         state.rosterCount++;
-        if (state.rosterCount !== ROSTER_STABLE_TICKS) return { pending: true }; // 반영은 딱 한 번만
+        if (state.rosterCount < ROSTER_STABLE_TICKS) return { pending: true };
 
-        // 여기서부터 확정 — 아는 사람의 닉네임 지문을 채우고, READY를 바꾼 사람을 잇고, 처음 보는 명패를 장부에 올린다
-        for (const [row, hit] of knownHits) refreshName(row, hit);
+        // 명단은 안정됐지만 딜레이가 덜 찬 입·퇴장이 있으면 다음 프레임에 다시 본다
+        const first = state.rosterCount === ROSTER_STABLE_TICKS;
+        const newDue = unknownPlates.length > 0 && state.newStreak >= JOIN_DELAY_TICKS;
+        const due = newDue
+            || Object.values(absent).some(n => n >= LEAVE_DELAY_TICKS)
+            || Object.values(present).some(n => n >= JOIN_DELAY_TICKS);
+        if (!first && !due) return { changed: false, unreadable, waiting: waitingCount(absent, present, unknownPlates.length) };
+
+        // 여기서부터 확정 — 아는 사람의 닉네임 지문을 채우고, READY를 바꾼 사람을 잇고, 처음 보는 명패를 장부에 올린다.
+        // 처음 보는 명패는 입장 딜레이가 찬 뒤에만 장부에 올린다 (잘못 읽은 명패가 유령으로 남지 않게)
+        if (first) for (const [row, hit] of knownHits) refreshName(row, hit);
         for (const [row, hit] of knownHits) row.id = hit.match.id;
-        const relinked = relinkStateChanges(unknownPlates, knownIds);
-        for (const row of unknownPlates) row.id = relinked.get(row) || resolveId(row);
+        if (newDue) {
+            const relinked = relinkStateChanges(unknownPlates, knownIds);
+            for (const row of unknownPlates) row.id = relinked.get(row) || resolveId(row);
+            // 이어 붙인 사람은 이번 프레임에 보인 것으로 친다
+            for (const id of relinked.values()) delete absent[id];
+        }
         const seen = knownIds.concat(unknownPlates.map(row => row.id).filter(Boolean));
 
         // PLAYER 1·2 자리를 기억해 둔다 (라운드·결과 화면에서 누구인지 헷갈릴 때 쓴다)
@@ -162,11 +194,18 @@
             }
         }
 
-        const present = new Set(seen);
+        const inView = new Set(seen);
         const autoNow = room.players.filter(p => p.auto);
-        const leaving = autoNow.filter(p => !present.has(p.nickname));
-        const joining = seen.filter(id => !room.players.some(p => p.nickname === id));
-        if (!leaving.length && !joining.length) return { changed: false, unreadable };
+        const leaving = autoNow.filter(p => !inView.has(p.nickname) && (absent[p.nickname] || 0) >= LEAVE_DELAY_TICKS);
+        // 이번에 장부에 올린/이어 붙인 명패는 이미 딜레이를 채웠다 (newStreak)
+        const fresh = new Set(unknownPlates.map(row => row.id).filter(Boolean));
+        const joining = seen.filter(id => !room.players.some(p => p.nickname === id)
+                                          && (fresh.has(id) || (present[id] || 0) >= JOIN_DELAY_TICKS));
+        for (const p of leaving) delete state.absent[p.nickname];
+        for (const id of joining) delete state.present[id];
+        if (fresh.size) state.newStreak = 0;
+        const waiting = waitingCount(state.absent, state.present, 0);
+        if (!leaving.length && !joining.length) return { changed: false, unreadable, waiting };
 
         pushUndo();
         for (const p of leaving) {
@@ -179,7 +218,16 @@
             if (addPlayer(id, { auto: true, silent: true })) added.push(id);
         }
         refreshUI();
-        return { changed: true, left: leaving.map(p => p.nickname), joined: added, unreadable };
+        return { changed: true, left: leaving.map(p => p.nickname), joined: added, unreadable, waiting };
+    }
+
+    // 딜레이가 걸려 아직 반영 안 된 입·퇴장 수 (상태 표시용)
+    function waitingCount(absent, present, unknown) {
+        return Object.keys(absent).length + Object.keys(present).length + unknown;
+    }
+
+    function resetDelays() {
+        state.absent = {}; state.present = {}; state.newStreak = 0;
     }
 
     function samePlate(p, q) {
@@ -268,12 +316,14 @@
                 if (r.left.length) bits.push('퇴장 ' + r.left.length + '명');
                 log(bits.join(' · '), 'hit');
             }
-            const note = r.unreadable ? ` (기본 명패 ${r.unreadable}칸은 구분 불가)` : '';
+            const note = (r.unreadable ? ` (기본 명패 ${r.unreadable}칸은 구분 불가)` : '')
+                       + (r.waiting ? ` · 입·퇴장 확인 중 ${r.waiting}명` : '');
             setStatus('● 로비 인식 중 — ' + room.players.filter(p => p.auto).length + '명' + note + areaNote(), 'live');
             return;
         }
         state.rosterKey = null; state.rosterCount = 0;
         state.lobbyCount = 0; state.lobbyStreak = 0;
+        resetDelays();   // 로비가 아닌 화면에선 명단이 안 보인다 — 딜레이는 로비가 끊기지 않고 이어질 때만 센다
 
         const kind = Room.isResultScreen(frame, W, H) ? 'result' : Room.isRoundScreen(frame, W, H) ? 'round' : null;
         if (!kind) {
@@ -357,6 +407,7 @@
         if (!running) window.VMH.Tabs.forgetScene();
         if (!on) {
             Object.assign(state, { rosterKey: null, rosterCount: 0, pairPrev: null, pairCount: 0, matchLocked: false, pairFailed: false, lobbyStreak: 0 });
+            resetDelays();
             setStatus(running ? '화면 공유를 층수 측정기에만 주는 중 — 옵션 탭에서 바꿀 수 있습니다'
                               : '게임 화면을 연결하면 입·퇴장과 대진이 자동으로 기록됩니다', 'idle');
         } else if (!wasReceiving) {
