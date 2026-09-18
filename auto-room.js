@@ -21,6 +21,9 @@
     // 로비 프레임 수 기준(500ms 간격). 퇴장이 더 길다 — READY를 바꾼 사람을 잇는 일(relink)이 입장 쪽에서 먼저 일어나야 한다
     const JOIN_DELAY_TICKS = 6;      // 3초 — 방에 없던 명패가 이만큼 연속으로 보여야 입장
     const LEAVE_DELAY_TICKS = 10;    // 5초 — 방에 있던 사람이 이만큼 연속으로 안 보여야 퇴장
+    // 로비 칸 하나의 명패가 이만큼 연속으로 같은 모양이어야 믿는다(1초). READY를 켜고 끌 때 주황이 명패를 쓸고
+    // 지나가는 동안 닉네임이 반쯤 가려지는데, 그 프레임이 장부에 그 사람 모양으로 들어가면 이후 멀쩡한 명패가 남이 된다
+    const ROW_STABLE_TICKS = 3;
     const PAIR_STABLE_TICKS = 2;     // 라운드·결과 화면도 등장 연출 중에 읽히면 어긋나므로 두 번 확인
     const MATCH_CLEAR_TICKS = 4;     // 로비가 이만큼 보여야 판이 끝난 것으로 보고 다음 판을 받는다
     const LOBBY_TAB_TICKS = 2;       // 로비가 이만큼 연속으로 보이면 매칭 탭으로 넘긴다 (화면 자동 전환 옵션)
@@ -29,6 +32,7 @@
     const state = {
         rosterKey: null, rosterCount: 0,     // 연속으로 같은 명단이 보인 횟수
         absent: {}, present: {}, newStreak: 0, // 입·퇴장 딜레이: id별 연속으로 안 보인/보인 로비 프레임 수, 처음 보는 명패가 연속으로 있던 수
+        rows: [],                            // 로비 칸별 { last: 직전 프레임 명패, streak: 같은 모양이 이어진 수, held: 마지막으로 안정됐던 명패 }
         pairPrev: null, pairCount: 0,        // 직전 라운드·결과 화면의 두 명패 / 연속으로 같은 두 명이 보인 횟수
         matchLocked: false, lobbyCount: 0,   // 이번 판을 이미 기록했다 — 로비로 돌아와야 풀린다
         lobbyStreak: 0,                      // 로비가 연속으로 보인 횟수 (탭 자동 전환용)
@@ -94,11 +98,12 @@
 
     /* ── 화면 처리 ───────────────── */
 
-    /* READY를 켜고 끈 사람 잇기.
-       밝은 배경 그림 위 흰 글자는 그림 부스러기가 섞여, READY(주황이 그림을 가림) 때 모양과 어긋날 수 있다.
-       그러면 로비에선 "한 명이 빠지고 처음 보는 명패가 하나 생긴" 것처럼 보인다. 빠진 사람과 아바타가 같고
-       그 사람의 장부에 지금 상태(READY/평소)의 닉네임 모양이 아직 없고 READY 글자가 평소 모양 안에 들어가면
-       — 한 사람씩 딱 맞을 때만 — 같은 사람으로 잇는다.
+    /* 모양이 조금 달라진 사람 잇기 — 로비에선 "한 명이 빠지고 처음 보는 명패가 하나 생긴" 것처럼 보이는 경우.
+       - READY를 켜고 끔: 밝은 배경 그림 위 흰 글자는 그림 부스러기가 섞여 READY(주황이 그림을 가림) 때 모양과 어긋난다
+       - 칸이 바뀜: 같은 사람도 칸마다 글자가 1~2px 밀리고 획 두께가 달라진다 (PLAYER 1 칸이 특히)
+       - READY를 한 번도 안 한 사람: 닉네임 폭을 몰라 뒤의 명패 그림까지 비교되는데, 그 그림이 프레임마다 흔들린다
+       빠진 사람과 아바타가 같고 닉네임이 느슨하게 맞으면(Room.nameClose) — 한 사람씩 딱 맞을 때만 — 같은 사람으로 잇고,
+       장부의 그 상태 모양을 지금 것으로 바꾼다.
        → Map(명패 → id) */
     function relinkStateChanges(unknownPlates, knownIds) {
         const b = book();
@@ -107,10 +112,8 @@
             .map(p => p.nickname);
         const pick = new Map();
         for (const row of unknownPlates) {
-            const st = row.fp.nameState;
-            if (!st) continue;
-            const c = vanished.filter(id => Room.fpAvatarSame(row.fp, b[id].fp) && !(b[id].fp.names || {})[st]
-                                            && Room.nameMayBeSame(row.fp, b[id].fp));
+            if (!row.fp.nameState) continue;
+            const c = vanished.filter(id => Room.fpAvatarSame(row.fp, b[id].fp) && Room.nameClose(row.fp, b[id].fp));
             if (c.length === 1) pick.set(row, c[0]);
         }
         // 두 명패가 같은 사람을 고르면 어느 쪽도 잇지 않는다
@@ -125,8 +128,29 @@
         return out;
     }
 
+    function sameReading(p, q) {
+        if (p.empty || q.empty) return p.empty === q.empty;
+        if (p.unknown || q.unknown) return p.unknown === q.unknown;
+        return Room.sameReading(p.fp, q.fp);
+    }
+
+    /* 칸마다 ROW_STABLE_TICKS 연속으로 같은 모양이 보였을 때의 명패만 쓰고, 그 사이엔 마지막으로 안정됐던 명패를 쓴다.
+       한 번도 안정된 적 없는 칸은 null (연결 직후 잠깐) */
+    function steadyRows(rows) {
+        return rows.map((row, i) => {
+            const s = state.rows[i];
+            const streak = s && sameReading(s.last, row) ? s.streak + 1 : 1;
+            const held = streak >= ROW_STABLE_TICKS ? row : s ? s.held : null;
+            state.rows[i] = { last: row, streak, held };
+            // 이전 프레임에서 붙인 id가 남지 않게 복사해서 넘긴다
+            return held && Object.assign({}, held, { id: undefined });
+        });
+    }
+
     /* 로비: 지금 보이는 8칸과 방 명단을 맞춘다 */
     function syncRoster(lobby) {
+        const steady = steadyRows(lobby.rows);
+        lobby = { rows: steady.filter(Boolean), pair: [steady[0], steady[1]] };
         const occupied = lobby.rows.filter(r => !r.empty && !r.unknown);
         const unreadable = lobby.rows.filter(r => !r.empty && r.unknown).length;
 
@@ -229,7 +253,7 @@
     }
 
     function resetDelays() {
-        state.absent = {}; state.present = {}; state.newStreak = 0;
+        state.absent = {}; state.present = {}; state.newStreak = 0; state.rows = [];
     }
 
     function samePlate(p, q) {
