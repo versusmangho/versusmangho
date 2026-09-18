@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>해시 도구</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" />
+  <!-- node generate-hashes.js --gui 가 띄우는 페이지. 해시 계산·저장은 그 서버(Node)가 한다 —
+       기존 hashes.json이 node-canvas로 만들어졌으니 새 항목도 같은 계산으로 맞춘다. -->
+  <style>
+    /* style.css의 토큰과 같은 값 */
+    :root {
+      --bg-main: #0f172a;
+      --bg-card: rgba(30, 41, 59, 0.7);
+      --bg-sunken: rgba(15, 23, 42, 0.6);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --accent-blue: #3b82f6;
+      --accent-indigo: #6366f1;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --text-dim: #64748b;
+      --good: #22c55e;
+      --bad: #ef4444;
+      --warn: #fcd34d;
+      --radius: 1rem;
+      --radius-sm: 0.75rem;
+      --shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.55);
+      --font: 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+      --font-num: 'Orbitron', system-ui, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font); color: var(--text-primary); background: var(--bg-main); font-size: 14px; }
+    body::before {
+      content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background-image:
+        radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.06) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(99, 102, 241, 0.06) 0%, transparent 40%);
+    }
+    header { padding: 14px 24px; border-bottom: 1px solid var(--border-color); display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+    header h1 { font-size: 18px; margin: 0; font-family: var(--font-num); font-weight: 900; letter-spacing: 0.04em; background: linear-gradient(90deg, #60a5fa, #818cf8); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    header p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+    main { max-width: 1000px; margin: 0 auto; padding: 16px; }
+    .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 18px; margin-bottom: 16px; box-shadow: var(--shadow); }
+    .card h2 { margin: 0 0 14px; font-size: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; display: flex; align-items: center; gap: 10px; }
+    .card h2 .step { font-family: var(--font-num); font-size: 12px; color: var(--accent-blue); }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .grow { flex: 1; min-width: 0; }
+    button { padding: 8px 14px; background: var(--bg-sunken); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; }
+    button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); border-color: var(--border-strong); }
+    button:disabled { opacity: 0.45; cursor: default; }
+    button.primary { background: linear-gradient(90deg, var(--accent-blue), var(--accent-indigo)); border-color: transparent; }
+    button.primary:hover:not(:disabled) { filter: brightness(1.1); background: linear-gradient(90deg, var(--accent-blue), var(--accent-indigo)); }
+    input[type=text] { padding: 8px 12px; background: var(--bg-sunken); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); font-family: inherit; font-size: 13px; width: 100%; }
+    input[type=text]:focus { outline: none; border-color: var(--accent-blue); }
+    label.field { color: var(--text-secondary); font-size: 13px; white-space: nowrap; }
+    .num { font-family: var(--font-num); }
+    .muted { color: var(--text-secondary); }
+    .dim { color: var(--text-dim); }
+
+    .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .stat { background: var(--bg-sunken); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 8px 12px; min-width: 120px; }
+    .stat b { display: block; font-family: var(--font-num); font-size: 16px; margin-top: 2px; }
+    .stat span { font-size: 12px; color: var(--text-secondary); }
+    .keys { font-family: var(--font-num); font-size: 12px; letter-spacing: 0.03em; }
+
+    .drop { border: 2px dashed var(--border-strong); border-radius: var(--radius); padding: 26px 16px; text-align: center; background: var(--bg-sunken); transition: border-color .15s, background .15s; }
+    .drop.over { border-color: var(--accent-blue); background: rgba(59, 130, 246, 0.08); }
+    .drop .big { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .drop .row { justify-content: center; margin-top: 14px; }
+    .rules { margin: 14px 0 0; padding: 0; list-style: none; font-size: 12.5px; color: var(--text-secondary); display: grid; gap: 4px; }
+    .rules code { font-family: ui-monospace, Consolas, monospace; color: var(--text-primary); background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 6px; }
+
+    .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chip { padding: 5px 11px; font-size: 12px; border-radius: 999px; }
+    .chip.on { border-color: var(--accent-blue); background: rgba(59, 130, 246, 0.15); }
+    .chip .n { font-family: var(--font-num); margin-left: 4px; }
+    .progress { font-size: 12.5px; color: var(--text-secondary); margin-left: auto; }
+
+    .list { margin-top: 12px; max-height: 520px; overflow: auto; border: 1px solid var(--border-color); border-radius: var(--radius-sm); }
+    table { width: 100%; border-collapse: collapse; }
+    th { position: sticky; top: 0; background: #172033; text-align: left; font-size: 12px; font-weight: 600; color: var(--text-secondary); padding: 8px 10px; z-index: 1; }
+    td { padding: 6px 10px; border-top: 1px solid var(--border-color); vertical-align: middle; font-size: 13px; }
+    td.thumb { width: 60px; }
+    td.thumb img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; display: block; background: #000; }
+    td.thumb img.bar { object-fit: contain; }
+    td.name { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    td.x { width: 36px; text-align: right; }
+    td.x button { padding: 2px 8px; font-size: 14px; line-height: 1; background: transparent; border-color: transparent; color: var(--text-dim); }
+    td.x button:hover { color: var(--bad); }
+    .empty { padding: 26px; text-align: center; color: var(--text-dim); }
+
+    .badge { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; }
+    .b-new { color: #86efac; background: rgba(34, 197, 94, 0.12); border-color: rgba(34, 197, 94, 0.35); }
+    .b-changed { color: #93c5fd; background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.35); }
+    .b-skip { color: var(--text-secondary); background: rgba(148, 163, 184, 0.1); border-color: rgba(148, 163, 184, 0.3); }
+    .b-same { color: var(--text-dim); background: transparent; border-color: var(--border-color); }
+    .b-bad { color: #fca5a5; background: rgba(239, 68, 68, 0.12); border-color: rgba(239, 68, 68, 0.35); }
+    .b-wait { color: var(--text-dim); border-color: var(--border-color); }
+    .note { font-size: 12px; color: var(--text-secondary); }
+    .note.warn { color: var(--warn); }
+    .note.bad { color: #fca5a5; }
+    /* 좁은 화면에서는 비고 칸을 없애고 대상 칸 밑에 붙인다 — ⚠ 경고가 사라지면 안 된다 */
+    .note-inline { display: none; margin-top: 4px; }
+
+    .radio { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; margin-right: 14px; }
+    .radio input { accent-color: var(--accent-blue); }
+    .save-row { margin-top: 14px; justify-content: space-between; }
+    .result { margin-top: 14px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--bg-sunken); border: 1px solid var(--border-color); font-size: 13px; line-height: 1.7; }
+    .result.ok { border-color: rgba(34, 197, 94, 0.35); }
+    .result.err { border-color: rgba(239, 68, 68, 0.45); color: #fca5a5; }
+    .result .list-line { color: var(--text-secondary); word-break: break-all; }
+    [hidden] { display: none !important; }
+
+    @media (max-width: 640px) {
+      main { padding: 10px; }
+      .card { padding: 14px; }
+      td.name { max-width: 110px; }
+      th.note-col, td.note-col { display: none; }
+      .note-inline { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>HASH TOOL</h1>
+    <p>자켓·트랙 정보 이미지의 해시를 뽑아 기존 <code>hashes.json</code>에 합칩니다.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2><span class="step">1</span>기존 해시</h2>
+      <div class="row">
+        <label class="field" for="base-path">파일</label>
+        <div class="grow"><input type="text" id="base-path" value="hashes.json" spellcheck="false" /></div>
+        <button id="base-reload">다시 읽기</button>
+      </div>
+      <div class="stats" id="base-stats"></div>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">2</span>이미지 넣기</h2>
+      <div class="drop" id="drop">
+        <div class="big">이미지나 폴더를 여기에 끌어다 놓으세요</div>
+        <div class="muted">png · jpg · jpeg · jfif · gif · bmp · webp · avif</div>
+        <div class="row">
+          <button id="pick-files">파일 선택</button>
+          <button id="pick-dir">폴더 선택</button>
+        </div>
+        <input type="file" id="file-input" multiple accept=".png,.jpg,.jpeg,.jfif,.gif,.bmp,.webp,.avif,image/*" hidden />
+        <input type="file" id="dir-input" webkitdirectory multiple hidden />
+      </div>
+      <ul class="rules">
+        <li><code>831.jpg</code> — 자켓. 파일 이름이 v-archive 곡 id입니다.</li>
+        <li><code>…_unified_4b_nm.png</code> — 트랙 정보 바. 왼쪽 절반은 버튼(4B), 오른쪽 절반은 난이도(NM).</li>
+        <li><code>…_button_4b.png</code> · <code>…_diff_nm.png</code> — 버튼·난이도를 한 장씩.</li>
+        <li>이름이 규칙에 안 맞는 파일은 목록에 “무시”로 남고 저장되지 않습니다.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">3</span>확인</h2>
+      <div class="row">
+        <div class="chips" id="chips"></div>
+        <span class="progress" id="progress"></span>
+      </div>
+      <div class="list">
+        <table>
+          <thead><tr><th></th><th>파일</th><th>대상</th><th>상태</th><th class="note-col">비고</th><th></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="empty" id="empty">아직 넣은 이미지가 없습니다.</div>
+      </div>
+      <div class="row" style="margin-top:10px; justify-content:flex-end;">
+        <button id="clear">목록 비우기</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">4</span>병합해서 저장</h2>
+      <div class="row">
+        <span class="field muted">같은 id가 이미 있으면</span>
+        <label class="radio"><input type="radio" name="overwrite" value="1" checked /> 새 값으로 덮어쓰기</label>
+        <label class="radio"><input type="radio" name="overwrite" value="0" /> 기존 값 유지</label>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <label class="field" for="out-path">저장할 파일</label>
+        <div class="grow"><input type="text" id="out-path" placeholder="비워 두면 기존 해시 파일에 덮어씁니다" spellcheck="false" /></div>
+      </div>
+      <div class="row save-row">
+        <span class="note">저장하기 전에 원래 파일을 <code>.bak</code>으로 한 벌 복사해 둡니다.</span>
+        <button class="primary" id="save" disabled>저장</button>
+      </div>
+      <div class="result" id="result" hidden></div>
+    </section>
+  </main>
+
+  <script>
+  (function () {
+    'use strict';
+
+    const $ = id => document.getElementById(id);
+    const IMAGE_RE = /\.(png|jpe?g|jfif|gif|bmp|webp|avif)$/i;
+    const CONCURRENCY = 4;
+    const GROUP_LABEL = { thumbnails: '자켓', buttons: '버튼', diffs: '난이도' };
+
+    let items = [];          // { uid, file, name, url, state: 'wait'|'done'|'ignored'|'error', parts, error, converted }
+    let uidSeq = 0;
+    let filter = 'all';
+    let queue = [], running = 0;
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    const basePath = () => $('base-path').value.trim() || 'hashes.json';
+    const outPath = () => $('out-path').value.trim() || basePath();
+    const overwrite = () => document.querySelector('input[name=overwrite]:checked').value === '1';
+    const partKey = p => `${p.group}:${p.key}`;
+    const partLabel = p => p.group === 'thumbnails' ? `자켓 #${p.key}` : `${GROUP_LABEL[p.group]} ${p.key}`;
+
+    async function api(url, opts) {
+      const res = await fetch(url, opts);
+      let body = null;
+      try { body = await res.json(); } catch (e) { /* 본문 없음 */ }
+      if (!res.ok) { const err = new Error((body && body.error) || `서버 오류 (${res.status})`); err.status = res.status; throw err; }
+      return body;
+    }
+
+    // --- 1. 기존 해시 ---
+    async function loadBase() {
+      const box = $('base-stats');
+      try {
+        const s = await api('/api/base?path=' + encodeURIComponent(basePath()));
+        if (!s.exists) {
+          box.innerHTML = `<div class="stat"><span>파일 없음</span><b>새로 만듭니다</b></div>`;
+        } else {
+          box.innerHTML =
+            `<div class="stat"><span>자켓</span><b>${s.count}곡</b></div>` +
+            `<div class="stat"><span>id 범위</span><b>${s.count ? `${s.minId}~${s.maxId}` : '—'}</b></div>` +
+            `<div class="stat"><span>다음 새 id</span><b>${s.count ? s.maxId + 1 : 0}</b></div>` +
+            `<div class="stat"><span>버튼</span><b class="keys">${escapeHtml(s.buttons.join(' ') || '—')}</b></div>` +
+            `<div class="stat"><span>난이도</span><b class="keys">${escapeHtml(s.diffs.join(' ') || '—')}</b></div>`;
+        }
+      } catch (err) {
+        box.innerHTML = `<div class="note bad">${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    async function refreshStatuses() {
+      const done = items.filter(it => it.state === 'done');
+      if (!done.length) return;
+      const parts = done.flatMap(it => it.parts.map(({ group, key, entry }) => ({ group, key, entry })));
+      try {
+        const r = await api('/api/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ base: basePath(), parts }) });
+        let i = 0;
+        for (const it of done) it.parts = it.parts.map(() => r.parts[i++]);
+      } catch (err) { /* 기준 파일을 못 읽으면 loadBase가 이미 알려 준다 */ }
+      render();
+    }
+
+    // --- 2. 이미지 넣기 ---
+    function addFiles(files) {
+      const list = Array.from(files).filter(f => IMAGE_RE.test(f.name));
+      for (const file of list) {
+        const it = { uid: ++uidSeq, file, name: file.name, url: URL.createObjectURL(file), state: 'wait', parts: [] };
+        items.push(it);
+        queue.push(it);
+      }
+      if (list.length) $('result').hidden = true;
+      render();
+      pump();
+    }
+
+    function pump() {
+      while (running < CONCURRENCY && queue.length) {
+        const it = queue.shift();
+        running++;
+        hashItem(it).finally(() => { running--; render(); pump(); });
+      }
+    }
+
+    function postImage(name, blob) {
+      return api(`/api/hash?name=${encodeURIComponent(name)}&base=${encodeURIComponent(basePath())}`, { method: 'POST', body: blob });
+    }
+
+    /* node-canvas가 못 읽는 형식(webp·avif 등)은 브라우저가 풀어서 PNG(무손실)로 바꿔 다시 보낸다 */
+    async function toPng(file) {
+      const bmp = await createImageBitmap(file);
+      const c = document.createElement('canvas');
+      c.width = bmp.width; c.height = bmp.height;
+      c.getContext('2d').drawImage(bmp, 0, 0);
+      bmp.close();
+      return new Promise((resolve, reject) => c.toBlob(b => b ? resolve(b) : reject(new Error('PNG 변환 실패')), 'image/png'));
+    }
+
+    async function hashItem(it) {
+      if (!items.includes(it)) return;   // 기다리는 사이에 지워졌다
+      try {
+        let r;
+        try {
+          r = await postImage(it.name, it.file);
+        } catch (err) {
+          if (err.status !== 422) throw err;
+          let png;
+          try { png = await toPng(it.file); } catch (e) { throw err; }
+          r = await postImage(it.name, png);
+          it.converted = true;
+        }
+        if (r.ignored) { it.state = 'ignored'; return; }
+        it.parts = r.parts;
+        it.state = 'done';
+        dropOlderDuplicates(it);
+      } catch (err) {
+        it.state = 'error';
+        it.error = err.message;
+      }
+    }
+
+    /* 같은 대상(자켓 id 등)을 가리키는 이미지가 또 들어오면 나중에 넣은 것만 남긴다.
+       계산은 동시에 돌아 끝나는 순서가 뒤섞이니, 넣은 순서(uid)로 가린다 */
+    function dropOlderDuplicates(it) {
+      const keys = new Set(it.parts.map(partKey));
+      const clash = items.filter(o => o !== it && o.state === 'done' && o.parts.some(p => keys.has(partKey(p))));
+      const loser = clash.some(o => o.uid > it.uid) ? [it] : clash;
+      loser.forEach(o => URL.revokeObjectURL(o.url));
+      items = items.filter(o => !loser.includes(o));
+    }
+
+    function readEntry(entry) {
+      return new Promise(resolve => {
+        if (entry.isFile) { entry.file(f => resolve([f]), () => resolve([])); return; }
+        if (!entry.isDirectory) { resolve([]); return; }
+        const reader = entry.createReader(), out = [];
+        // readEntries는 한 번에 일부만 준다 — 빈 배열이 올 때까지 반복
+        const next = () => reader.readEntries(async batch => {
+          if (!batch.length) { resolve(out); return; }
+          for (const e of batch) out.push(...await readEntry(e));
+          next();
+        }, () => resolve(out));
+        next();
+      });
+    }
+
+    const drop = $('drop');
+    ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+    drop.addEventListener('drop', async e => {
+      const entries = Array.from(e.dataTransfer.items || []).map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+      if (entries.length) {
+        const files = [];
+        for (const en of entries) files.push(...await readEntry(en));
+        addFiles(files);
+      } else {
+        addFiles(e.dataTransfer.files);
+      }
+    });
+    // 끌어다 놓기를 조금 빗나가도 브라우저가 이미지를 열어 버리지 않게
+    window.addEventListener('dragover', e => e.preventDefault());
+    window.addEventListener('drop', e => e.preventDefault());
+
+    $('pick-files').addEventListener('click', () => $('file-input').click());
+    $('pick-dir').addEventListener('click', () => $('dir-input').click());
+    ['file-input', 'dir-input'].forEach(id => $(id).addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; }));
+
+    // --- 3. 확인 ---
+    /* 한 줄의 분류 — 칩 필터와 저장 버튼 개수가 같은 기준을 쓴다 */
+    function rowKind(it) {
+      if (it.state === 'wait') return 'wait';
+      if (it.state === 'error') return 'error';
+      if (it.state === 'ignored') return 'ignored';
+      if (it.parts.some(p => p.status === 'new')) return 'new';
+      if (it.parts.some(p => p.status === 'changed')) return 'changed';
+      return 'same';
+    }
+    const isWarn = it => it.state === 'done' && it.parts.some(p => p.nearest && p.nearest.confusable);
+
+    function statusBadge(p) {
+      if (p.status === 'new') return '<span class="badge b-new">신규</span>';
+      if (p.status === 'same') return '<span class="badge b-same">같음</span>';
+      return overwrite() ? '<span class="badge b-changed">갱신</span>' : '<span class="badge b-skip">유지</span>';
+    }
+
+    function noteHtml(it) {
+      if (it.state === 'error') return `<span class="note bad">${escapeHtml(it.error)}</span>`;
+      if (it.state === 'ignored') return '<span class="note">이름 규칙에 안 맞음</span>';
+      if (it.state === 'wait') return '';
+      const notes = [];
+      for (const p of it.parts) {
+        if (p.prevDist != null) notes.push(`<span class="note">기존 값과 거리 <span class="num">${p.prevDist}</span></span>`);
+        if (p.nearest) {
+          notes.push(p.nearest.confusable
+            ? `<span class="note warn">⚠ #${p.nearest.id}와 거의 같음 (거리 <span class="num">${p.nearest.d}</span>) — 인식 때 헷갈릴 수 있음</span>`
+            : `<span class="note dim">가장 닮은 곡 #${p.nearest.id} · 거리 <span class="num">${p.nearest.d}</span></span>`);
+        }
+      }
+      if (it.converted) notes.push('<span class="note dim">PNG로 바꿔 계산</span>');
+      return notes.join('<br>');
+    }
+
+    function rowHtml(it) {
+      const kind = rowKind(it);
+      const isBar = it.parts.length && it.parts[0].group !== 'thumbnails';
+      const note = noteHtml(it);
+      let target = '<span class="dim">—</span>', status;
+      if (kind === 'wait') status = '<span class="badge b-wait">계산 중…</span>';
+      else if (kind === 'error') status = '<span class="badge b-bad">오류</span>';
+      else if (kind === 'ignored') status = '<span class="badge b-same">무시</span>';
+      else {
+        target = it.parts.map(p => escapeHtml(partLabel(p))).join('<br>');
+        status = it.parts.map(statusBadge).join('<br>');
+      }
+      return `<tr data-uid="${it.uid}">
+        <td class="thumb"><img src="${it.url}" alt="" class="${isBar ? 'bar' : ''}" loading="lazy" /></td>
+        <td class="name" title="${escapeHtml(it.name)}">${escapeHtml(it.name)}</td>
+        <td>${target}${note ? `<div class="note-inline">${note}</div>` : ''}</td>
+        <td>${status}</td>
+        <td class="note-col">${note}</td>
+        <td class="x"><button data-remove="${it.uid}" title="목록에서 빼기">×</button></td>
+      </tr>`;
+    }
+
+    function render() {
+      const counts = { all: items.length, new: 0, changed: 0, same: 0, warn: 0, other: 0 };
+      for (const it of items) {
+        const k = rowKind(it);
+        if (k === 'new' || k === 'changed' || k === 'same') counts[k]++; else if (k !== 'wait') counts.other++;
+        if (isWarn(it)) counts.warn++;
+      }
+      const chips = [['all', '전체'], ['new', '신규'], ['changed', overwrite() ? '갱신' : '유지'], ['same', '같음'], ['warn', '주의'], ['other', '무시·오류']];
+      if (filter !== 'all' && !counts[filter]) filter = 'all';
+      $('chips').innerHTML = chips
+        .filter(([k]) => k === 'all' || counts[k])
+        .map(([k, label]) => `<button class="chip${filter === k ? ' on' : ''}" data-filter="${k}">${label}<span class="n">${counts[k]}</span></button>`).join('');
+
+      const shown = items.filter(it => {
+        if (filter === 'all') return true;
+        if (filter === 'warn') return isWarn(it);
+        const k = rowKind(it);
+        return filter === 'other' ? (k === 'error' || k === 'ignored') : k === filter;
+      });
+      $('rows').innerHTML = shown.map(rowHtml).join('');
+      $('empty').hidden = items.length > 0;
+
+      const waiting = items.filter(it => it.state === 'wait').length;
+      $('progress').textContent = waiting ? `계산 중 ${items.length - waiting} / ${items.length}` : '';
+
+      const parts = items.filter(it => it.state === 'done').flatMap(it => it.parts);
+      const willWrite = parts.filter(p => p.status === 'new' || (p.status === 'changed' && overwrite())).length;
+      const btn = $('save');
+      btn.disabled = waiting > 0 || willWrite === 0;
+      btn.textContent = waiting ? '계산이 끝나면 저장할 수 있습니다' : willWrite ? `${willWrite}개 병합해서 저장` : '저장할 것이 없습니다';
+    }
+
+    $('chips').addEventListener('click', e => {
+      const b = e.target.closest('[data-filter]');
+      if (b) { filter = b.dataset.filter; render(); }
+    });
+    $('rows').addEventListener('click', e => {
+      const b = e.target.closest('[data-remove]');
+      if (!b) return;
+      const uid = +b.dataset.remove;
+      const it = items.find(o => o.uid === uid);
+      if (it) URL.revokeObjectURL(it.url);
+      items = items.filter(o => o.uid !== uid);
+      queue = queue.filter(o => o.uid !== uid);
+      render();
+    });
+    $('clear').addEventListener('click', () => {
+      items.forEach(it => URL.revokeObjectURL(it.url));
+      items = []; queue = [];
+      $('result').hidden = true;
+      render();
+    });
+
+    // --- 4. 저장 ---
+    document.querySelectorAll('input[name=overwrite]').forEach(r => r.addEventListener('change', render));
+
+    $('save').addEventListener('click', async () => {
+      const parts = items.filter(it => it.state === 'done').flatMap(it => it.parts.map(({ group, key, entry }) => ({ group, key, entry })));
+      const box = $('result'), btn = $('save');
+      btn.disabled = true;
+      try {
+        const r = await api('/api/save', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base: basePath(), out: outPath(), overwrite: overwrite(), parts })
+        });
+        const line = (title, list) => list.length ? `<div>${title} <b class="num">${list.length}</b> <span class="list-line">${escapeHtml(list.join(', '))}</span></div>` : '';
+        box.className = 'result ok';
+        box.innerHTML = (r.saved
+            ? `<div><b>${escapeHtml(r.out)}</b>에 저장했습니다 — 자켓 <b class="num">${r.count}</b>곡 (id ${r.minId}~${r.maxId})</div>` +
+              (r.backup ? `<div class="muted">이전 파일: ${escapeHtml(r.backup)}</div>` : '')
+            : '<div>바뀐 것이 없어 저장하지 않았습니다.</div>') +
+          line('추가', r.report.added) + line('갱신', r.report.updated) + line('그대로', r.report.same) + line('유지(건너뜀)', r.report.skipped);
+        box.hidden = false;
+        // 저장한 파일을 새 기준으로 삼는다 — 다시 저장해도 '같음'으로 보이게
+        if (r.saved && r.out !== basePath()) $('base-path').value = r.out;
+        $('out-path').value = '';
+        await loadBase();
+        await refreshStatuses();
+      } catch (err) {
+        box.className = 'result err';
+        box.textContent = err.message;
+        box.hidden = false;
+        render();
+      }
+    });
+
+    $('base-reload').addEventListener('click', async () => { await loadBase(); await refreshStatuses(); });
+    $('base-path').addEventListener('change', async () => { await loadBase(); await refreshStatuses(); });
+
+    loadBase();
+    render();
+  })();
+  </script>
+</body>
+</html>
