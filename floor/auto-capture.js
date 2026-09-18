@@ -8,17 +8,20 @@ function setAutoStatus(text, tone = 'idle') {
 }
 
 function updateAutoCaptureUI() {
-    const on = VMH.CaptureHub.isRunning();
+    const on = VMH.CaptureHub.receiving('floor');
     const general = currentMode === 'general';
-    if (!on) setAutoStatus(general ? '게임 화면을 연결하면 방장이 고른 곡을 자동으로 인식합니다' : '게임 화면을 연결하면 밴픽 화면을 자동으로 인식합니다');
+    if (!on && VMH.CaptureHub.isRunning()) setAutoStatus('화면 공유를 매칭 도우미에만 주는 중 — 옵션 탭에서 바꿀 수 있습니다');
+    else if (!on) setAutoStatus(general ? '게임 화면을 연결하면 방장이 고른 곡을 자동으로 인식합니다' : '게임 화면을 연결하면 밴픽 화면을 자동으로 인식합니다');
     else { autoCap.statusHold = 0; setAutoStatus(general ? '● 자동 인식 중 — 선곡 대기' : '● 자동 인식 중 — 밴픽 화면 대기', 'live'); }
 }
 
 /* 화면 공유는 페이지에 하나뿐이다 (lib/capture-hub.js). 여기서는 프레임 한 장을 받아
    무슨 화면인지 가리는 일만 하고, 연결/해제 버튼은 매칭 쪽과 같이 쓴다. */
 VMH.CaptureHub.subscribe('floor', (frame, W, H) => autoCaptureFrame(frame, W, H));
+// 화면 공유 경고(게임 화면을 못 찾음 등)는 평소 매칭 쪽이 띄운다. 층수 측정기만 받을 때는 여기서
+VMH.CaptureHub.onStatus((text, tone) => { if (tone === 'warn' && VMH.CaptureHub.target === 'floor') setAutoStatus(text, 'warn'); });
 VMH.CaptureHub.onChange(() => {
-    if (!VMH.CaptureHub.isRunning()) Object.assign(autoCap, { lastKey: null, pendingKey: null, pendingCount: 0, markPendingKey: null, genCandId: null, genShownId: null });
+    if (!VMH.CaptureHub.receiving('floor')) Object.assign(autoCap, { lastKey: null, pendingKey: null, pendingCount: 0, markPendingKey: null, genCandId: null, genShownId: null });
     updateAutoCaptureUI();
 });
 
@@ -63,9 +66,11 @@ async function autoCaptureFrame(frame, W, H) {
         }
 
         const key = slots.map(s => s.id).join(',');
-        if (key === autoCap.lastKey) return; // 이미 분석한 밴픽 화면
+        // 밴픽 화면이 확정되면 이 탭으로 (화면 자동 전환 옵션 — 화면이 바뀔 때 한 번만 넘긴다)
+        if (key === autoCap.lastKey) { VMH.Tabs.follow('floor'); return; } // 이미 분석한 밴픽 화면
         if (key === autoCap.pendingKey) autoCap.pendingCount++; else { autoCap.pendingKey = key; autoCap.pendingCount = 1; }
         if (autoCap.pendingCount < AUTO_STABLE_TICKS) return;
+        VMH.Tabs.follow('floor');
 
         const img = await frameToImage(frame, W, H);
         if (currentMode !== 'versus' || isProcessing) { URL.revokeObjectURL(img.src); return; }

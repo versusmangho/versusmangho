@@ -364,10 +364,12 @@
     <button class="tab-btn active" data-tab-btn="match" role="tab" aria-selected="true">매칭 도우미</button>
     <button class="tab-btn" data-tab-btn="floor" role="tab" aria-selected="false">층수 측정기</button>
     <button class="tab-btn" data-tab-btn="tier" role="tab" aria-selected="false">티어별 난이도</button>
+    <button class="tab-btn" data-tab-btn="options" role="tab" aria-selected="false">옵션</button>
     <button class="tab-btn" data-tab-btn="help" role="tab" aria-selected="false">도움말</button>
   </div>
   <div class="header-right">
     <span id="round-info">라운드: 0</span>
+    <button id="popup-btn" class="secondary">🪟 팝업</button>
     <button id="auto-capture-btn" class="secondary">🎮 게임 화면 연결</button>
   </div>
 </header>
@@ -387,22 +389,6 @@
     <h2>매칭 도우미</h2>
     <div class="row match-header">
       <p id="chooser-status">테이블에서 두 명을 클릭하세요.</p>
-      <div class="toggle-row">
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <label class="switch">
-                <input type="checkbox" id="newcomer-toggle" checked />
-                <span class="slider"></span>
-            </label>
-            <span>신입 우선권</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-            <label class="switch">
-                <input type="checkbox" id="safeguard-toggle" checked />
-                <span class="slider"></span>
-            </label>
-            <span>세이프가드</span>
-        </div>
-      </div>
     </div>
     <div class="row buttons-right">
       <button id="undo-btn" class="secondary">실행 취소</button>
@@ -543,7 +529,7 @@
                 </svg>
             </div>
             <p class="text-slate-300 mb-2 font-medium">스크린샷을 복사한 후 <kbd class="px-2 py-1 rounded text-white text-xs">Ctrl + V</kbd>를 누르세요</p>
-            <p class="text-xs text-slate-500 uppercase tracking-widest">16:9 게임 화면 · 창 모드 테두리는 자동으로 제외</p>
+            <p class="text-xs text-slate-500 uppercase tracking-widest">16:9·21:9 게임 화면 · 창 모드 테두리와 21:9 양옆 여백은 자동으로 제외</p>
         </div>
 
         <div id="messageZone" class="text-center text-blue-400 mb-4 h-6 text-xs font-bold uppercase tracking-widest"></div>
@@ -613,6 +599,7 @@
                     <label class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold border border-slate-700 cursor-pointer">
                         가져오기<input type="file" class="hidden" accept=".json,application/json" onchange="importPatternMemos(this)">
                     </label>
+                    <button class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-red-900/60 text-red-300 text-[11px] font-bold border border-slate-700" onclick="clearPatternMemos()">초기화</button>
                 </div>
             </div>
         </div>
@@ -650,6 +637,67 @@
 </main>
 </div>
 
+<!-- ── 옵션 탭 ─────────────────
+     켜고 끄는 것은 전부 여기. 옵션 설명은 도움말 탭이 아니라 각 칸 안에 같이 둔다 -->
+<div data-tab-panel="options" hidden>
+<main>
+  <section class="card options-card" id="opt-rules">
+    <h2>매칭 규칙</h2>
+    <label class="option-row">
+      <span class="switch"><input type="checkbox" id="newcomer-toggle" checked /><span class="slider"></span></span>
+      <span class="option-name">신입 우선권</span>
+    </label>
+    <p class="option-desc">방에 새로 들어온 플레이어('신입' 태그)를 기존 경험자들보다 <b>위로</b> 올려 빠르게 첫 게임을 하게 합니다.
+      경험자 가운데 가장 높은 가중치에 <b>신입 가산점</b>(아래 가중치 편집기)을 더한 자리에 놓습니다.
+      세이프가드로 올라온 장기 대기자보다는 아래이고, 첫 판을 뛰면 신입 자격이 풀립니다.</p>
+    <label class="option-row">
+      <span class="switch"><input type="checkbox" id="safeguard-toggle" checked /><span class="slider"></span></span>
+      <span class="option-name">세이프가드</span>
+    </label>
+    <p class="option-desc"><b><span class="safeguard-threshold">4</span>판 이상 기다린 플레이어</b>가 있으면 다른 모든 규칙을 무시하고 그 사람을 맨 위로 올립니다.
+      기준 판수는 아래 가중치 편집기에서 바꿀 수 있습니다.</p>
+  </section>
+
+  <section class="card options-card" id="opt-weights">
+    <div class="card-head">
+      <h2>가중치 편집기</h2>
+      <button id="weight-reset-btn" class="secondary">기본값으로</button>
+    </div>
+    <p class="option-desc">매칭 순서는 <b>가중치가 높은 순</b>입니다. 각 항목에 얼마나 비중을 둘지 정하면 매칭 표와 팝업에 바로 반영됩니다.
+      <b>현재 대기</b>는 마지막 판 뒤로 지나간 라운드 수, <b>평균 대기</b>는 지금 대기까지 넣은 판당 평균 대기, <b>원디골 비율</b>은 매치 가운데 원디골(상대를 고른 쪽)이었던 비율입니다.</p>
+    <div class="weight-formula" id="weight-formula"></div>
+    <div id="weight-editor" class="weight-editor"></div>
+    <p class="option-desc">끝의 상수는 원디골 비중과 같은 값이라, 가장 낮은 가중치가 0이 되게 맞춰 줄 뿐 순서는 바꾸지 않습니다.
+      기본값(1 · 1 · 0.5 · 신입 1 · 세이프가드 4판)이 원래 쓰던 공식입니다.</p>
+    <div id="weight-msg" class="success"></div>
+  </section>
+
+  <section class="card options-card" id="opt-capture">
+    <h2>게임 화면 연결</h2>
+    <div class="option-row option-row-block">
+      <span class="option-name">화면 공유를 줄 곳</span>
+      <div class="seg" role="radiogroup" aria-label="화면 공유를 줄 곳">
+        <label><input type="radio" name="capture-target" value="both" checked /><span>둘 다</span></label>
+        <label><input type="radio" name="capture-target" value="room" /><span>매칭 도우미만</span></label>
+        <label><input type="radio" name="capture-target" value="floor" /><span>층수 측정기만</span></label>
+      </div>
+    </div>
+    <p class="option-desc">화면 공유는 한 번만 연결하고, 그 화면을 어느 탭이 읽을지 고릅니다.
+      <b>매칭 도우미</b>는 로비·라운드·결과 화면으로 입·퇴장과 대진을, <b>층수 측정기</b>는 밴픽·라운드 화면으로 곡과 밴/플레이를 읽습니다.
+      매칭 도우미에 주지 않으면 '플레이어 관리'와 '수동 입장/퇴장 분석' 칸이 연결 중에도 그대로 보여 손으로 관리할 수 있습니다. 연결 중에 바꿔도 바로 적용됩니다.</p>
+    <label class="option-row">
+      <span class="switch"><input type="checkbox" id="auto-tab-toggle" checked /><span class="slider"></span></span>
+      <span class="option-name">화면 자동 전환</span>
+    </label>
+    <p class="option-desc">게임 화면을 따라 탭을 바꿔 줍니다. <b>로비</b>가 잡히면 <b>매칭 도우미</b>, <b>밴픽 화면</b>이 잡히면 <b>층수 측정기</b>(버망호 모드일 때)로 넘어갑니다.
+      화면이 <b>바뀔 때 한 번만</b> 넘기므로, 로비에 있는 동안 다른 탭으로 옮겨 가면 다음 밴픽 화면까지 그 탭에 그대로 있습니다. 라운드·결과 화면에서는 탭을 바꾸지 않고,
+      위에서 화면 공유를 주지 않은 탭으로도 넘어가지 않습니다.</p>
+  </section>
+
+  <p class="guide-text options-foot">옵션은 이 브라우저에 저장되어 다음에 열 때도 그대로입니다. 전체 초기화를 해도 옵션은 남습니다.</p>
+</main>
+</div>
+
 <!-- ── 도움말 탭 ─────────────────
      매칭·층수 측정기·티어 설명이 전부 여기 모여 있다 (예전에는 모달 두 개로 나뉘어 있었다) -->
 <div data-tab-panel="help" hidden>
@@ -660,8 +708,8 @@
     <div class="help-index">
       <button data-help-go="help-tabs">탭 구성</button>
       <button data-help-go="help-match">플레이어 &amp; 매칭</button>
-      <button data-help-go="help-weight">가중치 계산</button>
       <button data-help-go="help-auto">게임 화면 자동 인식</button>
+      <button data-help-go="help-popup">팝업</button>
       <button data-help-go="help-manual">입장/퇴장 분석기(수동)</button>
       <button data-help-go="help-floor">층수 측정기</button>
       <button data-help-go="help-memo">패턴 메모</button>
@@ -676,6 +724,7 @@
       <li><b>매칭 도우미:</b> 방 인원과 대기 순서, 대진 기록.</li>
       <li><b>층수 측정기:</b> 밴픽에 뜬 곡들의 층수.</li>
       <li><b>티어별 난이도:</b> 방 공지에 붙여넣을 난이도 문구.</li>
+      <li><b>옵션:</b> 매칭 규칙(신입 우선권·세이프가드), 가중치 편집기, 화면 공유를 어느 탭에 줄지, 화면 자동 전환. 옵션에 대한 설명은 옵션 탭 안에 같이 있습니다.</li>
       <li><b>도움말:</b> 지금 보고 있는 이 화면.</li>
       <li><b>탭을 바꿔도 아무것도 꺼지지 않습니다.</b> 양쪽 기록이 그대로 남고, 게임 화면 자동 인식도 보이지 않는 탭에서 계속 돕니다.</li>
     </ul>
@@ -692,22 +741,12 @@
     </ul>
   </section>
 
-  <section class="card help-section" id="help-weight">
-    <h3>가중치 계산</h3>
-    <ul class="help-list">
-      <li><b>우선순위:</b> 기본적으로 <b>가중치</b>가 높은 순으로 정렬됩니다.</li>
-      <li><b>계산식:</b> 현재 대기 + 실시간 평균 대기 − (원디골 비율 × 0.5) + 0.5.
-      <li><b>신입 우선권:</b> 이 옵션을 켜면, 방에 새로 들어온 플레이어('신입' 태그)가 기존 경험자들보다 <b>상위 우선순위</b>로 올라가 빠르게 첫 게임을 하게 됩니다. (단, 세이프가드로 올라온 장기 대기자보다는 아래입니다. 첫 판을 뛰면 신입 자격이 해제됩니다.)</li>
-      <li><b>세이프가드:</b> 이 옵션을 켜면, <b><span class="safeguard-threshold">4</span>판 이상 대기한 플레이어</b>가 있을 경우 다른 모든 규칙을 무시하고 해당 플레이어에게 최상위 우선순위가 부여됩니다.</li>
-    </ul>
-  </section>
-
   <section class="card help-section" id="help-auto">
     <h3>🎮 게임 화면 자동 인식</h3>
     <ul class="help-list">
       <li><b>사용법:</b> 오른쪽 위 <b>게임 화면 연결</b>을 한 번 누르고 DJMAX 화면(또는 게임 창)을 고르면 끝입니다. 이후엔 손댈 게 없습니다.</li>
-      <li><b>연결은 한 번뿐입니다.</b> 같은 화면 공유를 <b>매칭 도우미 탭</b>과 <b>층수 측정기 탭</b>이 같이 씁니다. 로비·결과 화면은 매칭 쪽이, 밴픽·라운드 화면은 층수 쪽이 각각 알아서 가져갑니다.</li>
-      <li><b>16:9 비율에서 작동하도록 설계되었습니다.</b> 이외의 해상도에서는 작동하지 않습니다.</li>
+      <li><b>연결은 한 번뿐입니다.</b> 같은 화면 공유를 <b>매칭 도우미 탭</b>과 <b>층수 측정기 탭</b>이 같이 씁니다. 로비·결과 화면은 매칭 쪽이, 밴픽·라운드 화면은 층수 쪽이 각각 알아서 가져갑니다. 한쪽에만 주고 싶으면 <b>옵션 탭</b>에서 고르세요.</li>
+      <li><b>16:9와 21:9(울트라와이드) 화면에서 작동합니다.</b> 21:9에서는 게임이 가운데에 16:9 화면을 그리고 양옆을 흐린 배경으로 채우는데, 그 양옆은 자동으로 잘라내고 가운데만 읽습니다. 그 밖의 비율(16:10 등)은 지원하지 않습니다.</li>
       <li><b>매칭 도우미 탭에서 자동으로 되는 것:</b>
         <ul>
           <li>🟢 <b>입·퇴장:</b> 로비의 PLAYERS 칸을 읽어 방 인원을 계속 맞춥니다.</li>
@@ -726,7 +765,23 @@
       <li><b>원디골:</b> 게임 화면에 나오지 않으므로, 맞붙은 두 명 중 <b>가중치가 높은 쪽</b>을 원디골로 기록합니다.</li>
       <li><b>연결 중에는 손으로 하는 칸이 사라집니다.</b> '플레이어 관리'와 '수동 입장/퇴장 분석' 칸이 화면에서 빠집니다 — 같은 명단을 두 경로로 건드리면 어긋나기 때문입니다. 연결을 해제하면 그대로 돌아옵니다.</li>
       <li><b>인식 기록:</b> 자동 인식 칸의 '인식 기록'을 누르면 방금 무엇을 읽었는지 시간순으로 펼쳐 볼 수 있습니다.</li>
-      <li><b>*</b> 게임은 <b>테두리 없는 창 모드</b>를 권장합니다. 전체화면(독점) 모드에서는 화면이 검게 잡힐 수 있습니다. 일반 창 모드의 제목 표시줄·테두리는 자동으로 잘라냅니다. 단, 모니터 전체를 공유하면서 게임을 작은 창으로 띄워 두면 인식하지 못하니 이때는 게임 창을 고르세요.</li>
+      <li><b>*</b> 게임은 <b>테두리 없는 창 모드</b>를 권장합니다. 전체화면(독점) 모드에서는 화면이 검게 잡힐 수 있습니다. 일반 창 모드의 제목 표시줄·테두리는 자동으로 잘라냅니다.</li>
+    </ul>
+  </section>
+
+  <section class="card help-section" id="help-popup">
+    <h3>🪟 팝업</h3>
+    <ul class="help-list">
+      <li><b>사용법:</b> 오른쪽 위 <b>팝업</b>을 누르면 작은 창이 뜨고, 게임을 하는 동안에도 항상 맨 위에 떠 있습니다. 창을 원하는 구석으로 옮기고 크기를 바꾸면 글자도 같이 커지고 작아집니다.</li>
+      <li><b>보여주는 것:</b>
+        <ul>
+          <li><b>왼쪽 — 매칭 순서:</b> 대기 중인 사람을 우선순위 순으로(명패 · 가중치 · 현재 대기). 위의 두 명은 파랗게, 세이프가드 대상(<span class="safeguard-threshold">4</span>판 이상 대기)은 빨갛게 표시합니다. 표를 다른 열로 정렬해 둬도 여기는 늘 우선순위 순이고, 보류 중인 사람은 빠집니다.</li>
+          <li><b>오른쪽 — 이번 판 곡:</b> 층수 측정기(버망호 모드)가 가장 최근에 읽은 밴픽 5곡을 가로로 — 자켓, 인게임 난이도(예: 6B SC ⑫), 층수(예: 12.3). 밴된 곡은 흐리게 보입니다.</li>
+          <li><b>일망호 모드일 때:</b> 매칭 순서 없이 가장 최근에 읽은 곡의 <b>층수 표만</b>(4B~8B × NM~SC, 인게임 레벨 + 층수 + 태그) 크게 보여줍니다. 태그는 내 메모가 먼저 오고, 칸마다 두 줄을 넘으면 잘립니다.</li>
+        </ul>
+      </li>
+      <li><b>게임은 창 모드나 테두리 없는 창 모드로 켜 주세요.</b> 전체화면(독점) 모드에서는 팝업이 게임에 가려질 수 있습니다.</li>
+      <li><b>게임 화면 연결에서는 모니터 전체가 아니라 게임 창을 고르세요.</b> 모니터 전체를 공유하면 팝업도 같이 찍혀서, 명패나 곡 자켓 위에 놓였을 때 인식을 가릴 수 있습니다.</li>
     </ul>
   </section>
 
@@ -777,10 +832,12 @@
       <li>태그는 곡·버튼·난이도 조합별로 따로 저장되고 노란색으로 표시됩니다. 쉼표로 구분하면 여러 개를 한 번에 붙일 수 있습니다.</li>
       <li>메모는 이 브라우저(LocalStorage)에만 저장되며, <code>Copy</code>나 칸 클릭 복사에는 포함되지 않습니다.</li>
       <li>다른 브라우저로 옮기거나 백업하려면 메모 파일을 <b>내보내기/가져오기</b> 하세요. 가져오기는 기존 메모를 지우지 않고 합칩니다.</li>
+      <li><b>메모 초기화</b>는 이 브라우저에 저장된 메모를 전부 지웁니다. 되돌릴 수 없으니 필요하면 먼저 내보내기로 백업하세요.</li>
     </ul>
     <div class="row" style="gap:8px;">
       <button class="secondary" onclick="exportPatternMemos()">메모 내보내기</button>
       <label class="file-btn secondary">메모 가져오기<input type="file" accept=".json,application/json" onchange="importPatternMemos(this)"></label>
+      <button class="danger" onclick="clearPatternMemos()">메모 초기화</button>
     </div>
   </section>
 
@@ -815,6 +872,7 @@
 <script src="lib/screen-capture.js"></script>
 <script src="lib/capture-hub.js"></script>
 <script src="lib/tabs.js"></script>
+<script src="lib/popup.js"></script>
 <script src="lib/djmax-room.js"></script>
 
 <script src="script.js"></script>

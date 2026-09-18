@@ -32,10 +32,15 @@ body {
   font-family: var(--font);
   color: var(--text-primary);
   background: var(--bg-main);
+}
+/* 은은한 배경 빛. 예전엔 body에 background-attachment: fixed로 깔았는데, 그러면 스크롤할 때마다
+   화면 전체를 메인 스레드에서 다시 그린다 — 긴 탭(티어별 난이도·도움말)이 버벅이고, 화면 인식이 도는 틱마다
+   스크롤이 멈칫했다. 같은 그림을 고정된 레이어 하나로 깔아 두면 스크롤은 합성만으로 끝난다. */
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; will-change: transform;
   background-image:
     radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.05) 0%, transparent 40%),
     radial-gradient(circle at 90% 80%, rgba(99, 102, 241, 0.05) 0%, transparent 40%);
-  background-attachment: fixed;
 }
 
 /* 레이아웃 */
@@ -107,7 +112,6 @@ th.sortable.sorted-desc::after { content: '▼'; opacity: 1; }
 .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .2s; }
 input:checked + .slider { background: #2563eb; }
 input:checked + .slider:before { transform: translateX(14px); }
-.toggle-row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 13px; color: #cbd5e1; }
 
 /* 분석기 */
 .analysis-header { display: flex; justify-content: space-between; cursor: pointer; padding: 5px 0; user-select: none; }
@@ -166,6 +170,11 @@ input:checked + .slider:before { transform: translateX(14px); }
 .tier-legend .sw.sc { background: linear-gradient(90deg, #7c3aed, #c084fc); }
 .tier-legend .sw.oob { background: repeating-linear-gradient(45deg, rgba(148,163,184,0.5) 0 3px, transparent 3px 7px); border: 1px solid var(--border-color); }
 
+/* 티어 카드는 화면을 꽉 채우는 긴 카드인데 뒤에 비칠 것이 은은한 배경뿐이라 흐림이 눈에 안 보인다.
+   그런데도 스크롤할 때마다 카드 넓이만큼 다시 흐려야 하므로 이 카드만 끈다 (색은 같은 --bg-card) */
+.tier-card { backdrop-filter: none; -webkit-backdrop-filter: none; }
+/* 표는 한 번 그리면 거의 안 바뀐다 — 줄 하나의 hover가 바깥 배치를 다시 계산하게 하지 않는다 */
+.tier-chart { contain: layout style; }
 .tier-chart { --tier-name-w: 152px; --tier-kind-w: 30px; margin-top: 4px; }
 .tier-row { display: grid; grid-template-columns: var(--tier-name-w) 1fr; gap: 12px; align-items: center; padding: 7px 10px; border-radius: var(--radius-sm); }
 .tier-row[data-tier-idx], .tier-row[data-tier-toggle] { cursor: pointer; transition: background .15s; }
@@ -308,6 +317,9 @@ header #round-info { font-family: var(--font-num); font-size: 13px; font-weight:
    Tailwind preflight(전역 리셋)를 꺼둔 대신, 층수 마크업이 기대하는 만큼만 이 안에서 되살린다.
    preflight를 켜면 매칭 화면의 표·버튼까지 전부 초기화되기 때문에 이렇게 가둔다. */
 .floor-scope { padding: 16px; }
+/* 층수 원본은 자기 칸에 body와 똑같은 배경을 fixed로 또 깔았다. 위의 body::before가 똑같이 비치므로 걷어낸다
+   (생김새는 그대로, 스크롤 때 전체 다시 그리기만 없어진다) */
+.floor-scope { background: transparent; }
 .floor-scope, .floor-scope *, .floor-scope *::before, .floor-scope *::after { box-sizing: border-box; }
 .floor-scope button { background: transparent; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; }
 .floor-scope input, .floor-scope select, .floor-scope textarea { font: inherit; }
@@ -339,3 +351,40 @@ body.sharing .top-grid { grid-template-columns: 1fr; }
 
 /* 본문 폭을 매칭 탭과 맞춘다 (원래는 max-w-6xl 단독 페이지였다) */
 .floor-scope .floor-body { max-width: 1100px; margin: 0 auto; }
+
+/* ── 옵션 탭 ───────────────── */
+.options-card h2 { margin-bottom: 10px; }
+.option-row { display: flex; align-items: center; gap: 8px; padding: 6px 0 2px; font-size: 14px; color: var(--text-primary); cursor: pointer; }
+.option-row-block { flex-wrap: wrap; gap: 8px 14px; cursor: default; }
+.option-name { font-weight: 700; }
+.option-desc { margin: 2px 0 12px; font-size: 13px; color: var(--text-secondary); line-height: 1.7; }
+.option-desc:last-child { margin-bottom: 0; }
+.options-foot { text-align: center; font-size: 12px; }
+
+/* 둘 중 하나를 고르는 칸 — 탭 버튼과 같은 생김새 */
+.seg { display: inline-flex; flex-wrap: wrap; gap: 4px; background: var(--bg-sunken); padding: 4px; border-radius: 12px; border: 1px solid var(--border-color); }
+.seg label { cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { display: block; padding: 6px 14px; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--text-secondary); transition: background .2s, color .2s; }
+.seg label:hover span { color: #fff; }
+.seg input:checked + span { background: var(--accent-blue); color: #fff; }
+.seg input:focus-visible + span { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
+
+/* 가중치 편집기 */
+.weight-formula { margin: 0 0 12px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--bg-sunken); border: 1px solid var(--border-color); font-size: 13px; color: #cbd5e1; line-height: 1.6; }
+.weight-formula b { font-family: var(--font-num); color: #60a5fa; }
+.weight-editor { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
+.weight-row { display: grid; grid-template-columns: 110px 1fr auto 60px; gap: 12px; align-items: center; padding: 6px 10px; border-radius: var(--radius-sm); }
+.weight-row.changed { background: rgba(59, 130, 246, 0.08); }
+.weight-name { font-size: 13px; font-weight: 700; color: #cbd5e1; }
+.weight-range { width: 100%; accent-color: var(--accent-blue); }
+.weight-num-wrap { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-dim); }
+.weight-num { width: 64px; padding: 5px 6px; text-align: right; font-family: var(--font-num); font-size: 12px; color: var(--text-primary); background: var(--bg-sunken); border: 1px solid var(--border-color); border-radius: var(--radius-xs); }
+.weight-row.changed .weight-num { border-color: rgba(59, 130, 246, 0.6); }
+.weight-def { font-size: 11px; color: var(--text-dim); text-align: right; white-space: nowrap; }
+#weight-reset-btn:disabled { opacity: 0.4; cursor: default; }
+@media (max-width: 600px) {
+  .weight-row { grid-template-columns: 1fr auto; gap: 4px 10px; }
+  .weight-range { grid-column: 1 / -1; grid-row: 2; }
+  .weight-def { display: none; }
+}

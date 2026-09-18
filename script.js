@@ -643,16 +643,45 @@ function loadState() {
 
 // 경험자(1판 이상 & 비보류) 중 최고 가중치. 신입을 "진짜 상위 우선"으로 올리기 위한 기준선.
 let maxScoreOfWaiters = null; // null = 경험자 없음
-const NEWCOMER_MARGIN = 1;    // 경험자 최고점보다 확실히 위로 올리는 여유분
 
-// 세이프가드: 현재 대기가 이 값 이상이면 "장기 대기(긴급)"로 보고 최상위 강제.
-// 정렬·행 색상·도움말이 모두 이 상수를 단일 출처로 사용.
-const SAFEGUARD_THRESHOLD = 4;
+/* ── 가중치 비중 (옵션 탭의 가중치 편집기) ─────────────────
+   기본값이 원래 공식이다: 현재 대기 + 평균 대기 − 원디골 비율 × 0.5 + 0.5.
+   방 상태(room)가 아니라 설정이므로 실행 취소·전체 초기화와 무관하게 따로 저장한다. */
+const SCORE_WEIGHTS_KEY = 'scoreWeightsV1';
+const SCORE_WEIGHT_DEFS = [
+    { key: 'cur',       name: '현재 대기',       unit: '×',  min: 0, max: 3,  step: 0.1,  def: 1 },
+    { key: 'avg',       name: '평균 대기',       unit: '×',  min: 0, max: 3,  step: 0.1,  def: 1 },
+    { key: 'sel',       name: '원디골 비율',     unit: '×',  min: 0, max: 2,  step: 0.05, def: 0.5 },
+    // 신입 우선권: 경험자 최고점보다 확실히 위로 올리는 여유분
+    { key: 'newcomer',  name: '신입 가산점',     unit: '+',  min: 0, max: 5,  step: 0.5,  def: 1 },
+    // 세이프가드: 현재 대기가 이 값 이상이면 "장기 대기(긴급)"로 보고 최상위 강제.
+    // 정렬·행 색상·팝업·문구가 모두 이 값을 쓴다
+    { key: 'safeguard', name: '세이프가드 기준', unit: '판', min: 2, max: 10, step: 1,    def: 4 }
+];
+const scoreWeights = {};
 
-/* 가중치 기준선. 원디골 페널티(최대 -0.5) 때문에 방금 친 원디골 전담이 음수로 내려가
-   "가중치 -0.5"처럼 보이던 것을 한 칸 올려, 가장 낮은 가중치가 0이 되게 한다.
+// 범위 안으로 자르고 눈금(step)에 맞춘다. 숫자가 아니면 기본값
+function clampWeight(def, v) {
+    v = Number(v);
+    if (!Number.isFinite(v)) return def.def;
+    v = Math.min(def.max, Math.max(def.min, v));
+    return +(Math.round(v / def.step) * def.step).toFixed(2);
+}
+function setScoreWeights(obj) {
+    SCORE_WEIGHT_DEFS.forEach(d => { scoreWeights[d.key] = clampWeight(d, obj && d.key in obj ? obj[d.key] : d.def); });
+}
+function saveScoreWeights() { SafeStorage.setItem(SCORE_WEIGHTS_KEY, JSON.stringify(scoreWeights)); }
+(function loadScoreWeights() {
+    let saved = null;
+    try { saved = JSON.parse(SafeStorage.getItem(SCORE_WEIGHTS_KEY) || 'null'); } catch { /* 깨진 값은 기본값으로 */ }
+    setScoreWeights(saved);
+})();
+const safeguardThreshold = () => scoreWeights.safeguard;
+
+/* 가중치 기준선. 원디골 페널티(최대 −원디골 비중) 때문에 방금 친 원디골 전담이 음수로 내려가
+   "가중치 -0.5"처럼 보이던 것을 그만큼 올려, 가장 낮은 가중치가 0이 되게 한다.
    모든 계산 경로에 똑같이 더하므로 순위는 달라지지 않는다. */
-const SCORE_BASE = 0.5;
+const scoreBase = () => scoreWeights.sel;
 
 const round2 = (num) => Math.round((num + Number.EPSILON) * 100) / 100;
 
@@ -661,7 +690,7 @@ function experiencedScore(p) {
     const real_W_curr = room.round - (p.lastPlay || 0);
     const W_avg = round2(((p.waitSum || 0) + real_W_curr) / ((p.matchCount || 0) + 1));
     const R_sel = round2((p.chooserCount || 0) / p.matchCount);
-    return real_W_curr + W_avg - (R_sel * 0.5) + SCORE_BASE;
+    return scoreWeights.cur * real_W_curr + scoreWeights.avg * W_avg - scoreWeights.sel * R_sel + scoreBase();
 }
 
 /* 명패 이미지는 room.plateBook 한 곳에만 둔다 (플레이어·로그에 복사하면 저장 용량이 몇 배가 된다).
@@ -714,8 +743,8 @@ function calculateScore(p) {
 
         W_avg = round2(totalWait / totalPeriods);
 
-        // 원디골 가중치 상향 (0.1 -> 0.5)
-        score = real_W_curr + W_avg - (R_sel * 0.5) + SCORE_BASE;
+        // experiencedScore와 같은 식 (비중은 가중치 편집기에서)
+        score = scoreWeights.cur * real_W_curr + scoreWeights.avg * W_avg - scoreWeights.sel * R_sel + scoreBase();
     } else { // 신입 (New player)
         // 신입은 현재 대기를 평균 대기로 표시.
         W_avg = real_W_curr;
@@ -724,11 +753,11 @@ function calculateScore(p) {
             // [진짜 상위 우선] 경험자 최고 가중치보다 확실히 위로 올림.
             // 본인 현재 대기(real_W_curr)를 더해, 합류가 빠른 신입이 더 위에 오도록.
             // (원디골 페널티는 칠 이력이 없는 신입에겐 적용하지 않음.)
-            score = round2(maxScoreOfWaiters + NEWCOMER_MARGIN + real_W_curr);
+            score = round2(maxScoreOfWaiters + scoreWeights.newcomer + real_W_curr);
         } else {
             // 경험자가 없거나(모두 신입) 부스트 off → 본인 현재 대기로 신입끼리 비교.
             // (maxScoreOfWaiters를 쓰는 위쪽 가지는 이미 기준선이 들어간 값이라 여기서만 더한다)
-            score = real_W_curr + SCORE_BASE;
+            score = scoreWeights.cur * real_W_curr + scoreBase();
         }
     }
     return { score, W_avg, R_sel, T_in: p.joinOrder || 0, W_curr: real_W_curr };
@@ -755,8 +784,8 @@ function getSortedPlayers(sortConfig) {
         if (safeguardOn) {
             const waitA = getSortValue(a, 'w_curr');
             const waitB = getSortValue(b, 'w_curr');
-            const isUrgentA = waitA >= SAFEGUARD_THRESHOLD;
-            const isUrgentB = waitB >= SAFEGUARD_THRESHOLD;
+            const isUrgentA = waitA >= safeguardThreshold();
+            const isUrgentB = waitB >= safeguardThreshold();
             if (isUrgentA !== isUrgentB) return isUrgentA ? -1 : 1;
             if (isUrgentA && isUrgentB) {
                 if (waitA !== waitB) return waitB - waitA;
@@ -841,13 +870,30 @@ function refreshUI() {
         `;
         tr.dataset.nickname = p.nickname;
         if(selected.includes(p.nickname)) tr.classList.add("highlight");
-        if (!hold && stats.W_curr >= SAFEGUARD_THRESHOLD) tr.style.color = "#fca5a5";
+        if (!hold && stats.W_curr >= safeguardThreshold()) tr.style.color = "#fca5a5";
         ui.pTable.appendChild(tr);
     });
     
     renderLog();
     saveState();
+    VMH.Popup.update();
 }
+
+/* 팝업(lib/popup.js)의 '매칭 순서' 칸(왼쪽).
+   표를 어느 열로 정렬해 뒀든 여기는 늘 우선순위 순이다(세이프가드 포함). 보류 중인 사람은 뺀다. */
+const POPUP_TOP = 2;     // 위에서 이만큼은 강조 — 다음 판 후보
+VMH.Popup.addSection('queue', () => {
+    if (!room || !room.players || !room.players.length) return '';
+    updateAverageWaitersStat();
+    const list = getSortedPlayers({ key: 'priority', order: 'desc' }).filter(p => !p.onHold);
+    if (!list.length) return '';
+    return `<div class="sec queue"><h2>매칭 순서 · <span class="num">R${room.round}</span></h2>${list.map((p, i) => {
+        const st = calculateScore(p);
+        const cls = ['q', i < POPUP_TOP ? 'top' : '', st.W_curr >= safeguardThreshold() ? 'urgent' : ''].join(' ');
+        return `<div class="${cls}"><span class="rank num">${i + 1}</span><span class="who">${playerLabelHtml(p)}${p.matchCount === 0 ? '<span class="tag">신입</span>' : ''}</span>`
+             + `<span><span class="score num">${st.score.toFixed(2)}</span><span class="wait">대기 ${st.W_curr}</span></span></div>`;
+    }).join('')}</div>`;
+});
 
 // 직전 렌더한 로그 시그니처. eventLog가 바뀌지 않으면 다시 그리지 않아
 // 단순 닉네임 클릭 시 로그가 깜빡(재렌더)되는 것을 막는다.
@@ -1079,8 +1125,85 @@ if(ui.redoBtn) ui.redoBtn.onclick = () => {
 loadState();
 refreshUI();
 
-// 도움말 등 정적 문구에 세이프가드 임계값 주입(단일 출처)
-document.querySelectorAll('.safeguard-threshold').forEach(el => { el.textContent = SAFEGUARD_THRESHOLD; });
+// 도움말·옵션 문구에 세이프가드 임계값 주입(단일 출처 — 가중치 편집기에서 바꾸면 다시 부른다)
+function syncSafeguardText() {
+    document.querySelectorAll('.safeguard-threshold').forEach(el => { el.textContent = safeguardThreshold(); });
+}
+syncSafeguardText();
+
+/* ── 가중치 편집기 (옵션 탭) ─────────────────
+   항목마다 슬라이더 + 숫자 칸. 바꾸는 즉시 저장하고 표·팝업을 다시 그린다 */
+(function initWeightEditor() {
+    const host = document.getElementById('weight-editor');
+    const formula = document.getElementById('weight-formula');
+    const resetBtn = document.getElementById('weight-reset-btn');
+    const msg = document.getElementById('weight-msg');
+    if (!host) return;
+
+    const fmt = (v) => String(+v.toFixed(2));
+    host.innerHTML = SCORE_WEIGHT_DEFS.map(d => {
+        const pre = d.unit === '판' ? '' : `<span class="weight-unit">${d.unit}</span>`;
+        const post = d.unit === '판' ? '<span class="weight-unit">판</span>' : '';
+        return `<div class="weight-row" data-key="${d.key}">
+          <label class="weight-name" for="w-num-${d.key}">${d.name}</label>
+          <input type="range" class="weight-range" min="${d.min}" max="${d.max}" step="${d.step}" aria-label="${d.name}">
+          <span class="weight-num-wrap">${pre}<input type="number" id="w-num-${d.key}" class="weight-num" min="${d.min}" max="${d.max}" step="${d.step}">${post}</span>
+          <span class="weight-def">기본 ${fmt(d.def)}</span>
+        </div>`;
+    }).join('');
+
+    function render() {
+        const w = scoreWeights;
+        SCORE_WEIGHT_DEFS.forEach(d => {
+            const row = host.querySelector(`[data-key="${d.key}"]`);
+            row.querySelector('.weight-range').value = w[d.key];
+            const num = row.querySelector('.weight-num');
+            if (document.activeElement !== num) num.value = fmt(w[d.key]);
+            row.classList.toggle('changed', w[d.key] !== d.def);
+        });
+        if (formula) {
+            formula.innerHTML =
+                `가중치 = <b>${fmt(w.cur)}</b> × 현재 대기 + <b>${fmt(w.avg)}</b> × 평균 대기 − <b>${fmt(w.sel)}</b> × 원디골 비율 + ${fmt(scoreBase())}`;
+        }
+        if (resetBtn) resetBtn.disabled = SCORE_WEIGHT_DEFS.every(d => w[d.key] === d.def);
+    }
+
+    function changed() {
+        saveScoreWeights();
+        syncSafeguardText();
+        render();
+        refreshUI();
+    }
+
+    function apply(key, raw) {
+        const d = SCORE_WEIGHT_DEFS.find(x => x.key === key);
+        const v = clampWeight(d, raw);
+        if (v === scoreWeights[key]) { render(); return; }
+        scoreWeights[key] = v;
+        changed();
+    }
+
+    host.addEventListener('input', (e) => {
+        const row = e.target.closest('.weight-row');
+        if (!row) return;
+        // 숫자 칸은 입력하는 도중(빈 칸 등)엔 값을 되돌려 쓰지 않는다 — 다 치고 나가면 change에서 정리
+        if (e.target.classList.contains('weight-range')) apply(row.dataset.key, e.target.value);
+        else if (e.target.value !== '') apply(row.dataset.key, e.target.value);
+    });
+    host.addEventListener('change', (e) => {
+        const row = e.target.closest('.weight-row');
+        if (!row || !e.target.classList.contains('weight-num')) return;
+        apply(row.dataset.key, e.target.value);
+        e.target.value = fmt(scoreWeights[row.dataset.key]);
+    });
+
+    if (resetBtn) resetBtn.onclick = () => {
+        setScoreWeights(null);
+        changed();
+        showInlineMsg(msg, '기본값(원래 공식)으로 돌렸습니다');
+    };
+    render();
+})();
 
 /* ── 도움말로 보내기 ─────────────────
    설명은 전부 도움말 탭에 모여 있다. 다른 탭의 '도움말' 버튼(data-goto-help)과

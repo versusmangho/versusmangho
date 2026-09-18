@@ -19,12 +19,14 @@
     const ROSTER_STABLE_TICKS = 3;   // 로비 명단이 이만큼 연속으로 같아야 반영 (화면 전환 중 오인식 방지)
     const PAIR_STABLE_TICKS = 2;     // 라운드·결과 화면도 등장 연출 중에 읽히면 어긋나므로 두 번 확인
     const MATCH_CLEAR_TICKS = 4;     // 로비가 이만큼 보여야 판이 끝난 것으로 보고 다음 판을 받는다
+    const LOBBY_TAB_TICKS = 2;       // 로비가 이만큼 연속으로 보이면 매칭 탭으로 넘긴다 (화면 자동 전환 옵션)
     const ACTIVITY_MAX = 12;
 
     const state = {
         rosterKey: null, rosterCount: 0,     // 연속으로 같은 명단이 보인 횟수
         pairPrev: null, pairCount: 0,        // 직전 라운드·결과 화면의 두 명패 / 연속으로 같은 두 명이 보인 횟수
         matchLocked: false, lobbyCount: 0,   // 이번 판을 이미 기록했다 — 로비로 돌아와야 풀린다
+        lobbyStreak: 0,                      // 로비가 연속으로 보인 횟수 (탭 자동 전환용)
         pairFailed: false,                   // 이 화면에서 누구인지 못 가렸다고 이미 알렸다
         lastPair: null,                      // 가장 최근 로비에서 본 PLAYER 1·2 (명패를 못 읽었을 때의 대비책)
         activity: []
@@ -255,6 +257,7 @@
     async function onFrame(frame, W, H) {
         if (Room.isLobbyScreen(frame, W, H)) {
             leavePairScreen();
+            if (++state.lobbyStreak >= LOBBY_TAB_TICKS) window.VMH.Tabs.follow('match');
             if (state.matchLocked && ++state.lobbyCount >= MATCH_CLEAR_TICKS) state.matchLocked = false;
 
             const r = syncRoster(Room.readLobby(frame, W, H));
@@ -270,7 +273,7 @@
             return;
         }
         state.rosterKey = null; state.rosterCount = 0;
-        state.lobbyCount = 0;
+        state.lobbyCount = 0; state.lobbyStreak = 0;
 
         const kind = Room.isResultScreen(frame, W, H) ? 'result' : Room.isRoundScreen(frame, W, H) ? 'round' : null;
         if (!kind) {
@@ -339,21 +342,28 @@
         ['nickname-input', 'add-btn'].forEach(id => { const el = $(id); if (el) el.disabled = on; });
     }
 
+    /* 연결·해제, 그리고 옵션 탭에서 화면 공유를 줄 곳을 바꿨을 때 불린다.
+       매칭 쪽이 프레임을 안 받으면(층수 측정기만 받음) 손 입력을 잠그지 않는다 — 명단을 건드리는 경로가 하나뿐이니까 */
+    let wasReceiving = false;
     function onHubChange() {
-        const on = Hub.isRunning();
+        const running = Hub.isRunning(), on = Hub.receiving('room');
         const btn = $('auto-capture-btn');
         if (btn) {
-            btn.textContent = on ? '연결 해제' : '🎮 게임 화면 연결';
-            btn.classList.toggle('danger', on);
-            btn.classList.toggle('secondary', !on);
+            btn.textContent = running ? '연결 해제' : '🎮 게임 화면 연결';
+            btn.classList.toggle('danger', running);
+            btn.classList.toggle('secondary', !running);
         }
         applyLock(on);
+        if (!running) window.VMH.Tabs.forgetScene();
         if (!on) {
-            Object.assign(state, { rosterKey: null, rosterCount: 0, pairPrev: null, pairCount: 0, matchLocked: false, pairFailed: false });
-            setStatus('게임 화면을 연결하면 입·퇴장과 대진이 자동으로 기록됩니다', 'idle');
-        } else {
+            Object.assign(state, { rosterKey: null, rosterCount: 0, pairPrev: null, pairCount: 0, matchLocked: false, pairFailed: false, lobbyStreak: 0 });
+            setStatus(running ? '화면 공유를 층수 측정기에만 주는 중 — 옵션 탭에서 바꿀 수 있습니다'
+                              : '게임 화면을 연결하면 입·퇴장과 대진이 자동으로 기록됩니다', 'idle');
+        } else if (!wasReceiving) {
             log('게임 화면 연결됨', 'hit');
+            setStatus('● 자동 인식 중 — 로비/라운드/결과 화면 대기' + areaNote(), 'live');
         }
+        wasReceiving = on;
     }
 
     let inited = false;
@@ -364,7 +374,13 @@
         initActivityToggle();
         Hub.subscribe('room', onFrame);
         Hub.onChange(onHubChange);
-        Hub.onStatus((text, tone) => { if (tone === 'warn') setStatus(text, 'warn'); });
+        Hub.onStatus((text, tone) => { if (tone === 'warn' && Hub.isTarget('room')) setStatus(text, 'warn'); });
+
+        // 옵션 탭: 화면 공유를 줄 곳 (둘 다 / 매칭 도우미만 / 층수 측정기만)
+        document.querySelectorAll('input[name="capture-target"]').forEach(r => {
+            r.checked = r.value === Hub.target;
+            r.addEventListener('change', () => { if (r.checked) Hub.setTarget(r.value); });
+        });
 
         const btn = $('auto-capture-btn');
         if (btn) btn.onclick = () => Hub.toggle();

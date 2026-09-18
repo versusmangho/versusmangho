@@ -491,3 +491,59 @@ resultList.addEventListener('contextmenu', (e) => { if (currentMode !== 'versus'
 document.getElementById('screenshotPreview').addEventListener('click', function() { this.classList.toggle('expanded'); });
 // 페이지가 매칭 화면과 합쳐져 있어 window.onload를 독점하면 안 된다
 window.addEventListener('load', init);
+
+/* 팝업(lib/popup.js)의 '이번 판 곡' 칸 — 버망호 모드의 가장 최근 판(밴픽 5곡)을 가로로 늘어놓는다.
+   자켓 · 인게임 난이도(6B SC) · 층수(⑫ 12.3)만 보인다. 밴된 곡은 흐리게.
+   카드 DOM이 곧 상태라(보고 있는 스샷이 달라 화면에서 떼어져 있어도) 거기서 그대로 읽는다.
+   자켓 주소와 층수 칸 색도 카드에 있는 것을 그대로 쓴다(자켓은 로페봇으로 물러난 뒤의 주소).
+   일망호 모드에서는 가장 최근에 읽은 곡의 층수 표만 혼자 띄운다(solo — 매칭 순서는 빠진다). */
+VMH.Popup.addSection('songs', () => {
+    if (currentMode === 'general') return popupGeneralChart();
+    const entry = shotHistory.versus[shotHistory.versus.length - 1];
+    const rows = entry ? entry.rows.filter(r => r.getAttribute('data-title-id')) : [];
+    if (!rows.length) return '';
+    return `<div class="sec songs"><h2>이번 판 곡</h2><div class="song-row">${rows.map(r => {
+        const btn = r.querySelector('.btn-select')?.value || '', diff = r.querySelector('.diff-select')?.value || '';
+        const bg = r.querySelector('.floor-area')?.style.backgroundColor || 'rgba(71, 85, 105, 0.85)';
+        const src = r.querySelector('.aspect-square img')?.src;
+        const jacket = src ? `<img class="jacket" src="${escapeHtml(src)}" alt="">` : '<div class="jacket none">?</div>';
+        return `<div class="song${r.classList.contains('banned') ? ' banned' : ''}">${jacket}`
+             + `<div class="pat">${escapeHtml(`${btn} ${diff}`)}</div>`
+             + `<span class="floor" style="background:${bg}">${circledLevel(r.dataset.level)} ${escapeHtml(r.dataset.floorName || '')}</span></div>`;
+    }).join('')}</div></div>`;
+}, { solo: () => currentMode === 'general' });
+
+/* 일망호 표(4B~8B × NM~SC) — 칸마다 인게임 레벨 + 층수 + 태그, 색은 본 화면의 표와 같다. 자켓은 뺀다.
+   태그는 본 화면 칸과 같이 내 메모 → 로페봇 순이고, 칸이 작아 두 줄을 넘으면 잘린다 */
+function popupGeneralChart() {
+    const entry = shotHistory.general[shotHistory.general.length - 1];
+    const tId = entry?.rows.find(r => r.getAttribute('data-title-id'))?.getAttribute('data-title-id');
+    const data = tId ? getSongDataSync(tId) : null;
+    if (!data?.success) return `<div class="sec chart"><h2>층수 표</h2><p class="empty">${tId ? '이 곡은 층수 정보가 없습니다' : '방장이 곡을 고르면 여기에 층수 표가 뜹니다'}</p></div>`;
+    const btns = ['4B', '5B', '6B', '8B'], diffs = ['NM', 'HD', 'MX', 'SC'];
+    // 팝업 창엔 Tailwind가 없어서 BTN_COLORS·DIFF_COLORS(클래스 이름)와 같은 색을 값으로 적는다
+    const head = { '4B': '#059669', '5B': '#0284c7', '6B': '#d97706', '8B': '#4f46e5' };
+    const dHead = { NM: '#eab308', HD: '#ea580c', MX: '#e11d48', SC: '#9333ea' };
+    let grid = '<div></div>' + diffs.map(d => `<div class="hd" style="background:${dHead[d]}">${d}</div>`).join('');
+    btns.forEach(btn => {
+        grid += `<div class="hd" style="background:${head[btn]}">${btn}</div>`;
+        diffs.forEach(diff => {
+            const p = data.patterns?.[btn]?.[diff];
+            if (!p) { grid += '<div class="cell none">—</div>'; return; }
+            const fV = p.floor ?? '-';
+            const tags = popupCellTagsHtml(tId, btn, diff);
+            if (fV === '-' || fV === null) { grid += `<div class="cell nofloor"><div><span class="lv">${circledLevel(p.level)}</span>NO FLOOR</div>${tags}</div>`; return; }
+            grid += `<div class="cell" style="background:${getDifficultyBgColor(p.level, diff, fV)}"><div><span class="lv">${circledLevel(p.level)}</span>${escapeHtml(patternFloorName(p))}</div>${tags}</div>`;
+        });
+    });
+    const bpm = songTagsDatabase[String(tId)]?.bpm?.text;
+    return `<div class="sec chart"><h2>${escapeHtml(data.name)}${bpm ? `<span class="bpm">BPM ${escapeHtml(bpm)}</span>` : ''}</h2><div class="grid">${grid}</div></div>`;
+}
+
+/* generalCellTagsHtml(core.js)과 같은 태그를 팝업용 마크업으로 */
+function popupCellTagsHtml(titleId, btn, diff) {
+    const memo = getPatternMemo(titleId, btn, diff);
+    const lope = songTagsDatabase[String(titleId)]?.pattern_tags?.[btn]?.filter(pt => pt.diff === diff || !pt.diff) || [];
+    if (!memo.length && !lope.length) return '';
+    return `<div class="tags">${memo.map(t => `<span class="t memo">${escapeHtml(t)}</span>`).join('')}${lope.map(t => `<span class="t">${escapeHtml(t.name)}</span>`).join('')}</div>`;
+}

@@ -177,6 +177,17 @@ function importPatternMemos(input) {
     reader.readAsText(f);
 }
 
+/* 메모 전부 지우기 — 되돌릴 수 없으니 개수를 보여주고 먼저 내보내기를 권한다 */
+function clearPatternMemos() {
+    const count = Object.values(patternMemos).reduce((n, song) => n + Object.values(song).reduce((m, l) => m + l.length, 0), 0);
+    if (!count) { showTemporaryMessage('지울 메모가 없습니다'); return; }
+    if (!confirm(`패턴 메모 ${count}개를 모두 지웁니다.\n되돌릴 수 없으니 필요하면 먼저 '내보내기'로 백업해 두세요.\n\n계속할까요?`)) return;
+    patternMemos = {};
+    savePatternMemos(); refreshMemoViews();
+    if (memoEditor.open) renderMemoEditor();
+    showTemporaryMessage(`메모 ${count}개를 지웠습니다`);
+}
+
 // 다른 탭에서 메모를 고치면 이 탭에도 반영
 window.addEventListener('storage', (e) => {
     if (e.key !== MEMO_STORAGE_KEY) return;
