@@ -3,8 +3,9 @@
 두 가지로 쓴다
   - python helper.py (start.bat): 이 폴더를 서빙하고 /helper/*도 연다. 로컬에서 개발·사용할 때.
   - vmh-helper.exe (build-helper.bat로 만들어 download/에 둔다, 웹 페이지가 내려받게 한다): /helper/*만 연다.
+    콘솔 창 없이 트레이(시계 옆) 아이콘으로 뜬다 (run_tray). 로그는 임시 폴더의 vmh-helper.log.
     파일은 서빙하지 않는다 — exe가 놓인 폴더(보통 다운로드 폴더)를 열어 두면 안 되니까.
-    웹(GitHub Pages)의 성과 스캔이 http://127.0.0.1:8777 로 부른다.
+    웹(GitHub Pages·onrender)의 성과 스캔이 http://127.0.0.1:8777 로 부른다.
 
 하는 일
   1. (python helper.py일 때만) 이 폴더를 http://localhost:PORT 로 서빙한다.
@@ -33,12 +34,14 @@ import urllib.request
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = 2                              # 2: 웹(GitHub Pages)에서 부를 수 있게 CORS·exe
+VERSION = 3                              # 2: 웹에서 부를 수 있게 CORS·exe / 3: onrender 출처, exe는 트레이로
 HOST = '127.0.0.1'
 DEFAULT_PORT = 8777                      # 웹 페이지가 http://127.0.0.1:8777 로 부른다 — 바꾸면 scan/app.js의 HELPER_URL도
 FROZEN = getattr(sys, 'frozen', False)   # PyInstaller로 만든 exe
 # /helper/*를 부를 수 있는 페이지 — 웹 버전 + 로컬(start.bat·개발 서버)
-ALLOWED_ORIGINS = re.compile(r'^(https://versusmangho\.github\.io|http://(localhost|127\.0\.0\.1)(:\d+)?)$')
+ALLOWED_ORIGINS = re.compile(r'^(https://versusmangho\.(github\.io|onrender\.com)|http://(localhost|127\.0\.0\.1)(:\d+)?)$')
+SITE_DEFAULT = 'https://versusmangho.github.io/versusmangho/'
+site_seen = {'url': None}                # 마지막으로 이 프로그램을 부른 웹 페이지 — 트레이의 '성과 스캔 열기'가 연다
 GAME_TITLE = 'DJMAX'                     # 맨 앞 창 제목에 이게 들어 있어야 키를 보낸다
 UPLOAD_URL = 'https://v-archive.net/client/open/{}/score'
 UUID_RE = re.compile(r'^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$')
@@ -119,6 +122,8 @@ class Handler(SimpleHTTPRequestHandler):
         else:
             origin = self.headers.get('Origin')
             if origin and ALLOWED_ORIGINS.match(origin):
+                if origin.startswith('https://'):
+                    site_seen['url'] = origin + ('/versusmangho/' if origin.endswith('github.io') else '/')
                 self.send_header('Access-Control-Allow-Origin', origin)
                 self.send_header('Vary', 'Origin')
         super().end_headers()
@@ -249,33 +254,151 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json(200, {'ok': False, 'status': 0, 'body': str(e)})
 
 
+APP_NAME = '버망호 도우미'
+
+
+def message_box(text, warn=False):
+    if IS_WIN:
+        ctypes.windll.user32.MessageBoxW(None, text, APP_NAME, 0x30 if warn else 0x40)   # MB_ICONWARNING / MB_ICONINFORMATION
+
+
+# ── 트레이 아이콘 (exe 전용) ─────────────────
+# exe는 콘솔 창 없이(--noconsole) 뜨고 알림 영역(시계 옆)에 아이콘만 둔다. 표준 라이브러리만 쓰려고 Win32를 ctypes로 부른다.
+# 메뉴: 성과 스캔 열기 / 끄기. 아이콘을 두 번 누르면 성과 스캔을 연다. 탐색기가 다시 뜨면(TaskbarCreated) 아이콘을 다시 단다.
+def run_tray(server, port):
+    import threading
+    import webbrowser
+    from ctypes import wintypes
+
+    u32, s32, k32 = ctypes.windll.user32, ctypes.windll.shell32, ctypes.windll.kernel32
+    LRESULT = ctypes.c_ssize_t
+    WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+    u32.DefWindowProcW.argtypes = (wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+    u32.DefWindowProcW.restype = LRESULT
+    u32.CreateWindowExW.restype = wintypes.HWND
+    u32.CreateWindowExW.argtypes = (wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_int, ctypes.c_int,
+                                    ctypes.c_int, ctypes.c_int, wintypes.HWND, wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID)
+    u32.CreatePopupMenu.restype = wintypes.HMENU
+    u32.AppendMenuW.argtypes = (wintypes.HMENU, wintypes.UINT, ctypes.c_size_t, wintypes.LPCWSTR)
+    u32.TrackPopupMenu.argtypes = (wintypes.HMENU, wintypes.UINT, ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.HWND, wintypes.LPVOID)
+    u32.PostMessageW.argtypes = (wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
+    s32.ExtractIconW.restype = wintypes.HICON
+    s32.ExtractIconW.argtypes = (wintypes.HINSTANCE, wintypes.LPCWSTR, wintypes.UINT)
+    k32.GetModuleHandleW.restype = wintypes.HMODULE
+
+    class WNDCLASSW(ctypes.Structure):
+        _fields_ = [('style', wintypes.UINT), ('lpfnWndProc', WNDPROC), ('cbClsExtra', ctypes.c_int), ('cbWndExtra', ctypes.c_int),
+                    ('hInstance', wintypes.HINSTANCE), ('hIcon', wintypes.HICON), ('hCursor', wintypes.HANDLE),
+                    ('hbrBackground', wintypes.HBRUSH), ('lpszMenuName', wintypes.LPCWSTR), ('lpszClassName', wintypes.LPCWSTR)]
+
+    class NOTIFYICONDATAW(ctypes.Structure):
+        _fields_ = [('cbSize', wintypes.DWORD), ('hWnd', wintypes.HWND), ('uID', wintypes.UINT), ('uFlags', wintypes.UINT),
+                    ('uCallbackMessage', wintypes.UINT), ('hIcon', wintypes.HICON), ('szTip', wintypes.WCHAR * 128),
+                    ('dwState', wintypes.DWORD), ('dwStateMask', wintypes.DWORD), ('szInfo', wintypes.WCHAR * 256),
+                    ('uVersion', wintypes.UINT), ('szInfoTitle', wintypes.WCHAR * 64), ('dwInfoFlags', wintypes.DWORD),
+                    ('guidItem', ctypes.c_byte * 16), ('hBalloonIcon', wintypes.HICON)]
+
+    WM_DESTROY, WM_COMMAND, WM_USER = 0x0002, 0x0111, 0x0400
+    WM_TRAY = WM_USER + 20
+    WM_LBUTTONDBLCLK, WM_RBUTTONUP, WM_LBUTTONUP = 0x0203, 0x0205, 0x0202
+    NIM_ADD, NIM_DELETE = 0, 2
+    NIF_MESSAGE, NIF_ICON, NIF_TIP, NIF_INFO = 0x1, 0x2, 0x4, 0x10
+    MF_STRING, MF_GRAYED, MF_SEPARATOR = 0x0, 0x1, 0x800
+    TPM_RIGHTBUTTON, TPM_RETURNCMD = 0x2, 0x100
+    CMD_OPEN, CMD_QUIT = 1, 2
+    taskbar_created = u32.RegisterWindowMessageW('TaskbarCreated')
+    tip = f'{APP_NAME} v{VERSION} — 켜져 있음 (127.0.0.1:{port})'
+
+    def open_site():
+        webbrowser.open((site_seen['url'] or SITE_DEFAULT) + '#scan')
+
+    def icon_data(info=None):
+        nid = NOTIFYICONDATAW()
+        nid.cbSize = ctypes.sizeof(NOTIFYICONDATAW)
+        nid.hWnd, nid.uID = hwnd, 1
+        nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | (NIF_INFO if info else 0)
+        nid.uCallbackMessage, nid.hIcon, nid.szTip = WM_TRAY, hicon, tip[:127]
+        if info:
+            nid.szInfoTitle, nid.szInfo = APP_NAME, info
+        return nid
+
+    def show_menu():
+        menu = u32.CreatePopupMenu()
+        u32.AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, tip)
+        u32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
+        u32.AppendMenuW(menu, MF_STRING, CMD_OPEN, '성과 스캔 열기')
+        u32.AppendMenuW(menu, MF_STRING, CMD_QUIT, '끄기')
+        pt = wintypes.POINT()
+        u32.GetCursorPos(ctypes.byref(pt))
+        u32.SetForegroundWindow(hwnd)   # 이게 없으면 메뉴 밖을 눌러도 메뉴가 안 닫힌다
+        cmd = u32.TrackPopupMenu(menu, TPM_RIGHTBUTTON | TPM_RETURNCMD, pt.x, pt.y, 0, hwnd, None)
+        u32.PostMessageW(hwnd, 0, 0, 0)
+        u32.DestroyMenu(menu)
+        if cmd == CMD_OPEN:
+            open_site()
+        elif cmd == CMD_QUIT:
+            u32.DestroyWindow(hwnd)
+
+    def wndproc(h, msg, wp, lp):
+        if msg == WM_TRAY:
+            if lp == WM_RBUTTONUP or lp == WM_LBUTTONUP:
+                show_menu()
+            elif lp == WM_LBUTTONDBLCLK:
+                open_site()
+            return 0
+        if msg == taskbar_created:
+            s32.Shell_NotifyIconW(NIM_ADD, ctypes.byref(icon_data()))
+            return 0
+        if msg == WM_DESTROY:
+            s32.Shell_NotifyIconW(NIM_DELETE, ctypes.byref(icon_data()))
+            u32.PostQuitMessage(0)
+            return 0
+        return u32.DefWindowProcW(h, msg, wp, lp)
+
+    proc = WNDPROC(wndproc)   # 창이 사는 동안 참조를 잡아 둔다 (GC되면 죽는다)
+    hinst = k32.GetModuleHandleW(None)
+    wc = WNDCLASSW(lpfnWndProc=proc, hInstance=hinst, lpszClassName='VMHHelperTray')
+    u32.RegisterClassW(ctypes.byref(wc))
+    hwnd = u32.CreateWindowExW(0, 'VMHHelperTray', APP_NAME, 0, 0, 0, 0, 0, None, None, hinst, None)
+    hicon = s32.ExtractIconW(hinst, sys.executable, 0) or u32.LoadIconW(None, ctypes.c_wchar_p(32512))
+
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    s32.Shell_NotifyIconW(NIM_ADD, ctypes.byref(icon_data(
+        '켜졌습니다. 이 아이콘(시계 옆)으로 끄거나 성과 스캔을 열 수 있습니다. 브라우저가 "이 기기의 다른 앱 및 서비스에 액세스"를 물으면 허용하세요.')))
+    msg = wintypes.MSG()
+    while u32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+        u32.TranslateMessage(ctypes.byref(msg))
+        u32.DispatchMessageW(ctypes.byref(msg))
+    server.shutdown()
+
+
 def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_PORT
     root = os.path.dirname(os.path.abspath(__file__))
+    if FROZEN and sys.stdout is None:
+        # 창 없는 exe에는 stdout/stderr가 없다 — http.server가 요청마다 로그를 쓰다 죽지 않게 임시 폴더의 로그 파일로 보낸다
+        import tempfile
+        sys.stdout = sys.stderr = open(os.path.join(tempfile.gettempdir(), 'vmh-helper.log'), 'w', encoding='utf-8', buffering=1)
     # 콘솔 코드 페이지(cp949)에 없는 글자(—)를 찍다가 죽지 않게 — exe를 파이프로 띄우면 실제로 죽었다
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(errors='replace')
         except (AttributeError, ValueError):
             pass
-    if IS_WIN:
-        ctypes.windll.kernel32.SetConsoleTitleW('버망호 도우미')
     try:
         server = ThreadingHTTPServer((HOST, port), partial(Handler, directory=root))
     except OSError:
-        print(f'{port}번 포트를 이미 쓰고 있습니다 — 도우미 프로그램(또는 start.bat)이 벌써 켜져 있는지 확인하세요.')
-        if FROZEN:   # 더블클릭으로 켠 창이 바로 닫히면 무슨 일인지 못 본다
-            try:
-                input('Enter를 누르면 닫습니다.')
-            except EOFError:
-                pass
+        text = f'{port}번 포트를 이미 쓰고 있습니다. 도우미 프로그램(트레이의 아이콘)이나 start.bat이 벌써 켜져 있는지 확인하세요.'
+        print(text)
+        if FROZEN:
+            message_box(text, warn=True)
         return
-    if FROZEN:
-        print(f'버망호 도우미 프로그램 v{VERSION} — 켜져 있습니다.')
-        print('웹 페이지의 성과 스캔 탭이 이 프로그램으로 곡을 넘기고 V-ARCHIVE에 기록을 올립니다.')
-        print('브라우저가 "로컬 네트워크의 기기 접근"을 물으면 허용하세요.')
-    else:
-        print(f'버망호 도우미: http://localhost:{port}/index.html  (helper v{VERSION}{"" if IS_WIN else ", 키 입력 없음"})')
+    print(f'{APP_NAME} v{VERSION}: 127.0.0.1:{port}' + ('' if FROZEN else f'  →  http://localhost:{port}/index.html') + ('' if IS_WIN else ' (키 입력 없음)'))
+    if FROZEN and IS_WIN:
+        run_tray(server, port)
+        return
+    if IS_WIN:
+        ctypes.windll.kernel32.SetConsoleTitleW(APP_NAME)
     print('이 창을 닫으면 꺼집니다.')
     try:
         server.serve_forever()

@@ -65,7 +65,7 @@
     }
 
     // ── 도우미 (helper.py / vmh-helper.exe) ─────────────────
-    // start.bat로 연 페이지면 같은 주소에 있다. 웹(GitHub Pages)·다른 개발 서버에서는 사용자가 켠 도우미 프로그램이
+    // start.bat로 연 페이지면 같은 주소에 있다. 웹(GitHub Pages·onrender)·다른 개발 서버에서는 사용자가 켠 도우미 프로그램이
     // 127.0.0.1:8777에 있다 (helper.py가 이 사이트에 CORS를 열어 둔다). 먼저 같은 주소, 안 되면 127.0.0.1:8777
     const HELPER_URL = 'http://127.0.0.1:8777';
     const HELPER_DOWNLOAD = 'download/vmh-helper.exe';
@@ -82,26 +82,31 @@
     }
     async function checkHelper() {
         state.helper = null;
+        // 아직 허락을 안 받았으면 브라우저가 권한 창을 띄우고, 누를 때까지 요청이 멈춰 있다 — 그동안 무엇을 누를지 알려 준다
+        state.lnaAsking = !sameOriginHelper && (await lnaState()) === 'prompt';
+        if (state.lnaAsking) renderChecks();
         for (const base of helperBases) {
             try {
                 const s = await helperCall('/helper/status', null, base);
                 if (s && s.ok) { state.helper = s; helperBase = base; break; }
             } catch { /* 다음 주소 */ }
         }
-        state.lnaDenied = !state.helper && !sameOriginHelper && await lnaDenied();
+        state.lnaDenied = !state.helper && !sameOriginHelper && (await lnaState()) === 'denied';
+        state.lnaAsking = false;
         state.helperChecked = true;
         renderChecks();
         return state.helper;
     }
-    // Chrome 계열은 공개 사이트가 127.0.0.1을 부르려면 "로컬 네트워크 접근" 허락이 필요하다. 사용자가 막아 두면
-    // 요청이 나가지도 않아(도우미 창에 아무것도 안 찍힌다) 꺼진 것과 구별이 안 되므로, 권한 상태를 따로 본다.
-    // 권한 이름이 Chrome 버전마다 다르다 (local-network-access → loopback-network)
-    async function lnaDenied() {
-        if (!navigator.permissions) return false;
+    // Chrome 계열(웨일·엣지 포함)은 공개 사이트가 127.0.0.1을 부르려면 허락이 필요하다 — 권한 창 문구는
+    // "이 기기의 다른 앱 및 서비스에 액세스". 막아 두면 요청이 나가지도 않아(도우미 로그에 아무것도 안 찍힌다)
+    // 꺼진 것과 구별이 안 되므로, 권한 상태를 따로 본다. 권한 이름이 버전마다 다르다 (local-network-access → loopback-network)
+    // 'granted' | 'prompt' | 'denied' | null(권한이 없는 브라우저)
+    async function lnaState() {
+        if (!navigator.permissions) return null;
         for (const name of ['loopback-network', 'local-network-access']) {
-            try { if ((await navigator.permissions.query({ name })).state === 'denied') return true; } catch { /* 모르는 이름 */ }
+            try { return (await navigator.permissions.query({ name })).state; } catch { /* 모르는 이름 */ }
         }
-        return false;
+        return null;
     }
     const NO_HELPER = '도우미 프로그램이 꺼져 있습니다 — 위의 "도우미 프로그램 받기"로 받아 켠 뒤 다시 누르세요';
 
@@ -210,7 +215,7 @@
         if (k.error === 'focus') return '게임 창이 맨 앞이 아니라 멈췄습니다' + (k.foreground ? ' (지금 맨 앞: ' + k.foreground + ')' : '');
         if (k.error === 'windows-only') return '도우미가 Windows가 아니라 키를 보낼 수 없습니다';
         if (k.error === 'sendinput') return '키 입력이 거부됐습니다 — 게임을 관리자 권한으로 켰다면 도우미 프로그램(또는 start.bat)도 관리자 권한으로 실행하세요';
-        return '도우미 프로그램에 연결할 수 없어 멈췄습니다 — 프로그램 창이 켜져 있는지 확인하세요';
+        return '도우미 프로그램에 연결할 수 없어 멈췄습니다 — 트레이(시계 옆)에 도우미 아이콘이 있는지 확인하세요';
     }
 
     function readFailText(r) {
@@ -311,13 +316,14 @@
         const h = state.helper;
         const helperLine = h
             ? '도우미 연결됨' + (h.exe ? ' (프로그램)' : ' (start.bat)') + (h.windows ? '' : ' — Windows가 아니라 키 입력 불가')
+            : state.lnaAsking ? '<span>브라우저 주소창 아래 권한 창에서 <b>"이 기기의 다른 앱 및 서비스에 액세스"</b>를 <b>허용</b>하세요 — 도우미 프로그램에 연결하는 데 필요합니다.</span>'
             : !state.helperChecked ? '도우미 확인 중…'
-            : state.lnaDenied ? '<span>브라우저가 이 사이트의 <b>로컬 네트워크 접근</b>을 막아 두어 도우미 프로그램에 연결할 수 없습니다 — ' +
-              '주소창 왼쪽 <b>사이트 설정</b>에서 <b>로컬 네트워크 접근</b>을 <b>허용</b>으로 바꾸고 새로고침하세요. ' +
+            : state.lnaDenied ? '<span>브라우저가 이 사이트의 <b>"이 기기의 다른 앱 및 서비스에 액세스"</b>를 막아 두어 도우미 프로그램에 연결할 수 없습니다 — ' +
+              '주소창 왼쪽 <b>사이트 설정</b>에서 그 권한(로컬 네트워크 접근)을 <b>허용</b>으로 바꾸고 새로고침하세요. ' +
               '(프로그램이 아직 없으면 <a class="scan-helper-dl" href="' + HELPER_DOWNLOAD + '" download>도우미 프로그램 받기</a>)</span>'
             : '<span>도우미 프로그램이 꺼져 있습니다 — <a class="scan-helper-dl" href="' + HELPER_DOWNLOAD + '" download>도우미 프로그램 받기</a> (vmh-helper.exe, 설치 없음) 후 켜고 ' +
               '<button type="button" class="secondary scan-inline-btn" data-act="helper-retry">다시 확인</button>' +
-              '<br><small>곡 넘기기·업로드에 필요합니다. 켰는데도 안 되면 브라우저의 "로컬 네트워크 기기 접근"을 허용했는지 확인하세요 (주소창 왼쪽 사이트 설정).</small></span>';
+              '<br><small>곡 넘기기·업로드에 필요합니다. 켜면 창 없이 트레이(시계 옆)에 아이콘만 생깁니다. 켰는데도 안 되면 주소창 왼쪽 사이트 설정에서 "이 기기의 다른 앱 및 서비스에 액세스"(로컬 네트워크 접근)가 허용인지 확인하세요.</small></span>';
         $('scan-checks').innerHTML = [
             ok(!!h) + helperLine,
             ok(Hub.isRunning()) + (Hub.isRunning() ? '게임 화면 연결됨' : '게임 화면이 연결되지 않았습니다 — 오른쪽 위 <b>게임 화면 연결</b>'),
