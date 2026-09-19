@@ -10,6 +10,10 @@
 
 ### 실행
 
+웹: https://versusmangho.github.io/versusmangho/ — **성과 스캔**의 곡 넘기기·업로드는 그 탭의 **도우미 프로그램 받기**(`vmh-helper.exe`, 설치 없음)를 켜 두어야 합니다.
+
+로컬:
+
 ```bash
 python helper.py
 ```

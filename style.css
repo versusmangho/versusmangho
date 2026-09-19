@@ -446,3 +446,7 @@ body.sharing .top-grid { grid-template-columns: 1fr; }
   .scan-jacket { display: none; }
   .scan-grid { grid-template-columns: 30px repeat(4, minmax(0, 1fr)); }
 }
+.scan-account-ctl { display: inline-flex; gap: 8px; align-items: center; }
+.scan-helper-dl { color: var(--accent-blue); font-weight: 700; }
+.scan-inline-btn { padding: 2px 10px; font-size: 12px; margin-left: 4px; }
+.scan-checks small { color: var(--text-secondary); font-size: 12px; }

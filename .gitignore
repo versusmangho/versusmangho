@@ -13,6 +13,8 @@
 !/hash-tool.html
 !/helper.py
 !/start.bat
+!/build-helper.bat
+!/download/
 !/scan/
 !/lib/
 !/floor/
@@ -31,3 +33,5 @@
 !/floor/*.js
 /scan/*
 !/scan/*.js
+/download/*
+!/download/vmh-helper.exe

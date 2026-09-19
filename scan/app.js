@@ -1,5 +1,5 @@
 /* 성과 스캔 탭 — 스캔 루프, 검토 목록, 서버 기록 비교, 업로드.
-   읽기 자체는 scan/reader.js. 곡 넘기기(↓)와 업로드는 helper.py(/helper/*)가 한다.
+   읽기 자체는 scan/reader.js. 곡 넘기기(↓)와 업로드는 helper.py(/helper/*)가 한다 — start.bat로 연 페이지는 같은 주소, 웹은 vmh-helper.exe(127.0.0.1:8777).
 
    스캔 루프: 시작 → 5초 기다림(그 사이 사용자가 게임 창 클릭) → 지금 곡 읽기 → [↓ → 기다림 → 읽기]를 반복.
      - 키는 helper가 맨 앞 창이 DJMAX일 때만 누른다. 그래서 사용자가 브라우저를 클릭하면 다음 키에서 멈춘다.
@@ -35,11 +35,12 @@
         seq: 0,
         running: false, stopAsked: false,
         helper: null,         // /helper/status 결과, 없으면 null
+        helperChecked: false, // 한 번이라도 확인했는지 (웹에서는 이 탭을 열 때 처음 확인한다)
         server: null,         // 'id|button|pattern' → { rate, max } (서버 기록)
         serverDj: '',
         skip: new Set(),      // 올릴 목록에서 사용자가 체크를 뺀 칸
         results: new Map(),   // 칸 → 업로드 결과 { ok, text }
-        account: null,        // { userNo, token } — 메모리에만
+        account: null,        // { userNo, token } — 옵션 탭에서 고른다 (기억해 두기를 켰을 때만 LocalStorage)
         uploading: false
     };
 
@@ -63,20 +64,35 @@
         hold.addEventListener('change', () => { opts.hold = clampInt(hold.value, 10, 500, OPT_DEFAULT.hold); hold.value = opts.hold; saveOpts(); });
     }
 
-    // ── helper.py ─────────────────
-    async function helperCall(path, body) {
+    // ── 도우미 (helper.py / vmh-helper.exe) ─────────────────
+    // start.bat로 연 페이지면 같은 주소에 있다. 웹(GitHub Pages)·다른 개발 서버에서는 사용자가 켠 도우미 프로그램이
+    // 127.0.0.1:8777에 있다 (helper.py가 이 사이트에 CORS를 열어 둔다). 먼저 같은 주소, 안 되면 127.0.0.1:8777
+    const HELPER_URL = 'http://127.0.0.1:8777';
+    const HELPER_DOWNLOAD = 'download/vmh-helper.exe';
+    const sameOriginHelper = location.protocol === 'http:' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+    const helperBases = sameOriginHelper ? ['', HELPER_URL] : [HELPER_URL];
+    let helperBase = helperBases[0];
+
+    async function helperCall(path, body, base = helperBase) {
         const init = { headers: { 'X-VMH': '1' }, cache: 'no-store' };
         if (body) { init.method = 'POST'; init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(body); }
-        const res = await fetch(path, init);
+        const res = await fetch(base + path, init);
         if (!res.ok && res.status === 404) throw new Error('no-helper');
         return res.json();
     }
     async function checkHelper() {
-        try { const s = await helperCall('/helper/status'); state.helper = s && s.ok ? s : null; }
-        catch { state.helper = null; }
+        state.helper = null;
+        for (const base of helperBases) {
+            try {
+                const s = await helperCall('/helper/status', null, base);
+                if (s && s.ok) { state.helper = s; helperBase = base; break; }
+            } catch { /* 다음 주소 */ }
+        }
+        state.helperChecked = true;
         renderChecks();
         return state.helper;
     }
+    const NO_HELPER = '도우미 프로그램이 꺼져 있습니다 — 위의 "도우미 프로그램 받기"로 받아 켠 뒤 다시 누르세요';
 
     // ── 곡 DB ─────────────────
     // songDatabase(곡 정보)와 sigTable(자켓)은 층수 측정기가 페이지를 열 때 받아 둔다
@@ -181,9 +197,9 @@
 
     function stopReason(k) {
         if (k.error === 'focus') return '게임 창이 맨 앞이 아니라 멈췄습니다' + (k.foreground ? ' (지금 맨 앞: ' + k.foreground + ')' : '');
-        if (k.error === 'windows-only') return 'helper.py가 Windows가 아니라 키를 보낼 수 없습니다';
-        if (k.error === 'sendinput') return '키 입력이 거부됐습니다 — 게임을 관리자 권한으로 켰다면 helper.py(start.bat)도 관리자 권한으로 여세요';
-        return 'helper.py에 연결할 수 없어 멈췄습니다 — start.bat(또는 python helper.py)로 연 페이지인지 확인하세요';
+        if (k.error === 'windows-only') return '도우미가 Windows가 아니라 키를 보낼 수 없습니다';
+        if (k.error === 'sendinput') return '키 입력이 거부됐습니다 — 게임을 관리자 권한으로 켰다면 도우미 프로그램(또는 start.bat)도 관리자 권한으로 실행하세요';
+        return '도우미 프로그램에 연결할 수 없어 멈췄습니다 — 프로그램 창이 켜져 있는지 확인하세요';
     }
 
     function readFailText(r) {
@@ -199,8 +215,8 @@
         await checkHelper();
         if (!Hub.isRunning()) { setStatus('먼저 오른쪽 위 "게임 화면 연결"로 게임 화면을 공유하세요', 'warn'); return; }
         if (!dbReady()) { setStatus('곡 정보·자켓 해시를 아직 못 받았습니다 — 층수 측정기 탭의 상태를 확인하세요', 'warn'); return; }
-        if (!state.helper) { setStatus('helper.py로 연 페이지가 아니라 곡을 넘길 수 없습니다 — start.bat(또는 python helper.py)로 여세요. 스샷 파일로 읽기는 됩니다', 'warn'); return; }
-        if (!state.helper.windows) { setStatus('helper.py가 Windows가 아니라 키를 보낼 수 없습니다', 'warn'); return; }
+        if (!state.helper) { setStatus(NO_HELPER + '. 스샷 파일로 읽기는 프로그램 없이도 됩니다', 'warn'); return; }
+        if (!state.helper.windows) { setStatus('도우미가 Windows가 아니라 키를 보낼 수 없습니다', 'warn'); return; }
 
         state.running = true; state.stopAsked = false; renderButtons();
         const firstId = state.items.length ? state.items[0].id : null;
@@ -282,8 +298,14 @@
     function renderChecks() {
         const ok = (b) => b ? '<span class="ok">●</span>' : '<span class="no">●</span>';
         const h = state.helper;
+        const helperLine = h
+            ? '도우미 연결됨' + (h.exe ? ' (프로그램)' : ' (start.bat)') + (h.windows ? '' : ' — Windows가 아니라 키 입력 불가')
+            : !state.helperChecked ? '도우미 확인 중…'
+            : '<span>도우미 프로그램이 꺼져 있습니다 — <a class="scan-helper-dl" href="' + HELPER_DOWNLOAD + '" download>도우미 프로그램 받기</a> (vmh-helper.exe, 설치 없음) 후 켜고 ' +
+              '<button type="button" class="secondary scan-inline-btn" data-act="helper-retry">다시 확인</button>' +
+              '<br><small>곡 넘기기·업로드에 필요합니다. 켰는데도 안 되면 브라우저의 "로컬 네트워크 기기 접근"을 허용했는지 확인하세요 (주소창 왼쪽 사이트 설정).</small></span>';
         $('scan-checks').innerHTML = [
-            ok(!!h) + (h ? 'helper.py 연결됨' + (h.windows ? '' : ' (Windows가 아니라 키 입력 불가)') : 'helper.py로 연 페이지가 아닙니다 — <b>start.bat</b>(또는 <code>python helper.py</code>)로 여세요'),
+            ok(!!h) + helperLine,
             ok(Hub.isRunning()) + (Hub.isRunning() ? '게임 화면 연결됨' : '게임 화면이 연결되지 않았습니다 — 오른쪽 위 <b>게임 화면 연결</b>'),
             ok(dbReady()) + (dbReady() ? '곡 정보 ' + Object.keys(songDatabase).length + '곡 · 자켓 ' + jackets().length + '개' : '곡 정보·자켓 해시를 받는 중 (층수 측정기 탭 상태 참고)'),
             ok(!!opts.dj) + (opts.dj ? 'DJ 이름: ' + esc(opts.dj) : 'DJ 이름이 없습니다 — <b>옵션 탭</b>에서 넣으세요 (서버 기록 비교에 필요)')
@@ -518,23 +540,50 @@
     }
 
     // ── 업로드 ─────────────────
+    // 계정 파일은 옵션 탭에서 고른다. '기억해 두기'를 켰을 때만 LocalStorage에 남긴다 (끄면 바로 지운다)
+    const ACCOUNT_KEY = 'scanAccountV1';
+    const parseAccount = (text) => {
+        const m = String(text || '').split(/\r?\n/)[0].trim().match(/^(\d+)\s+([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})$/);
+        return m ? { userNo: Number(m[1]), token: m[2] } : null;
+    };
+    const remembered = () => { try { return localStorage.getItem(ACCOUNT_KEY); } catch { return null; } };
+    function storeAccount() {
+        try {
+            if ($('scan-account-remember').checked && state.account) localStorage.setItem(ACCOUNT_KEY, state.account.userNo + ' ' + state.account.token);
+            else localStorage.removeItem(ACCOUNT_KEY);
+        } catch { /* 이번 세션에만 */ }
+    }
+    function renderAccount(msg) {
+        const a = state.account;
+        $('scan-account-note').textContent = msg || (a ? '계정 번호 ' + a.userNo + ($('scan-account-remember').checked ? ' — 이 브라우저에 기억함' : ' — 페이지를 닫으면 잊습니다') : '고른 파일이 없습니다');
+        $('scan-account-clear').hidden = !a;
+        $('scan-account-state').innerHTML = a ? '계정 번호 ' + a.userNo + ' (옵션 탭)' : '올리려면 <b>옵션 탭</b>에서 account.txt를 고르세요';
+        updateUploadBtn(diffRows().up);
+    }
     function readAccount(file) {
         const reader = new FileReader();
         reader.onload = () => {
-            const first = String(reader.result || '').split(/\r?\n/)[0].trim();
-            const m = first.match(/^(\d+)\s+([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})$/);
-            if (!m) { state.account = null; $('scan-account-note').textContent = '계정 파일 형식이 아닙니다 (첫 줄: 번호 토큰)'; }
-            else { state.account = { userNo: Number(m[1]), token: m[2] }; $('scan-account-note').textContent = '계정 번호 ' + m[1] + ' (파일은 저장하지 않습니다)'; }
-            updateUploadBtn(diffRows().up);
+            const a = parseAccount(reader.result);
+            if (!a) { renderAccount('계정 파일 형식이 아닙니다 (첫 줄: 번호 토큰)' + (state.account ? ' — 먼저 고른 계정 ' + state.account.userNo + '을 그대로 씁니다' : '')); return; }
+            state.account = a; storeAccount(); renderAccount();
         };
         reader.readAsText(file);
+    }
+    function bindAccount() {
+        const saved = remembered();
+        $('scan-account-remember').checked = !!saved;
+        if (saved) state.account = parseAccount(saved);
+        $('scan-account-file').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) readAccount(f); });
+        $('scan-account-remember').addEventListener('change', () => { storeAccount(); renderAccount(); });
+        $('scan-account-clear').addEventListener('click', () => { state.account = null; storeAccount(); renderAccount(); });
+        renderAccount();
     }
 
     async function upload() {
         if (state.uploading || !state.account) return;
         await checkHelper();
         const st = $('scan-upload-status'); st.hidden = false;
-        if (!state.helper) { st.className = 'auto-status warn'; st.textContent = '업로드는 helper.py가 대신 보냅니다 — start.bat(또는 python helper.py)로 연 페이지에서 하세요'; return; }
+        if (!state.helper) { st.className = 'auto-status warn'; st.textContent = '업로드는 도우미 프로그램이 대신 보냅니다 — ' + NO_HELPER; return; }
         const rows = pickedRows(diffRows().up);
         if (!rows.length) return;
         state.uploading = true; updateUploadBtn([]);
@@ -546,7 +595,7 @@
             if (isDupName(s.name)) record.composer = s.composer;
             let res;
             try { res = await helperCall('/helper/upload', { userNo: state.account.userNo, token: state.account.token, record }); }
-            catch (e) { res = { ok: false, status: 0, body: 'helper.py 연결 실패' }; }
+            catch (e) { res = { ok: false, status: 0, body: '도우미 프로그램 연결 실패' }; }
             let body = null; try { body = JSON.parse(res.body); } catch { /* 글자 그대로 보여준다 */ }
             if (res.ok && body && body.success !== false) {
                 const updated = body.update !== false;
@@ -585,7 +634,7 @@
         $('scan-list').addEventListener('change', onListChange);
         $('scan-diff').addEventListener('change', onDiffChange);
         $('scan-compare-btn').addEventListener('click', async () => { if (await loadServer()) renderDiff(); });
-        $('scan-account-file').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) readAccount(f); });
+        $('scan-checks').addEventListener('click', (e) => { if (e.target.dataset.act === 'helper-retry') checkHelper(); });
         $('scan-upload-btn').addEventListener('click', upload);
         $('scan-dj-input').addEventListener('change', () => { renderChecks(); if (state.server && state.serverDj !== opts.dj) { state.server = null; renderDiff(); $('scan-compare-note').textContent = 'DJ 이름이 바뀌었습니다 — 다시 비교하세요'; } });
 
@@ -602,7 +651,11 @@
         window.addEventListener('beforeunload', (e) => {
             if (state.running || (state.items.length && !state.results.size)) { e.preventDefault(); e.returnValue = ''; }
         });
-        checkHelper();
+        // 웹에서는 127.0.0.1을 부르는 순간 브라우저가 "로컬 네트워크 접근"을 물을 수 있다 — 매칭만 쓰는 사람에게 묻지 않게
+        // 이 탭을 열었을 때만 확인한다. 프로그램을 켜고 브라우저로 돌아오면(focus) 다시 확인한다
+        window.addEventListener('focus', () => { if (VMH.Tabs.active === 'scan' && !state.helper && !state.running) checkHelper(); });
+        if (sameOriginHelper || VMH.Tabs.active === 'scan') checkHelper();
+        bindAccount();
         renderAll();
         // 곡 정보·자켓 해시는 층수 측정기가 페이지를 연 뒤에 받는다 — 다 받으면 상태 줄을 다시 그린다
         if (!dbReady()) { const t = setInterval(() => { if (dbReady()) { clearInterval(t); renderChecks(); } }, 1000); }

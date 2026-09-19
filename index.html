@@ -640,7 +640,8 @@
 
 <!-- ── 성과 스캔 탭 ─────────────────
      컬렉션 MUSIC DATA 화면을 곡마다 읽어 V-ARCHIVE에 올린다. 읽기는 scan/reader.js, 흐름·화면은 scan/app.js.
-     곡 넘기기(↓)와 업로드는 helper.py가 한다 (브라우저는 게임에 키를 못 보내고, 업로드 API는 CORS로 막혀 있다) -->
+     곡 넘기기(↓)와 업로드는 helper.py가 한다 (브라우저는 게임에 키를 못 보내고, 업로드 API는 CORS로 막혀 있다).
+     웹에서는 사용자가 받은 vmh-helper.exe(= helper.py, download/)가 http://127.0.0.1:8777 에서 같은 일을 한다 -->
 <div data-tab-panel="scan" hidden>
 <main>
   <section class="card" id="scan-card">
@@ -682,7 +683,7 @@
     <div class="card-head"><h2>2. 올릴 기록</h2></div>
     <p class="guide-text">
       <b>서버 기록과 비교</b>를 누르면 V-ARCHIVE에 올라가 있는 내 기록(옵션 탭의 DJ 이름)을 받아, 체크된 곡 가운데 <b>정확도가 오르거나 MAX 콤보가 새로 붙은 칸</b>만 모읍니다.
-      올릴 것만 체크한 뒤, V-ARCHIVE 클라이언트 폴더의 <code>account.txt</code>를 고르고 올리세요. 계정 파일은 저장하지 않습니다.
+      올릴 것만 체크한 뒤 올리세요. 올리려면 <b>옵션 탭</b>에서 V-ARCHIVE 클라이언트 폴더의 <code>account.txt</code>를 골라 두어야 합니다.
     </p>
     <div class="row">
       <button id="scan-compare-btn">서버 기록과 비교</button>
@@ -690,8 +691,7 @@
     </div>
     <div id="scan-diff" class="scan-diff"></div>
     <div class="row scan-upload-row">
-      <label class="file-btn secondary">account.txt 고르기<input type="file" id="scan-account-file" accept=".txt,text/plain"></label>
-      <span id="scan-account-note" class="scan-note"></span>
+      <span id="scan-account-state" class="scan-note"></span>
       <span class="scan-spacer"></span>
       <button id="scan-upload-btn" disabled>선택한 기록 올리기</button>
     </div>
@@ -765,6 +765,23 @@
       <input type="text" id="scan-dj-input" class="scan-opt-text" placeholder="V-ARCHIVE 계정 이름" autocomplete="off" />
     </div>
     <p class="option-desc">V-ARCHIVE에 올라가 있는 내 기록을 불러올 때 씁니다. V-ARCHIVE 사이트에서 보이는 계정 이름(DJ 이름)을 그대로 넣으세요.</p>
+    <div class="option-row option-row-block">
+      <span class="option-name">계정 파일 (account.txt)</span>
+      <span class="scan-account-ctl">
+        <label class="file-btn secondary">account.txt 고르기<input type="file" id="scan-account-file" accept=".txt,text/plain"></label>
+        <button id="scan-account-clear" class="secondary" hidden>지우기</button>
+      </span>
+    </div>
+    <div class="option-row option-row-block">
+      <span id="scan-account-note" class="scan-note">고른 파일이 없습니다</span>
+    </div>
+    <label class="option-row">
+      <span class="switch"><input type="checkbox" id="scan-account-remember" /><span class="slider"></span></span>
+      <span class="option-name">계정 파일 기억해 두기</span>
+    </label>
+    <p class="option-desc">기록을 올릴 때 씁니다. V-ARCHIVE 클라이언트 폴더에 있는 <code>account.txt</code>를 고르세요 (첫 줄: 계정 번호와 토큰).
+      <b>기억해 두기</b>를 끄면 이 페이지를 닫거나 새로고침할 때 잊습니다. 켜면 이 브라우저에 남으니, 여러 사람이 쓰는 컴퓨터에서는 끄세요.
+      토큰은 도우미 프로그램을 거쳐 V-ARCHIVE로만 보냅니다.</p>
     <div class="option-row option-row-block">
       <span class="option-name">곡 넘긴 뒤 기다리는 시간</span>
       <span class="weight-num-wrap"><input type="number" id="scan-delay-input" class="weight-num" min="50" max="3000" step="10" /> ms</span>
@@ -947,10 +964,16 @@
         V-ARCHIVE에 올라가 있는 기록보다 좋아진 것만 골라 올립니다. 전곡을 한 번에 갱신할 때 씁니다.</li>
       <li><b>준비:</b>
         <ul>
-          <li>이 페이지를 <b>start.bat</b>(또는 <code>python helper.py</code>)로 여세요. <code>python -m http.server</code>로 열면 곡을 넘기는 키 입력과 업로드가 안 됩니다 — 브라우저는 게임에 키를 보낼 수 없고, V-ARCHIVE의 기록 등록은 웹 페이지에서 부를 수 없게 막혀 있어서 helper.py가 대신 합니다.</li>
+          <li><b>도우미 프로그램</b>(<code>vmh-helper.exe</code>)을 받아 켜 두세요 — 이 탭 위의 <b>도우미 프로그램 받기</b>. 설치는 없고, 켜면 검은 창이 하나 뜹니다(닫으면 꺼집니다).
+            브라우저는 게임에 키를 보낼 수 없고, V-ARCHIVE의 기록 등록은 웹 페이지에서 부를 수 없게 막혀 있어서 이 프로그램이 대신 합니다. 이 컴퓨터 안(127.0.0.1)에서만 열리고, 이 사이트의 요청만 받습니다.
+            <ul>
+              <li>처음 켤 때 Windows가 <b>"PC 보호"</b> 창을 띄우면 <b>추가 정보 → 실행</b>을 누르세요 (서명하지 않은 프로그램이라 뜹니다).</li>
+              <li>브라우저가 <b>로컬 네트워크의 기기 접근</b>을 물으면 <b>허용</b>하세요. 이미 막았다면 주소창 왼쪽 사이트 설정에서 바꿀 수 있습니다.</li>
+              <li>내려받은 폴더에서 <b>start.bat</b>(또는 <code>python helper.py</code>)로 연 페이지는 프로그램 없이 됩니다.</li>
+            </ul></li>
           <li>오른쪽 위 <b>게임 화면 연결</b>로 게임 화면을 공유하세요 (다른 탭과 같은 연결입니다).</li>
-          <li><b>옵션 탭</b>에 V-ARCHIVE <b>DJ 이름</b>을 넣으세요. 올릴 때는 V-ARCHIVE 클라이언트 폴더의 <code>account.txt</code>가 필요합니다.</li>
-          <li>게임은 <b>테두리 없는 창 모드</b>를 권장합니다. 16:9·21:9 모두 됩니다. 게임을 <b>관리자 권한으로</b> 켜 두면 키 입력이 막힙니다.</li>
+          <li><b>옵션 탭</b>에 V-ARCHIVE <b>DJ 이름</b>을 넣고, 올리려면 V-ARCHIVE 클라이언트 폴더의 <code>account.txt</code>도 골라 두세요.</li>
+          <li>게임은 <b>테두리 없는 창 모드</b>를 권장합니다. 16:9·21:9 모두 됩니다. 게임을 <b>관리자 권한으로</b> 켜 두었다면 도우미 프로그램도 관리자 권한으로 실행하세요 (아니면 키 입력이 막힙니다).</li>
         </ul>
       </li>
       <li><b>스캔:</b> 게임에서 MUSIC DATA의 <b>ALL</b> 첫 곡을 띄워 두고 <b>스캔 시작</b> → <b>5초 안에 게임 창 클릭</b>. 마지막 곡까지 가면 알아서 멈춥니다.
@@ -961,8 +984,8 @@
       <li><b>검토:</b> 자켓이 애매하거나(예: Permutation Part.1·Part.2처럼 자켓이 거의 같은 곡) 숫자·MAX 마크가 애매한 곡은 <b>확인 필요</b>로 모이고, 체크하기 전까지 올리지 않습니다.
         같은 곡이 다른 값으로 두 번 읽히면 둘 다 확인 필요가 됩니다.</li>
       <li><b>업로드:</b> 체크된 곡 가운데 <b>정확도가 오른 칸</b>, 또는 <b>정확도는 같은데 MAX 콤보가 새로 붙은 칸</b>만 목록에 오릅니다. 서버 기록보다 낮게 읽힌 칸은 따로 알려 줍니다(오인식일 수 있습니다).
-        올린 결과는 칸마다 표시됩니다. 계정 파일은 올릴 때만 읽고 저장하지 않습니다.</li>
-      <li><b>스샷으로도 됩니다:</b> 게임 화면 연결이나 helper.py 없이, 컬렉션 화면 스크린샷을 <b>스샷 파일로 읽기</b>로 여러 장 고르거나 이 탭에서 <b>Ctrl+V</b>로 붙여넣어도 같은 검토 목록에 들어갑니다. (업로드에는 helper.py가 필요합니다)</li>
+        올린 결과는 칸마다 표시됩니다. 계정 파일은 옵션 탭에서 <b>기억해 두기</b>를 켰을 때만 이 브라우저에 남습니다.</li>
+      <li><b>스샷으로도 됩니다:</b> 게임 화면 연결이나 도우미 프로그램 없이, 컬렉션 화면 스크린샷을 <b>스샷 파일로 읽기</b>로 여러 장 고르거나 이 탭에서 <b>Ctrl+V</b>로 붙여넣어도 같은 검토 목록에 들어갑니다. (업로드에는 도우미 프로그램이 필요합니다)</li>
       <li>읽은 결과는 이 페이지에만 있습니다. 새로고침하면 사라집니다.</li>
     </ul>
   </section>
