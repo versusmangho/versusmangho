@@ -88,9 +88,20 @@
                 if (s && s.ok) { state.helper = s; helperBase = base; break; }
             } catch { /* 다음 주소 */ }
         }
+        state.lnaDenied = !state.helper && !sameOriginHelper && await lnaDenied();
         state.helperChecked = true;
         renderChecks();
         return state.helper;
+    }
+    // Chrome 계열은 공개 사이트가 127.0.0.1을 부르려면 "로컬 네트워크 접근" 허락이 필요하다. 사용자가 막아 두면
+    // 요청이 나가지도 않아(도우미 창에 아무것도 안 찍힌다) 꺼진 것과 구별이 안 되므로, 권한 상태를 따로 본다.
+    // 권한 이름이 Chrome 버전마다 다르다 (local-network-access → loopback-network)
+    async function lnaDenied() {
+        if (!navigator.permissions) return false;
+        for (const name of ['loopback-network', 'local-network-access']) {
+            try { if ((await navigator.permissions.query({ name })).state === 'denied') return true; } catch { /* 모르는 이름 */ }
+        }
+        return false;
     }
     const NO_HELPER = '도우미 프로그램이 꺼져 있습니다 — 위의 "도우미 프로그램 받기"로 받아 켠 뒤 다시 누르세요';
 
@@ -301,6 +312,9 @@
         const helperLine = h
             ? '도우미 연결됨' + (h.exe ? ' (프로그램)' : ' (start.bat)') + (h.windows ? '' : ' — Windows가 아니라 키 입력 불가')
             : !state.helperChecked ? '도우미 확인 중…'
+            : state.lnaDenied ? '<span>브라우저가 이 사이트의 <b>로컬 네트워크 접근</b>을 막아 두어 도우미 프로그램에 연결할 수 없습니다 — ' +
+              '주소창 왼쪽 <b>사이트 설정</b>에서 <b>로컬 네트워크 접근</b>을 <b>허용</b>으로 바꾸고 새로고침하세요. ' +
+              '(프로그램이 아직 없으면 <a class="scan-helper-dl" href="' + HELPER_DOWNLOAD + '" download>도우미 프로그램 받기</a>)</span>'
             : '<span>도우미 프로그램이 꺼져 있습니다 — <a class="scan-helper-dl" href="' + HELPER_DOWNLOAD + '" download>도우미 프로그램 받기</a> (vmh-helper.exe, 설치 없음) 후 켜고 ' +
               '<button type="button" class="secondary scan-inline-btn" data-act="helper-retry">다시 확인</button>' +
               '<br><small>곡 넘기기·업로드에 필요합니다. 켰는데도 안 되면 브라우저의 "로컬 네트워크 기기 접근"을 허용했는지 확인하세요 (주소창 왼쪽 사이트 설정).</small></span>';
