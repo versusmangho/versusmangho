@@ -102,7 +102,8 @@
        - READY를 켜고 끔: 밝은 배경 그림 위 흰 글자는 그림 부스러기가 섞여 READY(주황이 그림을 가림) 때 모양과 어긋난다
        - 칸이 바뀜: 같은 사람도 칸마다 글자가 1~2px 밀리고 획 두께가 달라진다 (PLAYER 1 칸이 특히)
        - READY를 한 번도 안 한 사람: 닉네임 폭을 몰라 뒤의 명패 그림까지 비교되는데, 그 그림이 프레임마다 흔들린다
-       빠진 사람과 아바타가 같고 닉네임이 느슨하게 맞으면(Room.nameClose) — 한 사람씩 딱 맞을 때만 — 같은 사람으로 잇고,
+       빠진 사람과 아바타가 같고, 명패 그림이 다르지 않고(둘 다 평소 명패를 봤을 때), 닉네임이 느슨하게 맞으면(Room.nameClose)
+       — 한 사람씩 딱 맞을 때만 — 같은 사람으로 잇고,
        장부의 그 상태 모양을 지금 것으로 바꾼다.
        → Map(명패 → id) */
     function relinkStateChanges(unknownPlates, knownIds) {
@@ -113,7 +114,11 @@
         const pick = new Map();
         for (const row of unknownPlates) {
             if (!row.fp.nameState) continue;
-            const c = vanished.filter(id => Room.fpAvatarSame(row.fp, b[id].fp) && Room.nameClose(row.fp, b[id].fp));
+            // 이중 검증: 아바타가 같고, 명패 쪽(평소끼리면 그림도)이 맞아야 한다
+            const c = vanished.filter(id => {
+                const e = b[id].fp;
+                return Room.fpCurrent(e) && Room.fpAvatarSame(row.fp, e) && !Room.fpArtDiffers(row.fp, e) && Room.nameClose(row.fp, e);
+            });
             if (c.length === 1) pick.set(row, c[0]);
         }
         // 두 명패가 같은 사람을 고르면 어느 쪽도 잇지 않는다
