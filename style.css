@@ -388,3 +388,61 @@ body.sharing .top-grid { grid-template-columns: 1fr; }
   .weight-range { grid-column: 1 / -1; grid-row: 2; }
   .weight-def { display: none; }
 }
+
+/* ── 성과 스캔 탭 ───────────────── */
+.scan-checks { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 4px; font-size: 13px; color: var(--text-secondary); }
+.scan-checks li { display: flex; gap: 8px; align-items: baseline; }
+.scan-checks .ok { color: var(--good); }
+.scan-checks .no { color: var(--warn); }
+.scan-checks code { font-size: 12px; }
+.scan-actions { flex-wrap: wrap; margin: 0 0 12px; }
+.scan-actions button:disabled, #scan-upload-btn:disabled, #scan-clear-btn:disabled { opacity: 0.4; cursor: default; }
+.scan-spacer { flex: 1; }
+.scan-count { font-weight: 500; font-size: 13px; color: var(--text-secondary); }
+.scan-note { font-size: 13px; color: var(--text-secondary); }
+.scan-empty { margin: 8px 0; font-size: 13px; color: var(--text-dim); }
+.scan-opt-text { max-width: 280px; }
+
+.scan-list { display: flex; flex-direction: column; gap: 6px; max-height: 70vh; overflow-y: auto; }
+.scan-item { display: grid; grid-template-columns: auto 48px 48px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--bg-sunken); border: 1px solid var(--border-color); }
+.scan-item.need { border-color: rgba(252, 211, 77, 0.35); }
+.scan-inc input { width: 18px; height: 18px; accent-color: var(--accent-blue); cursor: pointer; }
+.scan-thumb, .scan-jacket { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; background: #0b1220; }
+.scan-info { min-width: 0; }
+.scan-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.scan-sub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+.scan-badges { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
+.scan-badges .tag { margin: 0; }
+.tag.scan-tag-ok { color: #86efac; border-color: rgba(34, 197, 94, 0.35); }
+.tag.scan-tag-warn { color: var(--warn); border-color: rgba(252, 211, 77, 0.35); }
+.tag.scan-tag-edit { color: #93c5fd; border-color: rgba(59, 130, 246, 0.45); }
+.scan-detail { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; padding-top: 6px; }
+.scan-table-img { width: 100%; max-width: 623px; border-radius: 8px; border: 1px solid var(--border-color); }
+.scan-grid { display: grid; grid-template-columns: 36px repeat(4, minmax(0, 150px)); gap: 4px 8px; align-items: center; font-size: 12px; }
+.scan-grid > b { color: var(--text-dim); font-weight: 700; text-align: center; }
+.scan-cell { display: grid; grid-template-columns: 1fr auto; gap: 2px 6px; align-items: center; padding: 4px 6px; border-radius: var(--radius-xs); border: 1px solid transparent; }
+.scan-cell.flag { border-color: rgba(252, 211, 77, 0.5); background: rgba(252, 211, 77, 0.06); }
+.scan-cell.empty { color: var(--text-dim); text-align: center; display: block; }
+.scan-cell input[type="text"] { width: 100%; min-width: 0; padding: 4px 6px; font-family: var(--font-num); font-size: 12px; }
+.scan-cell label { display: inline-flex; gap: 3px; align-items: center; color: var(--text-secondary); cursor: pointer; }
+.scan-cell small { grid-column: 1 / -1; color: var(--text-dim); font-family: var(--font-num); font-size: 10px; }
+.scan-song-row { margin-top: 0; }
+
+.scan-diff { margin-top: 8px; }
+.scan-diff-table { margin-top: 6px; }
+.scan-diff-table td, .scan-diff-table th { padding: 6px 8px; font-size: 13px; }
+.scan-diff-table tbody td:first-child { font-family: inherit; }
+.scan-diff-table input[type="checkbox"] { accent-color: var(--accent-blue); }
+.scan-max { font-size: 10px; font-weight: 800; color: #38bdf8; }
+.scan-dim { color: var(--text-dim); }
+.scan-res.ok { color: #86efac; }
+.scan-res.fail { color: #fca5a5; }
+.scan-lower { margin-top: 12px; font-size: 13px; color: var(--text-secondary); }
+.scan-lower summary { cursor: pointer; }
+.scan-upload-row { flex-wrap: wrap; }
+#scan-upload-status { margin-top: 10px; }
+@media (max-width: 600px) {
+  .scan-item { grid-template-columns: auto 40px 1fr auto; }
+  .scan-jacket { display: none; }
+  .scan-grid { grid-template-columns: 30px repeat(4, minmax(0, 1fr)); }
+}

@@ -11,6 +11,9 @@
 !/auto-room.js
 !/generate-hashes.js
 !/hash-tool.html
+!/helper.py
+!/start.bat
+!/scan/
 !/lib/
 !/floor/
 
@@ -26,3 +29,5 @@
 !/lib/*.js
 /floor/*
 !/floor/*.js
+/scan/*
+!/scan/*.js
