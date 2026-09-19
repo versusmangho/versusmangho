@@ -3,7 +3,8 @@
 
    스캔 루프: 시작 → 5초 기다림(그 사이 사용자가 게임 창 클릭) → 지금 곡 읽기 → [↓ → 기다림 → 읽기]를 반복.
      - 키는 helper가 맨 앞 창이 DJMAX일 때만 누른다. 그래서 사용자가 브라우저를 클릭하면 다음 키에서 멈춘다.
-     - 읽기는 두 번 연속 같은 값이 나와야 믿는다 (곡이 바뀌는 중인 프레임을 피한다).
+     - 검증 읽기는 없다: ↓를 누르고 opts.delay(기본 25ms, 1/60~1/30초 사이)만 기다렸다가 프레임 한 장을 바로 읽는다.
+       못 읽은 프레임(화면이 아님)만 조금 뒤 다시 받아 본다.
      - ↓ 뒤에도 같은 곡이면 바로 끝으로 보지 않고 좀 더 기다린다 (렉). 그래도 같은 곡이 두 번이면 목록 끝.
        맨 끝에서 ↓가 첫 곡으로 돌아가는 경우도 있어서, 이번 스캔의 첫 곡이 다시 나와도 끝이다.
      - 게임이 앞에 있는 동안 이 탭은 가려져 setTimeout이 1초 넘게 늘어진다 — 기다림은 전부 워커 타이머(ScreenCapture.sleep). */
@@ -17,12 +18,13 @@
     const $ = (id) => document.getElementById(id);
 
     const OPT_KEY = 'scanOptionsV1';
-    const OPT_DEFAULT = { dj: '', delay: 100, hold: 40 };
+    const OPT_DEFAULT = { dj: '', delay: 25, hold: 40 };
     const COUNTDOWN_S = 5;
-    const SCAN_FPS = 30;              // 스캔하는 동안만 공유 프레임률을 올린다 (평소 5)
+    const SCAN_FPS = 60;              // 스캔하는 동안만 공유 프레임률을 올린다 (평소 5) — 25ms 뒤에 받는 프레임이 ↓ 뒤 화면이도록
     const IDLE_FPS = 5;
-    const STABLE_GAP_MS = 60;         // 같은 값인지 보려고 두 번 읽는 간격
-    const READ_TRIES = 8;             // 두 번 연속 같은 값을 얻으려는 시도 수
+    const DELAY_MIN = 17;             // 곡 넘긴 뒤 기다림의 하한 (1/60초보다 길게)
+    const READ_TRIES = 8;             // 못 읽은 프레임이면 다시 받아 보는 횟수
+    const RETRY_GAP_MS = 50;          // 그 간격
     const LAG_WAIT_MS = 1500;         // ↓ 뒤에도 같은 곡이면 이만큼 더 지켜본다
     const END_SAME = 2;               // 그러고도 같은 곡이 이만큼 이어지면 목록 끝
     const UPLOAD_GAP_MS = 150;        // 업로드 사이 간격 (한꺼번에 많이 보내면 V-ARCHIVE가 끊는다)
@@ -48,7 +50,7 @@
     function loadOpts() {
         try {
             const o = Object.assign({}, OPT_DEFAULT, JSON.parse(localStorage.getItem(OPT_KEY) || '{}'));
-            if (o.delay === 300) o.delay = OPT_DEFAULT.delay;   // 예전 기본값이 저장된 것 — 다른 옵션만 바꿔도 통째로 저장됐다
+            if (o.delay === 300 || o.delay === 100) o.delay = OPT_DEFAULT.delay;   // 예전 기본값이 저장된 것 — 다른 옵션만 바꿔도 통째로 저장됐다
             return o;
         }
         catch { return Object.assign({}, OPT_DEFAULT); }
@@ -60,7 +62,7 @@
         const dj = $('scan-dj-input'), delay = $('scan-delay-input'), hold = $('scan-hold-input');
         dj.value = opts.dj; delay.value = opts.delay; hold.value = opts.hold;
         dj.addEventListener('change', () => { opts.dj = dj.value.trim(); dj.value = opts.dj; saveOpts(); });
-        delay.addEventListener('change', () => { opts.delay = clampInt(delay.value, 50, 3000, OPT_DEFAULT.delay); delay.value = opts.delay; saveOpts(); });
+        delay.addEventListener('change', () => { opts.delay = clampInt(delay.value, DELAY_MIN, 3000, OPT_DEFAULT.delay); delay.value = opts.delay; saveOpts(); });
         hold.addEventListener('change', () => { opts.hold = clampInt(hold.value, 10, 500, OPT_DEFAULT.hold); hold.value = opts.hold; saveOpts(); });
     }
 
@@ -183,18 +185,11 @@
         if (r.ok) lastJacketY = r.jacket.y;
         return r;
     }
-    // 두 번 연속 같은 값이 나올 때까지 (곡이 바뀌는 중인 프레임을 피한다)
-    async function readStable() {
-        let last = { ok: false, reason: 'no-frame' };
-        for (let i = 0; i < READ_TRIES; i++) {
-            const a = await readNow();
-            if (!a.ok) { last = a; await sleep(100); continue; }
-            await sleep(STABLE_GAP_MS);
-            const b = await readNow();
-            if (b.ok && b.key === a.key) return b;
-            last = b.ok ? b : a;
-        }
-        return Object.assign({}, last, { ok: false, unstable: last.ok });
+    // 한 장만 읽는다 — 읽힌 값은 그대로 믿고, 못 읽은 프레임일 때만 조금 뒤 다시 받아 본다
+    async function readFrame() {
+        let r = await readNow();
+        for (let i = 1; i < READ_TRIES && !r.ok && !state.stopAsked; i++) { await sleep(RETRY_GAP_MS); r = await readNow(); }
+        return r;
     }
 
     // ── 스캔 루프 ─────────────────
@@ -221,7 +216,6 @@
     function readFailText(r) {
         if (r.reason === 'no-frame') return '게임 화면을 받지 못했습니다';
         if (r.reason === 'ratio') return '게임 화면 비율을 알 수 없습니다';
-        if (r.unstable) return '화면이 계속 바뀌어 같은 값을 두 번 읽지 못했습니다';
         if (r.reason === 'table') return '컬렉션 MUSIC DATA 화면이 아닌 것 같습니다 (기록 표가 안 보임)';
         return '컬렉션 MUSIC DATA 화면이 아닌 것 같습니다 (선택된 곡의 자켓을 못 찾음)';
     }
@@ -244,7 +238,7 @@
                 setStatus(s + '초 안에 게임 창을 클릭하세요', 'live'); setTitle(s + '초');
                 await sleep(1000);
             }
-            let r = await readStable();
+            let r = await readFrame();
             if (!r.ok) { endNote = readFailText(r); throw new Error('read'); }
             let prevId = r.id, same = 0;
             const scanFirst = firstId || r.id;
@@ -255,11 +249,11 @@
                 const k = await pressDown();
                 if (!k.ok) { endNote = stopReason(k); break; }
                 await sleep(opts.delay);
-                r = await readStable();
+                r = await readFrame();
                 if (r.ok && r.id === prevId) {
                     // 화면이 늦게 바뀌는 중일 수 있다 — 조금 더 지켜본다
                     const until = performance.now() + LAG_WAIT_MS;
-                    while (r.ok && r.id === prevId && performance.now() < until && !state.stopAsked) { await sleep(150); r = await readStable(); }
+                    while (r.ok && r.id === prevId && performance.now() < until && !state.stopAsked) { await sleep(RETRY_GAP_MS); r = await readFrame(); }
                 }
                 if (!r.ok) { endNote = readFailText(r) + ' — 멈췄습니다'; break; }
                 if (r.id === prevId) {
