@@ -43,6 +43,15 @@ body::before {
     radial-gradient(circle at 90% 80%, rgba(99, 102, 241, 0.05) 0%, transparent 40%);
 }
 
+/* ── 층(z-index) 순서 ─────────────────
+   한 페이지에 탭을 다 얹어 두었으므로 겹치는 것들의 순서를 여기서 한 번만 정해 둔다.
+   -1  배경 빛(body::before)
+   ~20 본문 안에서 잠깐 뜨는 것 (곡 검색 결과 드롭다운 등) — 헤더보다는 낮아야 한다
+   30  붙박이 헤더 (스크롤해도 맨 위에 남는다)
+   100 화면 전체를 덮는 모달 (.help-modal — 헤더까지 덮어야 한다)
+   본문 쪽에 30 이상을 주면 스크롤할 때 헤더를 가린다. flex/grid 칸은 position이 static이어도
+   z-index가 먹으니, 자리를 옮기면서 쓸모없어진 z-index는 꼭 같이 걷어낼 것. */
+
 /* 레이아웃 */
 header { padding: 14px 24px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: rgba(15,23,42,0.85); backdrop-filter: var(--blur); z-index: 30; }
 header h1 { font-size: 18px; margin: 0; font-family: var(--font-num); font-weight: 900; letter-spacing: 0.04em; background: linear-gradient(90deg, #60a5fa, #818cf8); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -344,10 +353,14 @@ body.sharing .top-grid { grid-template-columns: 1fr; }
    반대로 매칭 탭을 그 언어에 맞췄다(위 토큰 참고).
    여기 있는 것은 '한 페이지에 얹으면서 어쩔 수 없이 달라진 자리'뿐이다. */
 
-/* 원래는 화면 구석에 떠 있던 모드 토글을 탭 안의 한 줄로 */
+/* 원래는 화면 구석에 떠 있던 모드 토글을 탭 안의 한 줄로.
+   원본의 position/z-index/여백은 '구석에 떠 있을 때' 쓰던 값이라 전부 걷어낸다.
+   특히 z-index는 그냥 두면 안 된다 — .floor-toolbar가 flex라서 그 안의 칸은
+   position이 static이어도 z-index가 먹는다(플렉스 아이템). z-index: 50이 남아 있으면
+   스크롤할 때 모드 토글이 붙박이 헤더(z-index: 30) 위로 올라와 헤더를 가렸다. */
 .floor-toolbar { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 12px; }
-.floor-scope .mode-toggle-container { position: static; }
-.floor-scope .help-btn-container { position: static; margin: 0; }
+.floor-scope .mode-toggle-container { position: static; z-index: auto; margin: 0; }
+.floor-scope .help-btn-container { position: static; z-index: auto; margin: 0; }
 
 /* 본문 폭을 매칭 탭과 맞춘다 (원래는 max-w-6xl 단독 페이지였다) */
 .floor-scope .floor-body { max-width: 1100px; margin: 0 auto; }
