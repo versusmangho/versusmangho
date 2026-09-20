@@ -758,6 +758,29 @@
       위에서 화면 공유를 주지 않은 탭으로도 넘어가지 않습니다.</p>
   </section>
 
+  <section class="card options-card" id="opt-notify">
+    <h2>알림</h2>
+    <label class="option-row">
+      <span class="switch"><input type="checkbox" id="notify-lobby-toggle" /><span class="slider"></span></span>
+      <span class="option-name">로비 복귀 알림</span>
+    </label>
+    <div class="option-row option-row-block">
+      <span class="option-name">알리는 방법</span>
+      <div class="seg" role="radiogroup" aria-label="알리는 방법">
+        <label><input type="radio" name="notify-how" value="both" checked /><span>소리 + 알림창</span></label>
+        <label><input type="radio" name="notify-how" value="sound" /><span>소리만</span></label>
+        <label><input type="radio" name="notify-how" value="desktop" /><span>알림창만</span></label>
+      </div>
+      <button id="notify-test-btn" class="secondary">시험 삼아 울리기</button>
+    </div>
+    <p id="notify-note" class="scan-note"></p>
+    <p class="option-desc">대결이 끝나 게임 화면이 <b>로비로 돌아오면</b> 알려줍니다. 곡을 고르고 플레이하는 동안 다른 일을 보고 있다가도
+      다음 대진을 정할 때를 놓치지 않기 위한 것입니다. <b>게임 화면을 연결</b>해 두고 매칭 도우미가 그 화면을 받고 있을 때만 울립니다.
+      로비가 아닌 화면이 <b>10초 이상</b> 이어진 뒤에 로비가 잡힐 때 한 번만 울리므로, 로비에 앉아 있는 동안에는 울리지 않습니다.
+      <b>알림창</b>은 브라우저에게 권한을 허용해야 뜨고(처음 켜면 물어봅니다), 누르면 이 페이지로 돌아옵니다.
+      게임을 <b>전체화면(독점) 모드</b>로 켜 둔 경우 윈도우가 알림창을 가릴 수 있으니 그때는 소리를 살려 두세요.</p>
+  </section>
+
   <section class="card options-card" id="opt-scan">
     <h2>성과 스캔</h2>
     <div class="option-row option-row-block">
@@ -827,7 +850,7 @@
       <li><b>층수 측정기:</b> 밴픽에 뜬 곡들의 층수.</li>
       <li><b>티어별 난이도:</b> 방 공지에 붙여넣을 난이도 문구.</li>
       <li><b>성과 스캔:</b> 컬렉션 화면을 한 곡씩 넘기며 내 기록을 읽어 V-ARCHIVE에 올립니다.</li>
-      <li><b>옵션:</b> 매칭 규칙(신입 우선권·세이프가드), 가중치 편집기, 화면 공유를 어느 탭에 줄지, 화면 자동 전환, 성과 스캔(DJ 이름·기다리는 시간). 옵션에 대한 설명은 옵션 탭 안에 같이 있습니다.</li>
+      <li><b>옵션:</b> 매칭 규칙(신입 우선권·세이프가드), 가중치 편집기, 화면 공유를 어느 탭에 줄지, 화면 자동 전환, 로비 복귀 알림, 성과 스캔(DJ 이름·기다리는 시간). 옵션에 대한 설명은 옵션 탭 안에 같이 있습니다.</li>
       <li><b>도움말:</b> 지금 보고 있는 이 화면.</li>
       <li><b>탭을 바꿔도 아무것도 꺼지지 않습니다.</b> 양쪽 기록이 그대로 남고, 게임 화면 자동 인식도 보이지 않는 탭에서 계속 돕니다.</li>
     </ul>
@@ -1008,6 +1031,7 @@
 <script src="lib/screen-capture.js"></script>
 <script src="lib/capture-hub.js"></script>
 <script src="lib/tabs.js"></script>
+<script src="lib/notify.js"></script>
 <script src="lib/popup.js"></script>
 <script src="lib/djmax-room.js"></script>
 

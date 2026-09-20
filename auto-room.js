@@ -27,6 +27,9 @@
     const PAIR_STABLE_TICKS = 2;     // 라운드·결과 화면도 등장 연출 중에 읽히면 어긋나므로 두 번 확인
     const MATCH_CLEAR_TICKS = 4;     // 로비가 이만큼 보여야 판이 끝난 것으로 보고 다음 판을 받는다
     const LOBBY_TAB_TICKS = 2;       // 로비가 이만큼 연속으로 보이면 매칭 탭으로 넘긴다 (화면 자동 전환 옵션)
+    // 로비가 아닌 화면이 이만큼(10초) 이어진 뒤에 로비가 보이면 '판이 끝나고 돌아온 것'으로 보고 알린다 (로비 복귀 알림 옵션).
+    // 로비에 앉아 있는 동안 몇 프레임 잘못 읽히는 것과 가르는 값이다 — 곡 고르기·플레이는 언제나 이보다 훨씬 길다
+    const NOTIFY_AWAY_TICKS = 20;
     const ACTIVITY_MAX = 12;
 
     const state = {
@@ -36,6 +39,7 @@
         pairPrev: null, pairCount: 0,        // 직전 라운드·결과 화면의 두 명패 / 연속으로 같은 두 명이 보인 횟수
         matchLocked: false, lobbyCount: 0,   // 이번 판을 이미 기록했다 — 로비로 돌아와야 풀린다
         lobbyStreak: 0,                      // 로비가 연속으로 보인 횟수 (탭 자동 전환용)
+        awayStreak: 0,                       // 로비가 아닌 화면이 이어진 횟수 (로비 복귀 알림용)
         pairFailed: false,                   // 이 화면에서 누구인지 못 가렸다고 이미 알렸다
         lastPair: null,                      // 가장 최근 로비에서 본 PLAYER 1·2 (명패를 못 읽었을 때의 대비책)
         activity: []
@@ -338,7 +342,13 @@
     async function onFrame(frame, W, H) {
         if (Room.isLobbyScreen(frame, W, H)) {
             leavePairScreen();
-            if (++state.lobbyStreak >= LOBBY_TAB_TICKS) window.VMH.Tabs.follow('match');
+            if (++state.lobbyStreak >= LOBBY_TAB_TICKS) {
+                window.VMH.Tabs.follow('match');
+                // 판이 끝나고 돌아온 것이면 한 번만 알린다. 로비가 확실해진 뒤에 세기를 접으므로
+                // 로비 한가운데의 오인식 한두 프레임으로 알림이 울리지는 않는다
+                if (state.awayStreak >= NOTIFY_AWAY_TICKS && window.VMH.Notify.lobbyBack()) log('로비로 돌아옴 — 알림', 'hit');
+                state.awayStreak = 0;
+            }
             if (state.matchLocked && ++state.lobbyCount >= MATCH_CLEAR_TICKS) state.matchLocked = false;
 
             const r = syncRoster(Room.readLobby(frame, W, H));
@@ -355,7 +365,7 @@
             return;
         }
         state.rosterKey = null; state.rosterCount = 0;
-        state.lobbyCount = 0; state.lobbyStreak = 0;
+        state.lobbyCount = 0; state.lobbyStreak = 0; state.awayStreak++;
         resetDelays();   // 로비가 아닌 화면에선 명단이 안 보인다 — 딜레이는 로비가 끊기지 않고 이어질 때만 센다
 
         const kind = Room.isResultScreen(frame, W, H) ? 'result' : Room.isRoundScreen(frame, W, H) ? 'round' : null;
@@ -439,7 +449,7 @@
         applyLock(on);
         if (!running) window.VMH.Tabs.forgetScene();
         if (!on) {
-            Object.assign(state, { rosterKey: null, rosterCount: 0, pairPrev: null, pairCount: 0, matchLocked: false, pairFailed: false, lobbyStreak: 0 });
+            Object.assign(state, { rosterKey: null, rosterCount: 0, pairPrev: null, pairCount: 0, matchLocked: false, pairFailed: false, lobbyStreak: 0, awayStreak: 0 });
             resetDelays();
             setStatus(running ? '화면 공유를 층수 측정기에만 주는 중 — 옵션 탭에서 바꿀 수 있습니다'
                               : '게임 화면을 연결하면 입·퇴장과 대진이 자동으로 기록됩니다', 'idle');
