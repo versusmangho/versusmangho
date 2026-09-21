@@ -30,12 +30,17 @@
     // 로비가 아닌 화면이 이만큼(10초) 이어진 뒤에 로비가 보이면 '판이 끝나고 돌아온 것'으로 보고 알린다 (로비 복귀 알림 옵션).
     // 로비에 앉아 있는 동안 몇 프레임 잘못 읽히는 것과 가르는 값이다 — 곡 고르기·플레이는 언제나 이보다 훨씬 길다
     const NOTIFY_AWAY_TICKS = 20;
+    // 자리(칸)로 이어 붙인 사람의 지금 모양을 장부에 넣기까지 기다리는 프레임 수 —
+    // 한두 프레임 잘못 읽은 것으로 장부가 더러워지지 않게 한다
+    const CARRY_MERGE_TICKS = 3;
     const ACTIVITY_MAX = 12;
 
     const state = {
         rosterKey: null, rosterCount: 0,     // 연속으로 같은 명단이 보인 횟수
         absent: {}, present: {}, newStreak: 0, // 입·퇴장 딜레이: id별 연속으로 안 보인/보인 로비 프레임 수, 처음 보는 명패가 연속으로 있던 수
         rows: [],                            // 로비 칸별 { last: 직전 프레임 명패, streak: 같은 모양이 이어진 수, held: 마지막으로 안정됐던 명패 }
+        slots: [],                           // 직전 로비 프레임에서 칸마다 누가 있었는지 { id, fp } (자리로 사람을 잇는 데 쓴다)
+        carryStreak: {},                     // id별 자리로 이어 붙인 프레임 수 (장부에 새 모양을 넣기 전 확인용)
         pairPrev: null, pairCount: 0,        // 직전 라운드·결과 화면의 두 명패 / 연속으로 같은 두 명이 보인 횟수
         matchLocked: false, lobbyCount: 0,   // 이번 판을 이미 기록했다 — 로비로 돌아와야 풀린다
         lobbyStreak: 0,                      // 로비가 연속으로 보인 횟수 (탭 자동 전환용)
@@ -156,6 +161,79 @@
         });
     }
 
+    /* ── 자리(칸)로 사람 잇기 ─────────────────
+       로비는 칸이 8개뿐이고 프레임은 0.5초 간격이다. 그래서 "직전 프레임에 이 칸에 있던 사람"은
+       명패 그림만큼이나 확실한 단서다 — 0.5초 사이에 한 사람이 나가고 다른 사람이 같은 칸에
+       들어앉는 일은 없다시피 하다.
+
+       명패 모양만으로는 끊기는 순간이 있다. READY를 켜면 명패가 통째로 주황으로 덮이고 닉네임
+       글자가 검게 뒤집히는데, 밝은 그림 위에 흰 닉네임이 얹힌 사람은 평소 모양이 글자 대신 그림
+       덩어리로 잡혀(noisy) READY 모양과 이어지지 않는다. 그러면 퇴장→입장이 한 번 찍힌다.
+
+       그래서 아바타가 같고 칸이 같으면 일단 같은 사람으로 본다. 닉네임은 같은 상태(READY끼리 ·
+       평소끼리)로 견줄 수 있을 때만 거부권을 갖는다 — 레디한 채로 사람이 바뀐 경우를 가른다.
+       칸이 바뀌었으면 직전 프레임에 비어난 자리의 사람 중 아바타가 같은 한 명과 잇는다(자리 이동).
+
+       이건 화면에 드러내지 않는다 — 사용자가 보는 결과는 그냥 '아무 일도 없었다'가 된다. */
+    function slotSame(cur, prev) {
+        if (!cur || !prev || !Room.fpCurrent(prev) || !Room.fpAvatarSame(cur, prev)) return false;
+        if (Room.fpArtDiffers(cur, prev)) return false;   // 둘 다 평소 명패인데 그림이 다르면 남
+        const st = cur.nameState;
+        // 같은 상태의 닉네임 모양이 양쪽에 있을 때만 닉네임을 따진다.
+        // READY를 막 켰다/껐다면 모양이 통째로 달라진 것이라 여기서 따져봐야 틀린다
+        if (st && prev.names && prev.names[st]) return Room.nameClose(cur, prev);
+        return true;
+    }
+
+    /* 직전 프레임의 칸 정보로 이번 프레임의 칸을 잇는다 → Map(명패 → id).
+       taken: 이미 다른 칸이 명패 모양으로 차지한 사람 (그 사람을 자리로 또 집지 않게) */
+    function carryFromSlots(steady, taken) {
+        const prev = state.slots || [];
+        const carry = new Map();
+        const used = new Set(taken);
+        const held = new Array(prev.length).fill(false);
+        const usable = (row) => row && !row.empty && !row.unknown && !row.id;
+
+        // 1) 같은 칸 — 직전 프레임에 이 칸에 있던 사람
+        steady.forEach((row, i) => {
+            if (!usable(row)) { if (row && row.id && prev[i] && prev[i].id === row.id) held[i] = true; return; }
+            const p = prev[i];
+            if (p && !used.has(p.id) && slotSame(row.fp, p.fp)) {
+                carry.set(row, p.id); used.add(p.id); held[i] = true;
+            }
+        });
+        // 2) 자리 이동 — 직전 프레임에 사람이 있었다가 비어난 칸 중 아바타가 맞는 한 명.
+        //    둘 이상이면 어느 쪽도 잇지 않는다 (자리를 맞바꾼 두 사람을 뒤섞지 않게)
+        steady.forEach((row, i) => {
+            if (!usable(row) || carry.has(row)) return;
+            const cands = [];
+            prev.forEach((p, j) => {
+                if (!p || held[j] || used.has(p.id) || !slotSame(row.fp, p.fp)) return;
+                cands.push({ j, id: p.id });
+            });
+            if (cands.length === 1) { carry.set(row, cands[0].id); used.add(cands[0].id); held[cands[0].j] = true; }
+        });
+        return carry;
+    }
+
+    /* 이번 프레임의 칸 상태를 기억해 둔다 (다음 프레임의 자리 잇기용) */
+    function rememberSlots(steady) {
+        state.slots = steady.map(row =>
+            row && !row.empty && !row.unknown && row.id ? { id: row.id, fp: row.fp } : null);
+    }
+
+    /* 자리로 이어 붙인 사람이 CARRY_MERGE_TICKS 동안 이어지면 지금 모양을 장부에 넣어 둔다 —
+       다음 로비나 라운드·결과 화면에서 명패 모양만으로도 알아보게 */
+    function mergeCarried(carried) {
+        const b = book(), streak = {};
+        for (const [row, id] of carried) {
+            const n = (state.carryStreak[id] || 0) + 1;
+            streak[id] = n;
+            if (n === CARRY_MERGE_TICKS && b[id] && Room.fpCurrent(b[id].fp)) Room.mergeName(b[id].fp, row.fp);
+        }
+        state.carryStreak = streak;
+    }
+
     /* 로비: 지금 보이는 8칸과 방 명단을 맞춘다 */
     function syncRoster(lobby) {
         const steady = steadyRows(lobby.rows);
@@ -168,7 +246,7 @@
         const knownIds = [], knownHits = [], unknownPlates = [], ambiguousRows = [];
         for (const row of occupied) {
             const hit = lookupRaw(row);
-            if (hit && hit.match) { knownIds.push(hit.match.id); knownHits.push([row, hit]); }
+            if (hit && hit.match) { row.id = hit.match.id; knownIds.push(hit.match.id); knownHits.push([row, hit]); }
             else if (hit && hit.ambiguous) ambiguousRows.push([row, hit.candidates.map(c => c.id)]);
             else unknownPlates.push(row);
         }
@@ -177,6 +255,25 @@
             const left = ids.filter(id => !knownIds.includes(id));
             if (left.length === 1) { knownIds.push(left[0]); row.id = left[0]; }
         }
+
+        // 명패 모양으로 못 가린 칸은 자리로 잇는다 — 직전 프레임에 그 칸(또는 비어난 칸)에 있던 사람.
+        // 이어 붙인 사람은 '아는 사람'으로 쳐서 입·퇴장이 아예 일어나지 않게 한다
+        const carry = carryFromSlots(steady, knownIds);
+        const carried = [];
+        const takeCarry = (row, only) => {
+            const id = carry.get(row);
+            if (!id || knownIds.includes(id) || (only && !only.includes(id))) return false;
+            row.id = id; knownIds.push(id); carried.push([row, id]);
+            return true;
+        };
+        for (let i = unknownPlates.length - 1; i >= 0; i--) {
+            if (takeCarry(unknownPlates[i])) unknownPlates.splice(i, 1);
+        }
+        // 엇비슷한 칸은 후보 안에 있을 때만 (자리가 엉뚱한 사람을 끌어오지 않게)
+        for (const [row, ids] of ambiguousRows) if (!row.id) takeCarry(row, ids);
+        mergeCarried(carried);
+        rememberSlots(steady);
+
         const stillAmbiguous = ambiguousRows.filter(([row]) => !row.id).length;
 
         // 입·퇴장 딜레이 카운터 — 명단이 흔들리는 프레임에서도 센다. 한 번이라도 보이면(엇비슷한 후보여도) 퇴장 카운트는 0으로
@@ -208,12 +305,12 @@
         // 여기서부터 확정 — 아는 사람의 닉네임 지문을 채우고, READY를 바꾼 사람을 잇고, 처음 보는 명패를 장부에 올린다.
         // 처음 보는 명패는 입장 딜레이가 찬 뒤에만 장부에 올린다 (잘못 읽은 명패가 유령으로 남지 않게)
         if (first) for (const [row, hit] of knownHits) refreshName(row, hit);
-        for (const [row, hit] of knownHits) row.id = hit.match.id;
         if (newDue) {
             const relinked = relinkStateChanges(unknownPlates, knownIds);
             for (const row of unknownPlates) row.id = relinked.get(row) || resolveId(row);
             // 이어 붙인 사람은 이번 프레임에 보인 것으로 친다
             for (const id of relinked.values()) delete absent[id];
+            rememberSlots(steady);   // 새로 올린 사람도 다음 프레임부터 자리로 이어진다
         }
         const seen = knownIds.concat(unknownPlates.map(row => row.id).filter(Boolean));
 
@@ -263,6 +360,8 @@
 
     function resetDelays() {
         state.absent = {}; state.present = {}; state.newStreak = 0; state.rows = [];
+        // 로비가 아닌 화면을 거치면 칸 배치가 바뀔 수 있다 — 자리 단서는 로비가 끈기지 않고 이어질 때만 쓴다
+        state.slots = []; state.carryStreak = {};
     }
 
     function samePlate(p, q) {
