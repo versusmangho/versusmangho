@@ -17,7 +17,7 @@
     const QW = 2560, QH = 1440, K = 4 / 3;
 
     // 자켓을 찾는 세로 띠 (선택 줄의 썸네일 자리)
-    const JK = { x: 1980, size: 80, y0: 440, y1: 1180, coarse: 4 };
+    const JK = { x: 1980, size: 80, y0: 440, y1: 1180 };
     const STRIP = { x: JK.x - 4, y: JK.y0, w: JK.size + 8, h: JK.y1 - JK.y0 + JK.size };
     // 표 (점수·MAX를 읽고, 검토용 사진도 여기서 자른다) — 버튼·패턴 이름표까지 들어가게
     const TABLE = { x: 1100, y: 600, w: 830, h: 500 };
@@ -136,6 +136,45 @@
         return out;
     }
 
+    /* 지문을 3×2 블록으로 뭉친 작은 지문 — 자리를 훑을 때 쓰는 '하한' 계산용.
+       블록 평균의 차이는 그 블록 칸별 차이의 평균보다 클 수 없으므로(|평균(a−b)| ≤ 평균|a−b|),
+       여기서 나온 거리는 진짜 거리보다 항상 작거나 같다. 즉 이 값이 이미 멀면 제대로 잴 것도 없다. */
+    const BLK_W = 3, BLK_H = 2, BLK_N = BLK_W * BLK_H * 3, BLK_CELLS = (SIG_W / BLK_W) * (SIG_H / BLK_H);
+    function reduceSig(sig, out) {
+        out = out || new Float32Array(BLK_N);
+        out.fill(0);
+        for (let cy = 0; cy < SIG_H; cy++) {
+            const by = Math.floor(cy * BLK_H / SIG_H);
+            for (let cx = 0; cx < SIG_W; cx++) {
+                const i = (cy * SIG_W + cx) * 3, o = (by * BLK_W + Math.floor(cx * BLK_W / SIG_W)) * 3;
+                out[o] += sig[i]; out[o + 1] += sig[i + 1]; out[o + 2] += sig[i + 2];
+            }
+        }
+        for (let i = 0; i < BLK_N; i++) out[i] /= BLK_CELLS;
+        return out;
+    }
+
+    // DB의 작은 지문 (테이블이 바뀔 때만 다시 만든다)
+    let blkTable = null, blkFor = null;
+    function reducedTable(table) {
+        if (blkFor === table && blkTable) return blkTable;
+        const out = new Float32Array(table.length * BLK_N), tmp = new Float32Array(BLK_N);
+        table.forEach((it, k) => out.set(reduceSig(it.sig, tmp), k * BLK_N));
+        blkFor = table; blkTable = out;
+        return out;
+    }
+
+    // 이 자리가 DB의 어떤 자켓과도 이보다 가까울 수는 없다 (하한)
+    function lowerBound(small, blk, count) {
+        let best = Infinity;
+        for (let k = 0, o = 0; k < count; k++, o += BLK_N) {
+            let s = 0;
+            for (let i = 0; i < BLK_N && s < best; i++) s += Math.abs(small[i] - blk[o + i]);
+            if (s < best) best = s;
+        }
+        return best / BLK_N;
+    }
+
     // DB 전체에서 가장 가까운 두 자켓. 2위보다 멀어지면 바로 그만 센다
     function nearestTwo(sig, table) {
         const n = sig.length;
@@ -156,14 +195,29 @@
         const c = regionAtQhd(frame, W, STRIP), dw = c.width;
         const d = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, c.width, c.height).data;
         const x0 = JK.x - STRIP.x, maxY = STRIP.h - JK.size;
+        const blk = reducedTable(table);
         const at = (x, y) => { const m = nearestTwo(sigAt(d, dw, x, y, JK.size), table); return m && Object.assign(m, { x, y }); };
+        /* 자리는 1px씩 전부 본다. 예전엔 4px씩 건너뛰고 1등 둘레만 다듬었는데,
+           어두운 자켓은 2px만 밀려도 거리가 확 뛴다(실측 Cocked Pistol 9.6 → 38.6, Never Ending TECHNIKA 5.8 → 18.2).
+           그래서 엉뚱한(어두워진) 줄이 1등(17.5)으로 뽑혀 곡을 못 찾았다.
+           자리마다 DB 846장을 다 재면 0.5ms씩 드니, 작은 지문으로 하한을 먼저 재서 가까운 자리부터 제대로 잰다.
+           지금 1등보다 하한이 먼 자리는 볼 것도 없다 — 컬렉션 화면에서 제대로 재는 자리는 보통 열 곳 안쪽이다. */
         const search = (lo, hi) => {
-            let best = null;
-            for (let y = lo; y <= hi; y += JK.coarse) { const m = at(x0, y); if (m && (!best || m.d < best.d)) best = m; }
+            const small = new Float32Array(BLK_N), spots = [];
+            for (let y = lo; y <= hi; y++) {
+                const sig = sigAt(d, dw, x0, y, JK.size);
+                spots.push({ y, sig, lb: lowerBound(reduceSig(sig, small), blk, table.length) });
+            }
+            spots.sort((a, b) => a.lb - b.lb);
+            let best = null, limit = JACKET_MAX;   // 어차피 이보다 멀면 곡으로 안 친다
+            for (const s of spots) {
+                if (s.lb >= limit) break;
+                const m = nearestTwo(s.sig, table);
+                if (m && m.d < limit) { limit = m.d; best = Object.assign(m, { x: x0, y: s.y }); }
+            }
             if (!best) return null;
-            // 가장 맞는 자리 주변을 1px 단위로 다시 본다
-            const cy = best.y;
-            for (let y = Math.max(0, cy - JK.coarse + 1); y <= Math.min(maxY, cy + JK.coarse - 1); y++) {
+            // x는 해상도를 맞춰 그리면서 조금 밀릴 수 있다
+            for (let y = Math.max(0, best.y - 1); y <= Math.min(maxY, best.y + 1); y++) {
                 for (let x = x0 - 2; x <= x0 + 2; x++) { const m = at(x, y); if (m && m.d < best.d) best = m; }
             }
             return best;
