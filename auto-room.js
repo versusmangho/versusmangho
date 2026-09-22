@@ -24,6 +24,12 @@
     // 로비 칸 하나의 명패가 이만큼 연속으로 같은 모양이어야 믿는다(1초). READY를 켜고 끌 때 주황이 명패를 쓸고
     // 지나가는 동안 닉네임이 반쯤 가려지는데, 그 프레임이 장부에 그 사람 모양으로 들어가면 이후 멀쩡한 명패가 남이 된다
     const ROW_STABLE_TICKS = 3;
+    // 그림이 움직이는 명패는 칸이 영영 '같은 모양'이 되지 않는다(sameReading이 그림을 본다) — 그러면 그 칸이
+    // 통째로 빠져 안 보이는 사람이 되고 퇴장이 찍힌다. 아바타·상태가 이만큼 이어지면 안정된 것으로 친다.
+    // READY를 켜고 끄는 중의 쓸기 프레임은 그 사이 상태가 뒤집히므로 여기 걸리지 않는다
+    const ROW_ANIM_TICKS = 4;
+    const ANIM_WINDOW = 5;           // 최근 이만큼의 로비 프레임 중
+    const ANIM_HITS = 3;             // 이만큼에서 그림이 튀면 '움직이는 명패'로 본다
     const PAIR_STABLE_TICKS = 2;     // 라운드·결과 화면도 등장 연출 중에 읽히면 어긋나므로 두 번 확인
     const MATCH_CLEAR_TICKS = 4;     // 로비가 이만큼 보여야 판이 끝난 것으로 보고 다음 판을 받는다
     const LOBBY_TAB_TICKS = 2;       // 로비가 이만큼 연속으로 보이면 매칭 탭으로 넘긴다 (화면 자동 전환 옵션)
@@ -38,10 +44,12 @@
     const state = {
         rosterKey: null, rosterCount: 0,     // 연속으로 같은 명단이 보인 횟수
         absent: {}, present: {}, newStreak: 0, // 입·퇴장 딜레이: id별 연속으로 안 보인/보인 로비 프레임 수, 처음 보는 명패가 연속으로 있던 수
-        rows: [],                            // 로비 칸별 { last: 직전 프레임 명패, streak: 같은 모양이 이어진 수, held: 마지막으로 안정됐던 명패 }
+        rows: [],                            // 로비 칸별 { last: 직전 프레임 명패, streak: 같은 모양이 이어진 수, avStreak: 아바타·상태만 같은 수, held: 마지막으로 안정됐던 명패 }
+        rowArt: [],                          // 칸별 그림 이력 { win: 최근 그림들, hits: 최근 프레임의 튐 여부, animated: 움직이는 명패로 판명 }
         slots: [],                           // 직전 로비 프레임에서 칸마다 누가 있었는지 { id, fp } (자리로 사람을 잇는 데 쓴다)
         carryStreak: {},                     // id별 자리로 이어 붙인 프레임 수 (장부에 새 모양을 넣기 전 확인용)
         pairPrev: null, pairCount: 0,        // 직전 라운드·결과 화면의 두 명패 / 연속으로 같은 두 명이 보인 횟수
+        pairArt: {},                         // 라운드·결과 화면 좌우의 그림 이력 (rowArt와 같은 것)
         matchLocked: false, lobbyCount: 0,   // 이번 판을 이미 기록했다 — 로비로 돌아와야 풀린다
         lobbyStreak: 0,                      // 로비가 연속으로 보인 횟수 (탭 자동 전환용)
         awayStreak: 0,                       // 로비가 아닌 화면이 이어진 횟수 (로비 복귀 알림용)
@@ -101,7 +109,7 @@
         }
         if (hit && hit.ambiguous) return null;
         const id = '명패' + (++room.autoSeq);
-        b[id] = { fp: plate.fp, thumb: plate.thumb() };
+        b[id] = { fp: Room.bookFp(plate.fp), thumb: plate.thumb() };
         return id;
     }
 
@@ -148,14 +156,63 @@
         return Room.sameReading(p.fp, q.fp);
     }
 
+    const usableRow = (row) => !!row && !row.empty && !row.unknown && !!row.fp;
+
+    /* 아바타와 상태만 같은가 — 움직이는 명패에서 '이 칸은 계속 같은 사람이다'를 보는 느슨한 기준 */
+    function sameAvatarReading(p, q) {
+        if (!usableRow(p) || !usableRow(q)) return false;
+        return Room.fpAvatarSame(p.fp, q.fp) && p.fp.nameState === q.fp.nameState;
+    }
+
+    /* ── 칸별 그림 이력 ─────────────────
+       명패 그림이 애니메이션이면 한 장씩 비교해 봐야 위상이 어긋나 매번 남이 된다(실측 최대 49.9).
+       대신 그 칸에서 본 최근 그림들의 **색을 평균**내 지문에 붙여 둔다 — 평균은 애니메이션 내내 거의 안 변한다
+       (실측 4장 평균: 동일인 최대 18.9 / 타인 최소 30.4). 아바타가 바뀌면(= 사람이 바뀌면) 버린다.
+       READY 프레임은 그림이 주황에 덮이므로 평균에 넣지 않되, 쌓아 둔 것은 그대로 둔다. */
+    function trackArt(kept, fp, prevFp) {
+        // 쌓아 둔 것은 그 자리에 있던 아바타의 것이다 — 아바타가 바뀌면 사람이 바뀐 것이니 버린다
+        let a = (kept && Room.fpAvatarSame(fp, kept.av)) ? kept : { win: [], hits: [], animated: false };
+        a.av = fp;
+        // 직전 프레임과 견줘 그림이 튀었나 — 같은 아바타·같은 상태일 때만 뜻이 있다
+        if (prevFp && Room.fpAvatarSame(fp, prevFp) && fp.nameState === prevFp.nameState && fp.art && prevFp.art) {
+            const d = Room.fpArtDist(fp, prevFp);
+            a.hits.push(d !== null && d > Room.ART_DIFF_MIN);
+            if (a.hits.length > ANIM_WINDOW) a.hits.shift();
+            if (a.hits.filter(Boolean).length >= ANIM_HITS) a.animated = true;
+        }
+        if (fp.art) {
+            a.win.push(fp.art);
+            if (a.win.length > Room.ART_AVG_CAP) a.win.shift();
+        }
+        // READY 프레임에도 붙여 준다 — 그림은 가려졌지만 여기서 쌓은 색 평균은 그 사람 것이다
+        if (a.win.length) {
+            const avg = new Array(a.win[0].length).fill(0);
+            for (const g of a.win) for (let k = 0; k < avg.length; k++) avg[k] += g[k] / a.win.length;
+            fp.artAvg = avg.map(Math.round);
+            fp.artN = a.win.length;
+        }
+        if (a.animated) fp.animated = true;
+        return a;
+    }
+
+    function trackRowArt(i, row, prev) {
+        if (!usableRow(row)) { state.rowArt[i] = null; return; }
+        state.rowArt[i] = trackArt(state.rowArt[i], row.fp, usableRow(prev) ? prev.fp : null);
+    }
+
     /* 칸마다 ROW_STABLE_TICKS 연속으로 같은 모양이 보였을 때의 명패만 쓰고, 그 사이엔 마지막으로 안정됐던 명패를 쓴다.
+       움직이는 명패는 그 기준에 영영 못 드니, 아바타·상태가 ROW_ANIM_TICKS 이어지면 안정된 것으로 본다.
        한 번도 안정된 적 없는 칸은 null (연결 직후 잠깐) */
     function steadyRows(rows) {
         return rows.map((row, i) => {
             const s = state.rows[i];
+            trackRowArt(i, row, s && s.last);
             const streak = s && sameReading(s.last, row) ? s.streak + 1 : 1;
-            const held = streak >= ROW_STABLE_TICKS ? row : s ? s.held : null;
-            state.rows[i] = { last: row, streak, held };
+            const avStreak = s && sameAvatarReading(s.last, row) ? s.avStreak + 1 : 1;
+            const steady = streak >= ROW_STABLE_TICKS
+                || (usableRow(row) && row.fp.animated && avStreak >= ROW_ANIM_TICKS);
+            const held = steady ? row : s ? s.held : null;
+            state.rows[i] = { last: row, streak, avStreak, held };
             // 이전 프레임에서 붙인 id가 남지 않게 복사해서 넘긴다
             return held && Object.assign({}, held, { id: undefined });
         });
@@ -174,10 +231,17 @@
        평소끼리)로 견줄 수 있을 때만 거부권을 갖는다 — 레디한 채로 사람이 바뀐 경우를 가른다.
        칸이 바뀌었으면 직전 프레임에 비어난 자리의 사람 중 아바타가 같은 한 명과 잇는다(자리 이동).
 
+       그리고 배치 전체도 단서다. 로비 목록은 누가 빠지면 아래가 위로 당겨지므로, 다른 칸이 전부
+       제자리라는 것은 아무도 나가지도 자리를 옮기지도 않았다는 뜻이다. 그런데도 못 이은 칸이 딱 하나,
+       비어난 사람도 딱 하나, 게다가 같은 칸이라면 — 그 사람이 그대로 앉아 있는 것이다. 이때만 그림
+       판정을 빼고 잇는다(3번). 움직이는 명패는 색 평균으로도 가끔 남으로 읽힐 수 있어서, 배치로 그걸
+       보정하는 것이다. 아바타와 닉네임은 그대로 따진다 — 아바타 칸은 애니메이션에도 움직이지 않고,
+       닉네임 거부권은 '레디한 채 사람이 바뀐 경우'를 막는다.
+
        이건 화면에 드러내지 않는다 — 사용자가 보는 결과는 그냥 '아무 일도 없었다'가 된다. */
-    function slotSame(cur, prev) {
+    function slotSame(cur, prev, ignoreArt) {
         if (!cur || !prev || !Room.fpCurrent(prev) || !Room.fpAvatarSame(cur, prev)) return false;
-        if (Room.fpArtDiffers(cur, prev)) return false;   // 둘 다 평소 명패인데 그림이 다르면 남
+        if (!ignoreArt && Room.fpArtDiffers(cur, prev)) return false;   // 둘 다 평소 명패인데 그림이 다르면 남
         const st = cur.nameState;
         // 같은 상태의 닉네임 모양이 양쪽에 있을 때만 닉네임을 따진다.
         // READY를 막 켰다/껐다면 모양이 통째로 달라진 것이라 여기서 따져봐야 틀린다
@@ -202,6 +266,8 @@
                 carry.set(row, p.id); used.add(p.id); held[i] = true;
             }
         });
+        const inPlace = held.slice();   // 1)에서 제자리로 확인된 칸 (2)의 자리 이동과 구별해야 한다)
+
         // 2) 자리 이동 — 직전 프레임에 사람이 있었다가 비어난 칸 중 아바타가 맞는 한 명.
         //    둘 이상이면 어느 쪽도 잇지 않는다 (자리를 맞바꾼 두 사람을 뒤섞지 않게)
         steady.forEach((row, i) => {
@@ -213,6 +279,26 @@
             });
             if (cands.length === 1) { carry.set(row, cands[0].id); used.add(cands[0].id); held[cands[0].j] = true; }
         });
+
+        // 3) 배치가 그대로면 남은 칸도 그 사람들이다 (위 주석 참고) — 움직이는 명패의 그림 판정을
+        //    자리로 보정한다. 못 이은 칸과 아직 못 찾은 사람이 '같은 칸에서 하나씩' 맞아떨어질 때만.
+        let quiet = true;
+        const free = [];
+        prev.forEach((p, j) => {
+            if (!p || inPlace[j]) return;
+            if (used.has(p.id)) { quiet = false; return; }   // 딴 칸에서 찾아냈다 = 배치가 바뀌었다
+            free.push(j);
+        });
+        const left = [];
+        steady.forEach((row, i) => { if (usable(row) && !carry.has(row)) left.push(i); });
+        // 둘 다 칸 번호 순서라 하나씩 견주면 된다. 빈자리가 더 있거나(= 누가 나갔다) 처음 보는 칸이
+        // 더 있으면(= 누가 들어왔다) 배치가 바뀐 것이니 이 단서는 쓰지 않는다
+        if (quiet && free.length && free.length === left.length && free.every((j, k) => j === left[k])) {
+            for (const i of left) {
+                const row = steady[i], p = prev[i];
+                if (slotSame(row.fp, p.fp, true)) { carry.set(row, p.id); used.add(p.id); held[i] = true; }
+            }
+        }
         return carry;
     }
 
@@ -359,7 +445,7 @@
     }
 
     function resetDelays() {
-        state.absent = {}; state.present = {}; state.newStreak = 0; state.rows = [];
+        state.absent = {}; state.present = {}; state.newStreak = 0; state.rows = []; state.rowArt = [];
         // 로비가 아닌 화면을 거치면 칸 배치가 바뀔 수 있다 — 자리 단서는 로비가 끈기지 않고 이어질 때만 쓴다
         state.slots = []; state.carryStreak = {};
     }
@@ -367,6 +453,9 @@
     function samePlate(p, q) {
         if (p.empty || q.empty) return p.empty === q.empty;
         if (p.unknown || q.unknown) return p.unknown === q.unknown;
+        // 움직이는 명패는 프레임마다 그림도, 그림에 묻힌 닉네임 모양도 흔들린다 —
+        // '두 프레임 연속 같은 두 사람인가'만 보면 되므로 아바타와 색 평균으로 본다
+        if (p.fp.animated || q.fp.animated) return Room.fpAvatarSame(p.fp, q.fp) && !Room.fpArtDiffers(p.fp, q.fp);
         return Room.fpSame(p.fp, q.fp);
     }
 
@@ -394,6 +483,15 @@
         // 직전 프레임과 같은 두 명패인지 — 영상은 프레임마다 픽셀 값이 조금씩 흔들리므로
         // 지문 숫자를 그대로 비교하면 영영 안 맞는다. 같은 사람 판정 기준으로 비교한다
         const prev = state.pairPrev;
+        // 라운드·결과 화면의 좌우도 로비 칸과 같은 자리다 — 그림 이력을 이어서 쌓는다
+        // (움직이는 명패면 여기서도 그림이 프레임마다 튀어, 안 해두면 같은 두 명으로 확정되지 않아 한 판이 안 찍힌다)
+        for (const side of ['left', 'right']) {
+            const plate = side === 'left' ? left : right;
+            if (!plate || plate.empty || plate.unknown || !plate.fp) { state.pairArt[side] = null; continue; }
+            const before = prev && prev[side];
+            state.pairArt[side] = trackArt(state.pairArt[side], plate.fp,
+                (before && !before.empty && !before.unknown) ? before.fp : null);
+        }
         state.pairPrev = { left, right };
         if (!prev || !samePlate(prev.left, left) || !samePlate(prev.right, right)) { state.pairCount = 1; return { pending: true }; }
         state.pairCount++;
@@ -434,7 +532,7 @@
     const areaNote = () => Hub.areaNote();
 
     function leavePairScreen() {
-        state.pairPrev = null; state.pairCount = 0; state.pairFailed = false;
+        state.pairPrev = null; state.pairCount = 0; state.pairFailed = false; state.pairArt = {};
     }
 
     /* ── 프레임 한 장 ───────────────── */
@@ -548,7 +646,7 @@
         applyLock(on);
         if (!running) window.VMH.Tabs.forgetScene();
         if (!on) {
-            Object.assign(state, { rosterKey: null, rosterCount: 0, pairPrev: null, pairCount: 0, matchLocked: false, pairFailed: false, lobbyStreak: 0, awayStreak: 0 });
+            Object.assign(state, { rosterKey: null, rosterCount: 0, pairPrev: null, pairCount: 0, pairArt: {}, matchLocked: false, pairFailed: false, lobbyStreak: 0, awayStreak: 0 });
             resetDelays();
             setStatus(running ? '화면 공유를 층수 측정기에만 주는 중 — 옵션 탭에서 바꿀 수 있습니다'
                               : '게임 화면을 연결하면 입·퇴장과 대진이 자동으로 기록됩니다', 'idle');
