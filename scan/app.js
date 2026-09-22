@@ -22,7 +22,7 @@
     const COUNTDOWN_S = 5;
     const SCAN_FPS = 60;              // 스캔하는 동안만 공유 프레임률을 올린다 (평소 5) — 기다림 뒤에 받는 프레임이 ↓ 뒤 화면이도록
     const IDLE_FPS = 5;
-    const DELAY_MIN = 17;             // 곡 넘긴 뒤 기다림의 하한 (1/60초보다 길게)
+    const DELAY_MIN = 60;             // 곡 넘긴 뒤 기다림의 하한 — 기본값과 같다. 더 줄이면 앞 곡이 읽힌다
     const READ_TRIES = 8;             // 못 읽은 프레임이면 다시 받아 보는 횟수
     const RETRY_GAP_MS = 50;          // 그 간격
     const LAG_WAIT_MS = 1500;         // ↓ 뒤에도 같은 곡이면 이만큼 더 지켜본다
@@ -51,6 +51,7 @@
         try {
             const o = Object.assign({}, OPT_DEFAULT, JSON.parse(localStorage.getItem(OPT_KEY) || '{}'));
             if (o.delay === 300 || o.delay === 100 || o.delay === 25) o.delay = OPT_DEFAULT.delay;   // 예전 기본값이 저장된 것 — 다른 옵션만 바꿔도 통째로 저장됐다
+            if (!(o.delay >= DELAY_MIN)) o.delay = OPT_DEFAULT.delay;   // 하한이 올라가기 전에 저장된 값 (숫자가 아닌 것도 여기서 걸린다)
             return o;
         }
         catch { return Object.assign({}, OPT_DEFAULT); }
