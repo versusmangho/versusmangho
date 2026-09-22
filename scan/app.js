@@ -3,7 +3,7 @@
 
    스캔 루프: 시작 → 5초 기다림(그 사이 사용자가 게임 창 클릭) → 지금 곡 읽기 → [↓ → 기다림 → 읽기]를 반복.
      - 키는 helper가 맨 앞 창이 DJMAX일 때만 누른다. 그래서 사용자가 브라우저를 클릭하면 다음 키에서 멈춘다.
-     - 검증 읽기는 없다: ↓를 누르고 opts.delay(기본 25ms, 1/60~1/30초 사이)만 기다렸다가 프레임 한 장을 바로 읽는다.
+     - 검증 읽기는 없다: ↓를 누르고 opts.delay(기본 60ms)만 기다렸다가 프레임 한 장을 바로 읽는다.
        못 읽은 프레임(화면이 아님)만 조금 뒤 다시 받아 본다.
      - ↓ 뒤에도 같은 곡이면 바로 끝으로 보지 않고 좀 더 기다린다 (렉). 그래도 같은 곡이 두 번이면 목록 끝.
        맨 끝에서 ↓가 첫 곡으로 돌아가는 경우도 있어서, 이번 스캔의 첫 곡이 다시 나와도 끝이다.
@@ -18,9 +18,9 @@
     const $ = (id) => document.getElementById(id);
 
     const OPT_KEY = 'scanOptionsV1';
-    const OPT_DEFAULT = { dj: '', delay: 25, hold: 40 };
+    const OPT_DEFAULT = { dj: '', delay: 60, hold: 40 };
     const COUNTDOWN_S = 5;
-    const SCAN_FPS = 60;              // 스캔하는 동안만 공유 프레임률을 올린다 (평소 5) — 25ms 뒤에 받는 프레임이 ↓ 뒤 화면이도록
+    const SCAN_FPS = 60;              // 스캔하는 동안만 공유 프레임률을 올린다 (평소 5) — 기다림 뒤에 받는 프레임이 ↓ 뒤 화면이도록
     const IDLE_FPS = 5;
     const DELAY_MIN = 17;             // 곡 넘긴 뒤 기다림의 하한 (1/60초보다 길게)
     const READ_TRIES = 8;             // 못 읽은 프레임이면 다시 받아 보는 횟수
@@ -50,7 +50,7 @@
     function loadOpts() {
         try {
             const o = Object.assign({}, OPT_DEFAULT, JSON.parse(localStorage.getItem(OPT_KEY) || '{}'));
-            if (o.delay === 300 || o.delay === 100) o.delay = OPT_DEFAULT.delay;   // 예전 기본값이 저장된 것 — 다른 옵션만 바꿔도 통째로 저장됐다
+            if (o.delay === 300 || o.delay === 100 || o.delay === 25) o.delay = OPT_DEFAULT.delay;   // 예전 기본값이 저장된 것 — 다른 옵션만 바꿔도 통째로 저장됐다
             return o;
         }
         catch { return Object.assign({}, OPT_DEFAULT); }
