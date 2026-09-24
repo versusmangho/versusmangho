@@ -38,6 +38,8 @@
         running: false, stopAsked: false,
         helper: null,         // /helper/status 결과, 없으면 null
         helperChecked: false, // 한 번이라도 확인했는지 (웹에서는 이 탭을 열 때 처음 확인한다)
+        launching: false,     // vmh://로 도우미를 켜고 뜨기를 기다리는 중
+        launchFailed: false,  // 켜 봤는데 안 떴다 (= 아직 한 번도 실행한 적이 없을 가능성)
         server: null,         // 'id|button|pattern' → { rate, max } (서버 기록)
         serverDj: '',
         skip: new Set(),      // 올릴 목록에서 사용자가 체크를 뺀 칸
@@ -72,6 +74,9 @@
     // 127.0.0.1:8777에 있다 (helper.py가 이 사이트에 CORS를 열어 둔다). 먼저 같은 주소, 안 되면 127.0.0.1:8777
     const HELPER_URL = 'http://127.0.0.1:8777';
     const HELPER_DOWNLOAD = 'download/vmh-helper.exe';
+    // 도우미를 한 번이라도 실행했으면 이 주소가 그 프로그램 앞으로 등록돼 있다 (helper.py register_scheme)
+    const HELPER_SCHEME = 'vmh://start';
+    const IS_WIN = /Windows/.test(navigator.userAgent);
     const sameOriginHelper = location.protocol === 'http:' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
     const helperBases = sameOriginHelper ? ['', HELPER_URL] : [HELPER_URL];
     let helperBase = helperBases[0];
@@ -83,22 +88,51 @@
         if (!res.ok && res.status === 404) throw new Error('no-helper');
         return res.json();
     }
+    async function probeHelper() {
+        for (const base of helperBases) {
+            try {
+                const s = await helperCall('/helper/status', null, base);
+                if (s && s.ok) { helperBase = base; return s; }
+            } catch { /* 다음 주소 */ }
+        }
+        return null;
+    }
     async function checkHelper() {
         state.helper = null;
         // 아직 허락을 안 받았으면 브라우저가 권한 창을 띄우고, 누를 때까지 요청이 멈춰 있다 — 그동안 무엇을 누를지 알려 준다
         state.lnaAsking = !sameOriginHelper && (await lnaState()) === 'prompt';
         if (state.lnaAsking) renderChecks();
-        for (const base of helperBases) {
-            try {
-                const s = await helperCall('/helper/status', null, base);
-                if (s && s.ok) { state.helper = s; helperBase = base; break; }
-            } catch { /* 다음 주소 */ }
-        }
+        state.helper = await probeHelper();
         state.lnaDenied = !state.helper && !sameOriginHelper && (await lnaState()) === 'denied';
         state.lnaAsking = false;
         state.helperChecked = true;
         renderChecks();
         return state.helper;
+    }
+    // 웹 페이지는 프로그램을 직접 실행할 수 없다 — 대신 도우미가 등록해 둔 vmh:// 주소를 연다.
+    // 브라우저가 "여시겠습니까?"를 한 번 묻고(항상 허용을 체크할 수 있다), 떴는지는 알려 주지 않으므로 상태를 되물어 확인한다.
+    // 아직 한 번도 실행한 적이 없으면 주소가 등록돼 있지 않아 아무 일도 일어나지 않는다 — 그때는 받아서 한 번 실행하라고 안내한다.
+    // 몇 번이 아니라 몇 초로 센다 — 꺼져 있는 주소로 보낸 요청이 몇 ms 만에 끊길지 몇 초를 끌지는 환경마다 다르다
+    const LAUNCH_WAIT_MS = 15000, LAUNCH_STEP = 600;
+    async function launchHelper() {
+        if (state.launching) return null;
+        state.launching = true;
+        state.launchFailed = false;
+        renderChecks();
+        const until = Date.now() + LAUNCH_WAIT_MS;
+        try {
+            location.href = HELPER_SCHEME;
+            while (Date.now() < until) {
+                await new Promise(r => setTimeout(r, LAUNCH_STEP));
+                const s = await probeHelper();
+                if (s) { state.helper = s; state.helperChecked = true; return s; }
+            }
+            state.launchFailed = true;
+            return null;
+        } finally {
+            state.launching = false;
+            renderChecks();
+        }
     }
     // Chrome 계열(웨일·엣지 포함)은 공개 사이트가 127.0.0.1을 부르려면 허락이 필요하다 — 권한 창 문구는
     // "이 기기의 다른 앱 및 서비스에 액세스". 막아 두면 요청이 나가지도 않아(도우미 로그에 아무것도 안 찍힌다)
@@ -306,21 +340,40 @@
     // ── 검토 목록 ─────────────────
     const filter = () => (document.querySelector('input[name="scan-filter"]:checked') || {}).value || 'check';
 
-    function renderChecks() {
-        const ok = (b) => b ? '<span class="ok">●</span>' : '<span class="no">●</span>';
+    // 도우미 상태 한 줄 (켜기·받기·다시 확인 단추 포함) — 방장 봇 탭도 같은 줄을 쓴다 (auto-host.js).
+    // 단추는 data-act="helper-open" | "helper-retry"라, 그 줄을 담은 곳이 onHelperClick으로 넘긴다
+    // need = 이 도우미가 어디에 필요한지 (탭마다 다르다)
+    function helperHtml(need) {
         const h = state.helper;
-        const helperLine = h
+        return h
             ? '도우미 연결됨' + (h.exe ? ' (프로그램)' : ' (start.bat)') + (h.windows ? '' : ' — Windows가 아니라 키 입력 불가')
             : state.lnaAsking ? '<span>브라우저 주소창 아래 권한 창에서 <b>"이 기기의 다른 앱 및 서비스에 액세스"</b>를 <b>허용</b>하세요 — 도우미 프로그램에 연결하는 데 필요합니다.</span>'
             : !state.helperChecked ? '도우미 확인 중…'
             : state.lnaDenied ? '<span>브라우저가 이 사이트의 <b>"이 기기의 다른 앱 및 서비스에 액세스"</b>를 막아 두어 도우미 프로그램에 연결할 수 없습니다 — ' +
               '주소창 왼쪽 <b>사이트 설정</b>에서 그 권한(로컬 네트워크 접근)을 <b>허용</b>으로 바꾸고 새로고침하세요. ' +
               '(프로그램이 아직 없으면 <a class="scan-helper-dl" href="' + HELPER_DOWNLOAD + '" download>도우미 프로그램 받기</a>)</span>'
-            : '<span>도우미 프로그램이 꺼져 있습니다 — <a class="scan-helper-dl" href="' + HELPER_DOWNLOAD + '" download>도우미 프로그램 받기</a> (vmh-helper.exe, 설치 없음) 후 켜고 ' +
+            : state.launching ? '<span>도우미 프로그램을 켜는 중입니다 — 브라우저가 <b>"vmh-helper을(를) 여시겠습니까?"</b>를 물으면 <b>열기</b>를 누르세요. (다음부터 안 묻게 하려면 "항상 허용"을 같이 체크)</span>'
+            : '<span>도우미 프로그램이 꺼져 있습니다 — ' +
+              (IS_WIN ? '<button type="button" class="secondary scan-inline-btn" data-act="helper-open">도우미 켜기</button> ' : '') +
+              '<a class="scan-helper-dl" href="' + HELPER_DOWNLOAD + '" download>도우미 프로그램 받기</a> (vmh-helper.exe, 설치 없음) ' +
               '<button type="button" class="secondary scan-inline-btn" data-act="helper-retry">다시 확인</button>' +
-              '<br><small>곡 넘기기·업로드에 필요합니다. 켜면 창 없이 트레이(시계 옆)에 아이콘만 생깁니다. 켰는데도 안 되면 주소창 왼쪽 사이트 설정에서 "이 기기의 다른 앱 및 서비스에 액세스"(로컬 네트워크 접근)가 허용인지 확인하세요.</small></span>';
+              '<br><small>' + (state.launchFailed
+                ? '<b>프로그램이 뜨지 않았습니다.</b> 받은 뒤 <b>한 번은 직접 실행</b>해야 "도우미 켜기"가 동작합니다 — 그때 이 단추가 쓰는 주소가 등록됩니다. 그 뒤로는 여기서 켜면 됩니다. '
+                : '') +
+              need + ' 켜면 창 없이 트레이(시계 옆)에 아이콘만 생깁니다. 켰는데도 안 되면 주소창 왼쪽 사이트 설정에서 "이 기기의 다른 앱 및 서비스에 액세스"(로컬 네트워크 접근)가 허용인지 확인하세요.</small></span>';
+    }
+    function onHelperClick(e) {
+        if (e.target.dataset.act === 'helper-retry') checkHelper();
+        else if (e.target.dataset.act === 'helper-open') launchHelper();
+    }
+    const helperListeners = [];
+
+    function renderChecks() {
+        const ok = (b) => b ? '<span class="ok">●</span>' : '<span class="no">●</span>';
+        const h = state.helper;
+        helperListeners.forEach(cb => { try { cb(); } catch (e) { console.error('[Scan]', e); } });
         $('scan-checks').innerHTML = [
-            ok(!!h) + helperLine,
+            ok(!!h) + helperHtml('곡 넘기기·업로드에 필요합니다.'),
             ok(Hub.isRunning()) + (Hub.isRunning() ? '게임 화면 연결됨' : '게임 화면이 연결되지 않았습니다 — 오른쪽 위 <b>게임 화면 연결</b>'),
             ok(dbReady()) + (dbReady() ? '곡 정보 ' + Object.keys(songDatabase).length + '곡 · 자켓 ' + jackets().length + '개' : '곡 정보·자켓 해시를 받는 중 (층수 측정기 탭 상태 참고)'),
             ok(!!opts.dj) + (opts.dj ? 'DJ 이름: ' + esc(opts.dj) : 'DJ 이름이 없습니다 — <b>옵션 탭</b>에서 넣으세요 (서버 기록 비교에 필요)')
@@ -649,7 +702,7 @@
         $('scan-list').addEventListener('change', onListChange);
         $('scan-diff').addEventListener('change', onDiffChange);
         $('scan-compare-btn').addEventListener('click', async () => { if (await loadServer()) renderDiff(); });
-        $('scan-checks').addEventListener('click', (e) => { if (e.target.dataset.act === 'helper-retry') checkHelper(); });
+        $('scan-checks').addEventListener('click', onHelperClick);
         $('scan-upload-btn').addEventListener('click', upload);
         $('scan-dj-input').addEventListener('change', () => { renderChecks(); if (state.server && state.serverDj !== opts.dj) { state.server = null; renderDiff(); $('scan-compare-note').textContent = 'DJ 이름이 바뀌었습니다 — 다시 비교하세요'; } });
 
@@ -668,7 +721,7 @@
         });
         // 웹에서는 127.0.0.1을 부르는 순간 브라우저가 "로컬 네트워크 접근"을 물을 수 있다 — 매칭만 쓰는 사람에게 묻지 않게
         // 이 탭을 열었을 때만 확인한다. 프로그램을 켜고 브라우저로 돌아오면(focus) 다시 확인한다
-        window.addEventListener('focus', () => { if (VMH.Tabs.active === 'scan' && !state.helper && !state.running) checkHelper(); });
+        window.addEventListener('focus', () => { if (VMH.Tabs.active === 'scan' && !state.helper && !state.running && !state.launching) checkHelper(); });
         if (sameOriginHelper || VMH.Tabs.active === 'scan') checkHelper();
         bindAccount();
         renderAll();
@@ -678,5 +731,9 @@
 
     init();
     global.VMH = global.VMH || {};
-    global.VMH.Scan = { state, readImages, readNow };
+    // helperCall·checkHelper는 자동 방장 봇(auto-host.js)도 쓴다 — 도우미 주소를 두 곳에서 따로 두드리면
+    // 브라우저가 로컬 접근 권한을 또 묻는다
+    // helperHtml·onHelperClick·onHelper는 방장 봇 탭의 도우미 줄 (도우미 상태가 바뀌면 onHelper로 알린다)
+    global.VMH.Scan = { state, readImages, readNow, helperCall, checkHelper,
+                        helperHtml, onHelperClick, onHelper: (cb) => helperListeners.push(cb) };
 })(window);

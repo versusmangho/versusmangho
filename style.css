@@ -244,7 +244,7 @@ input:checked + .slider:before { transform: translateX(14px); }
 
 @media (max-width: 720px) {
   header { padding: 10px 12px; gap: 10px; }
-  header .tabs { gap: 2px; padding: 3px; }
+  header .tabs { gap: 2px; padding: 3px; flex-wrap: wrap; max-width: 100%; }   /* 탭이 일곱 개라 좁으면 두 줄로 */
   .tab-btn { padding: 7px 10px; font-size: 0.78rem; }
 }
 @media (max-width: 640px) {
@@ -307,6 +307,11 @@ input:checked + .slider:before { transform: translateX(14px); }
 .auto-act-time { font-family: monospace; color: #475569; flex: 0 0 auto; }
 .auto-act.hit { color: #86efac; }
 .auto-act.warn { color: #fcd34d; }
+/* 의심 장면 — 사람 판정이 틀렸을 수 있는 순간을 모아 둔 것 (lib/incidents.js) */
+.incident-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; padding: 6px 10px; border-radius: 8px; border: 1px solid #78350f; color: #fcd34d; font-size: 12px; }
+.incident-bar[hidden] { display: none; }
+.incident-bar span { flex: 1 1 200px; }
+.incident-bar button { padding: 4px 10px; font-size: 12px; }
 
 /* 명패 — 자동 인식으로 들어온 사람은 닉네임 대신 게임 안 명패를 보여준다 */
 .plate-thumb { height: 40px; width: auto; vertical-align: middle; border-radius: 5px; border: 1px solid #334155; background: #0f172a; }
@@ -415,6 +420,9 @@ body.sharing .top-grid { grid-template-columns: 1fr; }
 .scan-note { font-size: 13px; color: var(--text-secondary); }
 .scan-empty { margin: 8px 0; font-size: 13px; color: var(--text-dim); }
 .scan-opt-text { max-width: 280px; }
+/* 방장 봇 탭 — 이름 칸 너비를 맞춰 입력칸이 한 줄로 서게 한다 (좁은 화면에서는 이름 아래로 내려간다) */
+.bot-field .option-name { flex: 0 0 8.5em; }
+.bot-field .scan-opt-text { flex: 1 1 240px; max-width: 460px; min-width: 0; }
 
 .scan-list { display: flex; flex-direction: column; gap: 6px; max-height: 70vh; overflow-y: auto; }
 .scan-item { display: grid; grid-template-columns: auto 48px 48px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--bg-sunken); border: 1px solid var(--border-color); }

@@ -365,6 +365,7 @@
     <button class="tab-btn" data-tab-btn="floor" role="tab" aria-selected="false">층수 측정기</button>
     <button class="tab-btn" data-tab-btn="tier" role="tab" aria-selected="false">티어별 난이도</button>
     <button class="tab-btn" data-tab-btn="scan" role="tab" aria-selected="false">성과 스캔</button>
+    <button class="tab-btn" data-tab-btn="bot" role="tab" aria-selected="false">방장 봇</button>
     <button class="tab-btn" data-tab-btn="options" role="tab" aria-selected="false">옵션</button>
     <button class="tab-btn" data-tab-btn="help" role="tab" aria-selected="false">도움말</button>
   </div>
@@ -453,6 +454,11 @@
       <span class="toggle-icon" id="auto-log-icon">▼</span>
     </div>
     <div id="auto-activity" class="auto-activity" style="display:none;"></div>
+    <div id="incident-bar" class="incident-bar" hidden>
+      <span>⚠ 의심 장면 <b id="incident-count">0</b>건 — 사람 판정이 틀렸을 수 있는 순간의 화면을 모아 두었습니다</span>
+      <button class="secondary" id="incident-dl">내려받기</button>
+      <button class="secondary" id="incident-clear">지우기</button>
+    </div>
   </section>
 
   <section class="card analysis-card hide-while-sharing">
@@ -701,6 +707,71 @@
 <datalist id="scan-song-options"></datalist>
 </div>
 
+<!-- ── 방장 봇 탭 ─────────────────
+     자동 방장 봇(auto-host.js)의 설정. 봇이 굴러가는 데 꼭 필요한 것은 스위치가 없다(늘 켜져 있다).
+     짧은 설명만 여기 두고, 문구의 {…} 치환어와 방 다시 만들기 설명은 도움말(help-host)에 있다 -->
+<div data-tab-panel="bot" hidden>
+<main>
+  <section class="card options-card" id="opt-auto-host">
+    <div class="card-head">
+      <h2>자동 방장 봇</h2>
+      <button class="secondary" data-goto-help="help-host">도움말</button>
+    </div>
+    <label class="option-row">
+      <span class="switch"><input type="checkbox" id="auto-host-toggle" /><span class="slider"></span></span>
+      <span class="option-name">자동 방장 봇 쓰기</span>
+    </label>
+    <ul class="scan-checks" id="auto-host-helper"></ul>
+    <p id="auto-host-note" class="scan-note"></p>
+    <p class="option-desc">이 계정을 <b>봇</b>으로 방에 앉혀 두면, 봇이 방장이 될 때마다 매칭 순서 <b>1순위</b>에게 방장을 넘깁니다.
+      방장이 남에게 있으면 판이 끝날 때 돌려 달라고 채팅하고, 3~8픽이면 레디, 2픽이면 다른 분을 골라 달라고 알리고, 방이 터지면 같은 방을 다시 만듭니다.
+      키를 누를 때는 게임 창을 잠깐 앞으로 불러옵니다.</p>
+    <p class="option-desc"><b>준비:</b> 위의 두 줄(게임 화면 연결 · 도우미 프로그램 v7 이상)과, 매칭 표에서 봇 자신의 줄에 <b>봇 지정</b>.
+      게임 창은 다른 창에 완전히 가려지지 않게 두세요. 화면이 기대와 다르면 멈추고 <b>인식 기록</b>에 이유를 남깁니다.</p>
+  </section>
+
+  <section class="card options-card" id="opt-auto-host-chat">
+    <h2>채팅</h2>
+    <label class="option-row">
+      <span class="switch"><input type="checkbox" id="auto-host-chat" checked /><span class="slider"></span></span>
+      <span class="option-name">방장을 넘긴 뒤 다음 순서 알리기</span>
+    </label>
+    <div class="option-row option-row-block bot-field">
+      <span class="option-name">다음 순서 문구</span>
+      <input type="text" id="auto-host-text" class="scan-opt-text" autocomplete="off" />
+    </div>
+    <div class="option-row option-row-block bot-field">
+      <span class="option-name">봇이 2픽일 때</span>
+      <input type="text" id="auto-host-text-p2" class="scan-opt-text" autocomplete="off" />
+    </div>
+    <div class="option-row option-row-block bot-field">
+      <span class="option-name">방장 요청</span>
+      <input type="text" id="auto-host-text-ask" class="scan-opt-text" autocomplete="off" />
+    </div>
+    <label class="option-row">
+      <span class="switch"><input type="checkbox" id="auto-host-song" checked /><span class="slider"></span></span>
+      <span class="option-name">대결 중 이번 곡 난이도 알리기</span>
+    </label>
+    <div class="option-row option-row-block bot-field">
+      <span class="option-name">곡 안내 문구</span>
+      <input type="text" id="auto-host-text-song" class="scan-opt-text" autocomplete="off" />
+    </div>
+  </section>
+
+  <section class="card options-card" id="opt-auto-host-room">
+    <h2>방 다시 만들기</h2>
+    <div class="option-row option-row-block bot-field">
+      <span class="option-name">방 이름</span>
+      <input type="text" id="auto-host-room-name" class="scan-opt-text" placeholder="비우면 게임이 지어 주는 이름 그대로" autocomplete="off" />
+    </div>
+    <div class="option-row option-row-block bot-field">
+      <span class="option-name">비밀번호</span>
+      <input type="text" id="auto-host-room-pw" class="scan-opt-text" placeholder="비우면 잠그지 않습니다" autocomplete="off" />
+    </div>
+  </section>
+</main>
+</div>
+
 <!-- ── 옵션 탭 ─────────────────
      켜고 끄는 것은 전부 여기. 옵션 설명은 도움말 탭이 아니라 각 칸 안에 같이 둔다 -->
 <div data-tab-panel="options" hidden>
@@ -833,6 +904,7 @@
       <button data-help-go="help-tabs">탭 구성</button>
       <button data-help-go="help-match">플레이어 &amp; 매칭</button>
       <button data-help-go="help-auto">게임 화면 자동 인식</button>
+      <button data-help-go="help-host">방장 봇</button>
       <button data-help-go="help-popup">팝업</button>
       <button data-help-go="help-manual">입장/퇴장 분석기(수동)</button>
       <button data-help-go="help-floor">층수 측정기</button>
@@ -850,6 +922,7 @@
       <li><b>층수 측정기:</b> 밴픽에 뜬 곡들의 층수.</li>
       <li><b>티어별 난이도:</b> 방 공지에 붙여넣을 난이도 문구.</li>
       <li><b>성과 스캔:</b> 컬렉션 화면을 한 곡씩 넘기며 내 기록을 읽어 V-ARCHIVE에 올립니다.</li>
+      <li><b>방장 봇:</b> 이 계정을 봇으로 앉혀 방장을 1순위에게 넘기게 합니다. 설명은 그 탭 안에 있습니다.</li>
       <li><b>옵션:</b> 매칭 규칙(신입 우선권·세이프가드), 가중치 편집기, 화면 공유를 어느 탭에 줄지, 화면 자동 전환, 로비 복귀 알림, 성과 스캔(DJ 이름·기다리는 시간). 옵션에 대한 설명은 옵션 탭 안에 같이 있습니다.</li>
       <li><b>도움말:</b> 지금 보고 있는 이 화면.</li>
       <li><b>탭을 바꿔도 아무것도 꺼지지 않습니다.</b> 양쪽 기록이 그대로 남고, 게임 화면 자동 인식도 보이지 않는 탭에서 계속 돕니다.</li>
@@ -887,12 +960,25 @@
         </ul>
       </li>
       <li><b>이름을 안 물어보는 이유:</b> 사람을 닉네임이 아니라 <b>게임 안 명패</b>로 구분합니다. 그래서 표와 로그에 명패가 그대로 보이고, 나갔다 들어와도 전적이 이어집니다.</li>
-      <li><b>프로필 그림이 같은 사람:</b> 명패 그림까지 똑같아도 <b>닉네임 글자 모양</b>으로 따로 구분합니다(레벨은 판마다 오르므로 보지 않습니다). READY를 켜고 꺼서 명패가 주황색으로 바뀌어도 같은 사람으로 봅니다. 다만 명패 그림이 밝아 닉네임이 배경에 묻히는 경우는 글자를 못 읽어 구분하지 못하고, 게임 화면 공유 해상도를 바꾼 직후에는 한 획 차이 닉네임끼리 헷갈릴 수 있습니다.</li>
+      <li><b>프로필 그림이 같은 사람:</b> 명패 그림까지 똑같아도 <b>닉네임 글자 모양</b>과 <b>레벨</b>로 따로 구분합니다. 레벨은 오르기만 하므로 <b>레벨이 내려간 명패는 다른 사람</b>이고, 레벨을 숨긴 사람(LV. ---)과 보이는 사람도 다른 사람입니다. 레벨 숫자까지 같으면, READY 때문에 닉네임을 견줄 수 없어도 같은 사람으로 잇습니다. 레벨이 밝은 그림에 묻혀 안 읽히면 레벨은 쓰지 않습니다. READY를 켜고 꺼서 명패가 주황색으로 바뀌어도 같은 사람으로 봅니다. 다만 명패 그림이 밝아 닉네임이 배경에 묻히는 경우는 글자를 못 읽어 구분하지 못하고, 게임 화면 공유 해상도를 바꾼 직후에는 한 획 차이 닉네임끼리 헷갈릴 수 있습니다.</li>
       <li><b>그림이 움직이는 명패:</b> 애니메이션 명패는 그림이 계속 바뀌어서, 한 장씩 비교하면 같은 사람도 매번 남처럼 보입니다(예전엔 그래서 퇴장→입장이 반복됐습니다). 그래서 <b>최근 2초 동안 본 그림의 색을 평균내어</b> 비교합니다 — 그림은 움직여도 명패의 색감은 그대로라, 움직이는 명패끼리도 서로 다른 사람으로 가릴 수 있습니다. 들어온 지 2초가 안 된 사람은 아바타와 <b>앉은 자리</b>로만 이어집니다. 색까지 헷갈리는 명패라면 <b>방 전체의 자리 배치</b>가 마지막 단서입니다 — 다른 사람이 아무도 나가거나 자리를 옮기지 않았다면 그 사람도 제자리에 앉아 있는 것이므로, 명패가 어떻게 보이든 같은 사람으로 잇습니다.</li>
       <li><b>원디골:</b> 게임 화면에 나오지 않으므로, 맞붙은 두 명 중 <b>가중치가 높은 쪽</b>을 원디골로 기록합니다.</li>
       <li><b>연결 중에는 손으로 하는 칸이 사라집니다.</b> '플레이어 관리'와 '수동 입장/퇴장 분석' 칸이 화면에서 빠집니다 — 같은 명단을 두 경로로 건드리면 어긋나기 때문입니다. 연결을 해제하면 그대로 돌아옵니다.</li>
       <li><b>인식 기록:</b> 자동 인식 칸의 '인식 기록'을 누르면 방금 무엇을 읽었는지 시간순으로 펼쳐 볼 수 있습니다.</li>
+      <li><b>둘로 갈린 사람은 저절로 합칩니다.</b> 나갔다가 READY인 채로 돌아왔는데 예전 명패의 닉네임이 그림에 묻혀 있으면, 돌아온 순간에는 같은 사람인지 알 수 없어 새 사람으로 올라갑니다. 그 사람이 READY를 풀거나 해서 <b>예전 명패와 확실히 맞는 모습이 3초 이어지면</b> 두 기록을 하나로 합칩니다 — 전적은 더하고, 로그의 이름도 예전 것으로 바꿉니다(퇴장·입장은 찍히지 않습니다). 한 번이라도 <b>같은 로비에 함께 앉아 있던</b> 두 사람은 절대 합치지 않습니다. 합치기도 되돌리기로 되돌릴 수 있습니다.</li>
+      <li><b>의심 장면:</b> 사람 판정이 틀렸을 수 있는 순간 — <b>처음 보는 사람으로 올렸는데 장부에 아바타가 같은 사람이 있을 때</b>(한 사람이 둘로 갈렸을 수 있다), <b>퇴장한 사람이 1분 안에 다시 들어왔을 때</b>(잘못 읽어 퇴장이 찍혔을 수 있다) — 그 순간과 몇 프레임 전의 로비 화면을 저절로 모아 둡니다. 자동 인식 칸에 '의심 장면'이 뜨면 <b>내려받기</b>로 zip 하나를 받아 만든 사람에게 보내 주세요. 그 화면으로 인식 규칙을 고칩니다. 새로고침하면 사라지고, 최근 5건까지만 둡니다.</li>
       <li><b>*</b> 게임은 <b>테두리 없는 창 모드</b>를 권장합니다. 전체화면(독점) 모드에서는 화면이 검게 잡힐 수 있습니다. 일반 창 모드의 제목 표시줄·테두리는 자동으로 잘라냅니다.</li>
+    </ul>
+  </section>
+
+  <section class="card help-section" id="help-host">
+    <h3>🤖 방장 봇</h3>
+    <ul class="help-list">
+      <li><b>채팅 문구:</b> <code>{목록}</code> → <code>2순위 3픽 · 3순위 5픽</code>, <code>{봇}</code> → 봇이 앉은 자리 번호입니다. 로비에서 <b>맨 위가 1픽, 맨 아래가 8픽</b>입니다.</li>
+      <li><b>곡 안내 문구:</b> <code>{라운드}</code> → <code>R1</code>, <code>{곡}</code> → 곡 제목, <code>{패턴}</code> → <code>6B SC</code>, <code>{층수}</code> → <code>⑫ 12.3</code>, <code>{태그}</code> → 층수 표의 태그.
+        곡은 층수 측정기가 라운드 화면에서 읽은 것을 쓰므로, 옵션 탭의 <b>화면 공유를 줄 곳</b>이 <b>둘 다</b>여야 합니다.</li>
+      <li><b>방 다시 만들기:</b> <i>방이 해체되었습니다</i> 알림이 뜨면 적어 둔 이름·비밀번호로 VERSUS 방을 다시 만듭니다.
+        <code>{날짜}</code>는 그날 날짜(<code>0923</code>)로 바뀌고, <code>{월}</code>·<code>{일}</code>도 따로 쓸 수 있습니다. 비워 두면 이름은 게임이 지어 주는 그대로, 비밀번호는 걸지 않습니다.</li>
     </ul>
   </section>
 
@@ -993,6 +1079,9 @@
             <ul>
               <li>처음 켤 때 Windows가 <b>"PC 보호"</b> 창을 띄우면 <b>추가 정보 → 실행</b>을 누르세요 (서명하지 않은 프로그램이라 뜹니다).</li>
               <li>브라우저가 <b>"이 기기의 다른 앱 및 서비스에 액세스"</b>를 물으면 <b>허용</b>하세요 — 허용하기 전까지 사이트가 프로그램을 못 찾습니다. 이미 막았다면 주소창 왼쪽 사이트 설정에서 바꿀 수 있습니다.</li>
+              <li><b>두 번째부터는 받을 필요도, 찾아 실행할 필요도 없습니다</b> — 프로그램이 꺼져 있으면 이 탭의 준비 목록에 <b>도우미 켜기</b> 단추가 뜹니다.
+                누르면 브라우저가 <b>"vmh-helper을(를) 여시겠습니까?"</b>를 묻고, <b>열기</b>를 누르면 프로그램이 켜집니다("항상 허용"을 같이 체크하면 다음부터는 묻지 않습니다).
+                이 단추는 <b>한 번 직접 실행해 본 뒤부터</b> 동작합니다 — 그때 프로그램이 자기 주소(<code>vmh://</code>)를 Windows에 등록하기 때문입니다.</li>
               <li>내려받은 폴더에서 <b>start.bat</b>(또는 <code>python helper.py</code>)로 연 페이지는 프로그램 없이 됩니다.</li>
             </ul></li>
           <li>오른쪽 위 <b>게임 화면 연결</b>로 게임 화면을 공유하세요 (다른 탭과 같은 연결입니다).</li>
@@ -1035,6 +1124,7 @@
 <script src="lib/notify.js"></script>
 <script src="lib/popup.js"></script>
 <script src="lib/djmax-room.js"></script>
+<script src="lib/incidents.js"></script>
 
 <script src="script.js"></script>
 <script src="auto-room.js"></script>
@@ -1050,5 +1140,8 @@
 <!-- 성과 스캔 — 층수 측정기의 곡 DB(songDatabase)와 자켓 sig(sigTable)를 쓰므로 그 뒤에 -->
 <script src="scan/reader.js"></script>
 <script src="scan/app.js"></script>
+
+<!-- 자동 방장 봇 — script.js(priorityOrder) · auto-room.js(장부) · scan/app.js(도우미 호출) 다음이어야 한다 -->
+<script src="auto-host.js"></script>
 </body>
 </html>

@@ -823,7 +823,8 @@ function getSortedPlayers(sortConfig) {
 function refreshUI() {
     // [FIX] room 객체 안전 확인
     if (!room) return;
-    
+    syncBotHold();
+
     updateAverageWaitersStat();
 
     if (room.eventLog && room.eventLog.length > 100) {
@@ -855,10 +856,16 @@ function refreshUI() {
         const ongoingHold = (hold && p.holdStart !== null) ? Math.max(0, room.round - p.holdStart) : 0;
         const heldTotal = (p.heldRounds || 0) + ongoingHold;
 
+        // 자동 방장 봇이 켜져 있으면 보류 대신 '봇 지정'을 단다. 봇은 한 명뿐이라, 방에 봇이 있으면 남의 줄에는 아무것도 안 단다
+        const isBot = autoHostOn() && p.nickname === room.botId;   // 기능이 꺼져 있으면 봇도 그냥 한 사람이다
+        const holdBtn = !autoHostOn() ? `<button class="small-hold">${hold?"복귀":"보류"}</button>`
+            : isBot ? '<button class="small-bot">봇 해제</button>'
+            : !botInRoom() ? '<button class="small-bot">봇 지정</button>' : '';
+
         tr.innerHTML = `
             <td>${stats.score.toFixed(2)}</td>
-            <td>${playerLabelHtml(p)} ${p.rejoined?'<span class="tag danger">재입장</span>':''} ${!hold && p.matchCount===0?'<span class="tag" style="border-color:#4ade80;color:#86efac">신입</span>':''} ${hold?'<span class="tag danger">보류</span>':''}
-                <button class="small-hold">${hold?"복귀":"보류"}</button><button class="small-delete">×</button>
+            <td>${playerLabelHtml(p)} ${p.rejoined?'<span class="tag danger">재입장</span>':''} ${!hold && p.matchCount===0?'<span class="tag" style="border-color:#4ade80;color:#86efac">신입</span>':''} ${isBot?'<span class="tag" style="border-color:#a78bfa;color:#c4b5fd">봇</span>':hold?'<span class="tag danger">보류</span>':''}
+                ${holdBtn}<button class="small-delete">×</button>
             </td>
             <td class="extra-col">${p.chooserCount||0}</td>
             <td>${stats.W_curr}</td>
@@ -879,13 +886,53 @@ function refreshUI() {
     VMH.Popup.update();
 }
 
+/* 보류 켜기/끄기. 끌 때는 보류한 라운드만큼 대기를 보정한다 (보류 버튼과 봇 지정이 같이 쓴다) */
+function setHold(p, on) {
+    if (on) { p.onHold = true; p.holdStart = room.round; selected = selected.filter(x => x !== p.nickname); return; }
+    p.onHold = false;
+    if (p.holdStart !== null) { const d = room.round - p.holdStart; if (d > 0) { p.lastPlay += d; p.heldRounds = (p.heldRounds || 0) + d; } p.holdStart = null; }
+}
+
+/* 자동 방장 봇(auto-host.js)이 켜져 있으면 표의 보류 버튼 자리에 '봇 지정'이 뜬다 */
+const autoHostOn = () => !!(window.VMH.AutoHost && window.VMH.AutoHost.opts.on);
+// 지정된 봇이 지금 방에 있는가 — 있으면 다른 사람은 봇으로 지정할 수 없다
+const botInRoom = () => !!room.botId && room.players.some(p => p.nickname === room.botId);
+
+/* 봇의 보류를 기능 켜짐/꺼짐에 맞춘다 — 켜져 있으면 봇은 늘 보류, 꺼지면 봇 지정으로 건 보류만 푼다
+   (꺼져 있을 때 손으로 건 보류는 그대로 둔다). 봇 지정(room.botId)은 남겨 두므로 다시 켜면 그대로 봇이다.
+   p.botHold = 이 보류를 봇 지정이 걸었다는 표시 — room 안에 있으니 되돌리기·새로고침에도 같이 따라온다.
+   refreshUI·priorityOrder가 늘 먼저 부르므로 어느 길로 오든(토글·되돌리기·재입장) 화면과 순서가 어긋나지 않는다 */
+function syncBotHold() {
+    if (!window.VMH.AutoHost) return;   // auto-host.js가 설정을 읽기 전(첫 그리기) — 켜짐/꺼짐을 아직 모른다
+    const on = autoHostOn();
+    for (const p of room.players) {
+        // 표시가 아예 없는(undefined) 보류 중인 봇 = 표시를 달기 전 판이 봇 지정으로 건 보류다 (손으로 건 보류는 false가 붙는다)
+        if (p.nickname === room.botId && p.onHold && p.botHold === undefined) p.botHold = true;
+        if (on && p.nickname === room.botId) {
+            if (!p.onHold) setHold(p, true);
+            p.botHold = true;   // 켜져 있는 동안 봇의 보류는 봇 지정의 것이다 — 끄면 칼같이 풀린다
+        } else if (p.botHold) {
+            if (p.onHold) setHold(p, false);
+            p.botHold = false;
+        }
+    }
+}
+
 /* 팝업(lib/popup.js)의 '매칭 순서' 칸(왼쪽).
    표를 어느 열로 정렬해 뒀든 여기는 늘 우선순위 순이다(세이프가드 포함). 보류 중인 사람은 뺀다. */
 const POPUP_TOP = 2;     // 위에서 이만큼은 강조 — 다음 판 후보
+
+/* 지금 매칭 순서 (세이프가드 포함, 보류 중인 사람은 뺀다).
+   팝업과 자동 방장 봇(auto-host.js)이 같은 것을 봐야 해서 한 군데로 모아 둔다 */
+function priorityOrder() {
+    syncBotHold();
+    updateAverageWaitersStat();
+    return getSortedPlayers({ key: 'priority', order: 'desc' }).filter(p => !p.onHold);
+}
+
 VMH.Popup.addSection('queue', () => {
     if (!room || !room.players || !room.players.length) return '';
-    updateAverageWaitersStat();
-    const list = getSortedPlayers({ key: 'priority', order: 'desc' }).filter(p => !p.onHold);
+    const list = priorityOrder();
     if (!list.length) return '';
     return `<div class="sec queue"><h2>매칭 순서 · <span class="num">R${room.round}</span></h2>${list.map((p, i) => {
         const st = calculateScore(p);
@@ -992,7 +1039,7 @@ function addPlayer(n, opts) {
         chooserCount: history.chooserCount, 
         waitSum: history.waitSum,
         heldRounds: 0,
-        onHold: false,
+        onHold: false,   // 봇이 다시 들어오면 syncBotHold가 보류를 건다
         holdStart: null,
         rejoined: isRejoin,
         auto: !!opts.auto
@@ -1063,13 +1110,25 @@ if(ui.pTable) ui.pTable.onclick = (e) => {
         refreshUI();
         return;
     }
-    if(e.target.classList.contains("small-hold")) { 
+    if(e.target.classList.contains("small-hold")) {
         pushUndo();
         const p = room.players.find(x=>x.nickname===nick);
         if(p) {
-            if (!p.onHold) { p.onHold = true; p.holdStart = room.round; selected = selected.filter(x=>x!==nick); room.eventLog.push({ type: 'hold', round: room.round, nickname: nick }); }
-            else { p.onHold = false; if (p.holdStart !== null) { const d = room.round - p.holdStart; if (d > 0) { p.lastPlay += d; p.heldRounds = (p.heldRounds || 0) + d; } p.holdStart = null; } room.eventLog.push({ type: 'return', round: room.round, nickname: nick }); }
+            if (!p.onHold) { setHold(p, true); p.botHold = false; room.eventLog.push({ type: 'hold', round: room.round, nickname: nick }); }
+            else {
+                setHold(p, false); p.botHold = false; room.eventLog.push({ type: 'return', round: room.round, nickname: nick });
+            }
         }
+        refreshUI(); return;
+    }
+    // 봇 지정/해제 — 봇은 상시 보류와 같다 (매칭 순서에서 빠진다). 게임 속 일이 아니라 설정이라 로그에는 안 남긴다
+    if(e.target.classList.contains("small-bot")) {
+        const p = room.players.find(x=>x.nickname===nick);
+        if(!p) return;
+        if(nick !== room.botId && botInRoom()) return;   // 봇은 한 명뿐
+        pushUndo();
+        if(nick === room.botId) room.botId = null;   // 보류는 syncBotHold가 푼다 (봇 지정이 건 것일 때만)
+        else room.botId = nick;                      // 보류는 syncBotHold가 건다
         refreshUI(); return;
     }
     if(room.players.find(p=>p.nickname===nick)?.onHold) return;

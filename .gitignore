@@ -9,6 +9,7 @@
 # 스크립트
 !/script.js
 !/auto-room.js
+!/auto-host.js
 !/generate-hashes.js
 !/hash-tool.html
 !/helper.py

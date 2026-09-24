@@ -492,6 +492,33 @@ document.getElementById('screenshotPreview').addEventListener('click', function(
 // 페이지가 매칭 화면과 합쳐져 있어 window.onload를 독점하면 안 된다
 window.addEventListener('load', init);
 
+/* 자동 방장 봇(auto-host.js)이 묻는 '지금 치고 있는 곡' — 라운드·결과 화면을 읽어 R뱃지가 찍힌 칸
+   (match-screen.js의 applyMatchMarks) 가운데 라운드 번호가 가장 큰 것이다. 대결 화면에는 곡 제목이
+   글자로 떠 있지만 읽지 않는다 — 층수 탭이 이미 자켓으로 가려 둔 답이 있고, 층수·태그도 거기에만 있다.
+   값은 칸의 '정보 복사'(copyRowInfo)와 같은 자리에서 읽는다. 모르면 null */
+VMH.Floor = {
+    playingSong() {
+        const entry = shotHistory.versus[shotHistory.versus.length - 1];
+        if (!entry) return null;
+        let best = null;
+        for (const r of entry.rows) {
+            const n = Number(r.dataset.round);
+            if (n && (!best || n > Number(best.dataset.round))) best = r;
+        }
+        if (!best) return null;
+        const lv = circledLevel(best.dataset.level);
+        const floorName = best.dataset.floorName || best.querySelector('.floor-value')?.innerText || '';
+        const tagBox = best.querySelector('.tags-container');
+        return {
+            round: Number(best.dataset.round),
+            title: best.querySelector('h3')?.innerText || '',
+            pattern: [best.querySelector('.btn-select')?.value, best.querySelector('.diff-select')?.value].filter(Boolean).join(' '),
+            floor: (lv ? lv + ' ' : '') + floorName,
+            tags: tagBox ? Array.from(tagBox.querySelectorAll('span:not(.memo-tag)')).map(s => s.innerText).join(' ') : ''
+        };
+    }
+};
+
 /* 팝업(lib/popup.js)의 '이번 판 곡' 칸 — 버망호 모드의 가장 최근 판(밴픽 5곡)을 가로로 늘어놓는다.
    자켓 · 인게임 난이도(6B SC) · 층수(⑫ 12.3)만 보인다. 밴된 곡은 흐리게.
    카드 DOM이 곧 상태라(보고 있는 스샷이 달라 화면에서 떼어져 있어도) 거기서 그대로 읽는다.

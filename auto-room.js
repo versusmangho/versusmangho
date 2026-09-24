@@ -39,6 +39,8 @@
     // 자리(칸)로 이어 붙인 사람의 지금 모양을 장부에 넣기까지 기다리는 프레임 수 —
     // 한두 프레임 잘못 읽은 것으로 장부가 더러워지지 않게 한다
     const CARRY_MERGE_TICKS = 3;
+    const LV_STABLE_TICKS = 3;
+    const BOUNCE_MS = 60000;         // 퇴장한 사람이 이 안에 다시 들어오면 의심 장면으로 남긴다       // 로비 칸의 레벨이 이만큼 같은 숫자로 이어져야 판정·장부에 쓴다
     const ACTIVITY_MAX = 12;
 
     const state = {
@@ -53,8 +55,13 @@
         matchLocked: false, lobbyCount: 0,   // 이번 판을 이미 기록했다 — 로비로 돌아와야 풀린다
         lobbyStreak: 0,                      // 로비가 연속으로 보인 횟수 (탭 자동 전환용)
         awayStreak: 0,                       // 로비가 아닌 화면이 이어진 횟수 (로비 복귀 알림용)
+        backPending: false,                  // 판이 끝나고 로비로 돌아왔다 — 명단이 확정되면 자동 방장 봇에게 한 번 건넨다
         pairFailed: false,                   // 이 화면에서 누구인지 못 가렸다고 이미 알렸다
         lastPair: null,                      // 가장 최근 로비에서 본 PLAYER 1·2 (명패를 못 읽었을 때의 대비책)
+        leftAt: {},                          // id별 마지막으로 퇴장이 찍힌 시각 (곧바로 돌아오면 의심 장면)
+        mergeStreak: {},
+        merges: [],                          // 이번 세션에 합친 [남은 id, 없어진 id] (확인용)
+        takeover: {},                        // 칸별 { from: 앉아 있던 방 안 id, to: 지금 명패가 찾은 방 밖 id, n } (합치기 ②)                     // "새id>옛id"별 — 지금 명패가 옛 id를 확실히 찾은 로비 프레임 수 (둘로 갈린 사람 합치기)
         activity: []
     };
 
@@ -115,41 +122,6 @@
 
     /* ── 화면 처리 ───────────────── */
 
-    /* 모양이 조금 달라진 사람 잇기 — 로비에선 "한 명이 빠지고 처음 보는 명패가 하나 생긴" 것처럼 보이는 경우.
-       - READY를 켜고 끔: 밝은 배경 그림 위 흰 글자는 그림 부스러기가 섞여 READY(주황이 그림을 가림) 때 모양과 어긋난다
-       - 칸이 바뀜: 같은 사람도 칸마다 글자가 1~2px 밀리고 획 두께가 달라진다 (PLAYER 1 칸이 특히)
-       - READY를 한 번도 안 한 사람: 닉네임 폭을 몰라 뒤의 명패 그림까지 비교되는데, 그 그림이 프레임마다 흔들린다
-       빠진 사람과 아바타가 같고, 명패 그림이 다르지 않고(둘 다 평소 명패를 봤을 때), 닉네임이 느슨하게 맞으면(Room.nameClose)
-       — 한 사람씩 딱 맞을 때만 — 같은 사람으로 잇고,
-       장부의 그 상태 모양을 지금 것으로 바꾼다.
-       → Map(명패 → id) */
-    function relinkStateChanges(unknownPlates, knownIds) {
-        const b = book();
-        const vanished = room.players
-            .filter(p => p.auto && !knownIds.includes(p.nickname) && b[p.nickname])
-            .map(p => p.nickname);
-        const pick = new Map();
-        for (const row of unknownPlates) {
-            if (!row.fp.nameState) continue;
-            // 이중 검증: 아바타가 같고, 명패 쪽(평소끼리면 그림도)이 맞아야 한다
-            const c = vanished.filter(id => {
-                const e = b[id].fp;
-                return Room.fpCurrent(e) && Room.fpAvatarSame(row.fp, e) && !Room.fpArtDiffers(row.fp, e) && Room.nameClose(row.fp, e);
-            });
-            if (c.length === 1) pick.set(row, c[0]);
-        }
-        // 두 명패가 같은 사람을 고르면 어느 쪽도 잇지 않는다
-        const claims = {};
-        for (const id of pick.values()) claims[id] = (claims[id] || 0) + 1;
-        const out = new Map();
-        for (const [row, id] of pick) {
-            if (claims[id] !== 1) continue;
-            Room.mergeName(b[id].fp, row.fp);
-            out.set(row, id);
-        }
-        return out;
-    }
-
     function sameReading(p, q) {
         if (p.empty || q.empty) return p.empty === q.empty;
         if (p.unknown || q.unknown) return p.unknown === q.unknown;
@@ -209,12 +181,21 @@
             trackRowArt(i, row, s && s.last);
             const streak = s && sameReading(s.last, row) ? s.streak + 1 : 1;
             const avStreak = s && sameAvatarReading(s.last, row) ? s.avStreak + 1 : 1;
+            // 레벨도 같은 숫자가 이어져야 믿는다 — 한 장짜리 오독이 장부에 박히면 그 사람이 영영 남이 된다
+            const lv = usableRow(row) ? row.fp.lv : null;
+            const lvStreak = lv != null && s && usableRow(s.last) && s.last.fp.lv === lv ? s.lvStreak + 1 : lv != null ? 1 : 0;
             const steady = streak >= ROW_STABLE_TICKS
                 || (usableRow(row) && row.fp.animated && avStreak >= ROW_ANIM_TICKS);
             const held = steady ? row : s ? s.held : null;
-            state.rows[i] = { last: row, streak, avStreak, held };
+            state.rows[i] = { last: row, streak, avStreak, lvStreak, held };
             // 이전 프레임에서 붙인 id가 남지 않게 복사해서 넘긴다
-            return held && Object.assign({}, held, { id: undefined });
+            const out = held && Object.assign({}, held, { id: undefined });
+            if (usableRow(out)) {
+                // 레벨은 지금 프레임이 안정된 칸이고 같은 숫자가 LV_STABLE_TICKS 이어졌을 때만 싣는다
+                const stable = held === row && lvStreak >= LV_STABLE_TICKS;
+                out.fp = Object.assign({}, out.fp, { lv: stable ? lv : null, lvStable: stable });
+            }
+            return out;
         });
     }
 
@@ -249,57 +230,125 @@
         return true;
     }
 
-    /* 직전 프레임의 칸 정보로 이번 프레임의 칸을 잇는다 → Map(명패 → id).
-       taken: 이미 다른 칸이 명패 모양으로 차지한 사람 (그 사람을 자리로 또 집지 않게) */
-    function carryFromSlots(steady, taken) {
-        const prev = state.slots || [];
-        const carry = new Map();
-        const used = new Set(taken);
-        const held = new Array(prev.length).fill(false);
-        const usable = (row) => row && !row.empty && !row.unknown && !row.id;
+    /* ── 칸마다 누구인지 한 번에 정하기 ─────────────────
+       명패 모양으로 확실히 안 칸(장부 찾기)은 그대로 두고, 남은 칸과 남은 사람을 **한 번에** 짝짓는다.
+       예전에는 칸 하나씩 규칙을 차례로 돌렸다(엇비슷한 칸 소거 → 같은 칸 → 자리 이동 → 배치 → 입장 딜레이 뒤 READY 다시 잇기).
+       규칙마다 "딱 하나로 맞을 때만"을 따로 지켰고, 규칙 사이의 순서가 결과를 바꿨다. 이제 규칙은 짝 하나의 **비용**이 되고
+       (싸다 = 단서가 확실하다), 전체 비용이 가장 적은 짝을 고른다. 한 사람이 두 칸에 잡히지 않는 것과 소거법은 저절로 된다.
 
-        // 1) 같은 칸 — 직전 프레임에 이 칸에 있던 사람
-        steady.forEach((row, i) => {
-            if (!usable(row)) { if (row && row.id && prev[i] && prev[i].id === row.id) held[i] = true; return; }
-            const p = prev[i];
-            if (p && !used.has(p.id) && slotSame(row.fp, p.fp)) {
-                carry.set(row, p.id); used.add(p.id); held[i] = true;
-            }
-        });
-        const inPlace = held.slice();   // 1)에서 제자리로 확인된 칸 (2)의 자리 이동과 구별해야 한다)
+         단서(비용)                                        예전의 어느 규칙인가
+         엇비슷한 칸의 후보 (아바타·닉네임이 맞는 둘 이상)  1.5 소거법 (다른 칸이 차지한 사람을 빼면 하나)
+           — 같은 칸 단서(1)보다 비싸다: 후보 둘이 다 맞으면 자리가 가른다
+         직전 프레임에 같은 칸에 있던 사람                  1   자리 잇기 1번
+         직전 프레임에 다른 칸에 있던 사람 (자리 이동)      2   자리 잇기 2번
+         방에 있는데 안 보이는 사람 — 아바타 + 닉네임 느슨 3   READY 다시 잇기 (relinkStateChanges)
+           (레벨 숫자까지 같으면 닉네임을 견줄 수 없어도)
+         배치가 그대로일 때 같은 칸 사람 — 그림 판정 없이  4   자리 잇기 3번
+         레벨 숫자가 같으면 −0.5, 레벨이 어긋나면(내려감 · 숨김↔숫자) 어떤 단서로도 잇지 않는다.
+         아무와도 안 이으면 NEW_COST — 처음 보는 명패로 남는다(입장 딜레이 뒤에 새로 올린다).
 
-        // 2) 자리 이동 — 직전 프레임에 사람이 있었다가 비어난 칸 중 아바타가 맞는 한 명.
-        //    둘 이상이면 어느 쪽도 잇지 않는다 (자리를 맞바꾼 두 사람을 뒤섞지 않게)
-        steady.forEach((row, i) => {
-            if (!usable(row) || carry.has(row)) return;
-            const cands = [];
-            prev.forEach((p, j) => {
-                if (!p || held[j] || used.has(p.id) || !slotSame(row.fp, p.fp)) return;
-                cands.push({ j, id: p.id });
-            });
-            if (cands.length === 1) { carry.set(row, cands[0].id); used.add(cands[0].id); held[cands[0].j] = true; }
-        });
+       **하나로 맞아떨어질 때만 잇는다.** 고른 짝 하나를 금지해도 전체 비용이 같게 나오면(두 사람이 서로 바뀔 수 있다)
+       그 칸은 비워 둔다 — 예전 규칙들이 "둘 이상이면 어느 쪽도 잇지 않는다"로 지키던 것이다.
+       READY 다시 잇기는 예전엔 입장 딜레이(3초)가 찬 뒤에만 했는데, 이제 매 프레임 한다 — 퇴장·입장이 아예 안 생긴다.
+       장부에는 곧바로 넣지 않고 CARRY_MERGE_TICKS 이어진 뒤에 넣는다(자리로 이은 사람과 같게) */
+    const NEW_COST = 10;
+    const LEVEL_BONUS = 0.5;
 
-        // 3) 배치가 그대로면 남은 칸도 그 사람들이다 (위 주석 참고) — 움직이는 명패의 그림 판정을
-        //    자리로 보정한다. 못 이은 칸과 아직 못 찾은 사람이 '같은 칸에서 하나씩' 맞아떨어질 때만.
-        let quiet = true;
-        const free = [];
-        prev.forEach((p, j) => {
-            if (!p || inPlace[j]) return;
-            if (used.has(p.id)) { quiet = false; return; }   // 딴 칸에서 찾아냈다 = 배치가 바뀌었다
-            free.push(j);
-        });
-        const left = [];
-        steady.forEach((row, i) => { if (usable(row) && !carry.has(row)) left.push(i); });
-        // 둘 다 칸 번호 순서라 하나씩 견주면 된다. 빈자리가 더 있거나(= 누가 나갔다) 처음 보는 칸이
-        // 더 있으면(= 누가 들어왔다) 배치가 바뀐 것이니 이 단서는 쓰지 않는다
-        if (quiet && free.length && free.length === left.length && free.every((j, k) => j === left[k])) {
-            for (const i of left) {
-                const row = steady[i], p = prev[i];
-                if (slotSame(row.fp, p.fp, true)) { carry.set(row, p.id); used.add(p.id); held[i] = true; }
-            }
+    /* 명패 한 칸(o: { row, cands })을 사람 id에 잇는 비용 — 못 이으면 Infinity */
+    function linkCost(o, id, ctx) {
+        const fp = o.row.fp, idx = o.row.index;
+        if (o.cands && !o.cands.includes(id)) return Infinity;   // 엇비슷한 칸은 그 후보 안에서만 (엉뚱한 사람을 끌어오지 않게)
+        const entry = book()[id];
+        const e = entry && Room.fpCurrent(entry.fp) ? entry.fp : null;
+        const j = ctx.prevAt[id];
+        const pfp = j !== undefined ? ctx.prev[j].fp : null;
+        // 레벨이 어긋나면 어떤 단서로도 잇지 않는다 (직전 칸의 것 · 장부의 것 어느 쪽과든)
+        if ((pfp && Room.fpLevelDiffers(fp, pfp)) || (e && Room.fpLevelDiffers(fp, e))) return Infinity;
+        let c = Infinity;
+        if (o.cands) c = 1.5;
+        if (pfp) {
+            if (j === idx && slotSame(fp, pfp)) c = Math.min(c, 1);
+            else if (j !== idx && slotSame(fp, pfp)) c = Math.min(c, 2);
+            if (ctx.quiet && j === idx && slotSame(fp, pfp, true)) c = Math.min(c, 4);
         }
-        return carry;
+        if (e && fp.nameState && ctx.inRoom.has(id) && Room.fpAvatarSame(fp, e) && !Room.fpArtDiffers(fp, e)
+            && (Room.nameClose(fp, e) || (Room.fpLevelSame(fp, e) && !(e.names && e.names[fp.nameState])))) c = Math.min(c, 3);
+        if (c < Infinity && ((pfp && Room.fpLevelSame(fp, pfp)) || (e && Room.fpLevelSame(fp, e)))) c -= LEVEL_BONUS;
+        return c;
+    }
+
+    /* 비용표 → 가장 싼 짝 { total, pick: 칸마다 사람 번호(−1 = 아무도) }. 칸은 8개뿐이고 이을 수 있는 짝은
+       아바타로 이미 추려져 몇 개 안 되므로 다 훑어도 된다. forbid = [칸, 사람] 이 짝은 쓰지 않는다 */
+    function cheapest(cost, forbid) {
+        const R = cost.length, pick = new Array(R).fill(-1), used = new Set();
+        let best = { total: Infinity, pick: pick.slice() };
+        (function go(r, total) {
+            if (total >= best.total) return;
+            if (r === R) { best = { total, pick: pick.slice() }; return; }
+            for (let c = 0; c < cost[r].length; c++) {
+                if (used.has(c) || cost[r][c] === Infinity || (forbid && forbid[0] === r && forbid[1] === c)) continue;
+                used.add(c); pick[r] = c;
+                go(r + 1, total + cost[r][c]);
+                used.delete(c); pick[r] = -1;
+            }
+            go(r + 1, total + NEW_COST);
+        })(0, 0);
+        return best;
+    }
+
+    /* 칸들 → { placed: Map(칸 → { id, hit?, how }), open: [{ row, cands }] (못 정한 칸) }. 장부·상태를 건드리지 않는다.
+       slots: 직전 로비 프레임의 칸 배치. sameSlots — 목록이 다시 정렬된 뒤(방장을 넘긴 직후)에는 false (칸 위치를 단서로 안 쓴다) */
+    function placeRows(rows, { slots = state.slots || [], sameSlots = true } = {}) {
+        const placed = new Map(), known = new Set(), open = [];
+        for (const row of rows) {
+            if (!usableRow(row)) continue;
+            const hit = lookupRaw(row);
+            if (hit && hit.match && !known.has(hit.match.id)) { placed.set(row, { id: hit.match.id, hit, how: 'plate' }); known.add(hit.match.id); }
+            else open.push({ row, cands: hit && hit.ambiguous ? hit.candidates.map(c => c.id) : null });
+        }
+        if (!open.length) return { placed, open };
+
+        const prev = sameSlots ? slots : [];
+        const prevAt = {};
+        prev.forEach((p, j) => { if (p) prevAt[p.id] = j; });
+        // 배치가 그대로인가 (자리 잇기 3번) — 명패로 알아본 사람이 모두 제 칸에 있고, 못 정한 칸 = 못 찾은 사람이 있던 칸
+        let quiet = true;
+        for (const [row, pl] of placed) if (prevAt[pl.id] !== undefined && prevAt[pl.id] !== row.index) quiet = false;
+        const freeIdx = [];
+        prev.forEach((p, j) => { if (p && !known.has(p.id)) freeIdx.push(j); });
+        const openIdx = open.map(o => o.row.index).sort((x, y) => x - y);
+        quiet = quiet && freeIdx.length > 0 && freeIdx.length === openIdx.length && freeIdx.every((j, k) => j === openIdx[k]);
+
+        // 이을 수 있는 사람: 직전 칸에 있던 사람 · 방에 있는 사람 · 엇비슷한 칸의 후보 (명패로 이미 정한 사람은 뺀다)
+        const inRoom = new Set(room.players.filter(p => p.auto).map(p => p.nickname));
+        const people = new Set();
+        for (const p of prev) if (p && !known.has(p.id)) people.add(p.id);
+        for (const id of inRoom) if (!known.has(id) && book()[id]) people.add(id);
+        for (const o of open) if (o.cands) for (const id of o.cands) if (!known.has(id)) people.add(id);
+        const ids = [...people];
+        if (!ids.length) return { placed, open };
+
+        const ctx = { prev, prevAt, quiet, inRoom };
+        const cost = open.map(o => ids.map(id => linkCost(o, id, ctx)));
+        const best = cheapest(cost);
+        const still = [];
+        open.forEach((o, r) => {
+            const c = best.pick[r];
+            // 이 짝을 빼도 전체 비용이 같다 = 다른 사람으로도 똑같이 맞는다 → 비워 둔다
+            if (c < 0 || cheapest(cost, [r, c]).total <= best.total + 1e-9) { still.push(o); return; }
+            placed.set(o.row, { id: ids[c], how: 'link' });
+        });
+        return { placed, open: still };
+    }
+
+    /* 자동 방장 봇용 — 화면의 로비 칸마다 누구인지 → [{ row, id }]. 표와 똑같이 placeRows로 가린다
+       (장부 전체 조회만 보면 표가 자리·READY 다시 잇기로 알아보는 사람이 빈칸이 되고, 그 사람이 1순위면 봇이
+       말없이 2순위에게 방장을 넘겼다). 장부·상태를 건드리지 않는다.
+       sameSlots — 목록이 다시 정렬된 뒤(방장을 넘긴 직후)에는 false로 부른다 */
+    function identifyRows(rows, { sameSlots = true } = {}) {
+        const out = [];
+        for (const [row, pl] of placeRows(rows, { sameSlots }).placed) out.push({ row: row.index, id: pl.id });
+        return out.sort((a, b) => a.row - b.row);
     }
 
     /* 이번 프레임의 칸 상태를 기억해 둔다 (다음 프레임의 자리 잇기용) */
@@ -328,37 +377,22 @@
         const unreadable = lobby.rows.filter(r => !r.empty && r.unknown).length;
 
         // 같은 명단이 연속으로 보여야 반영한다. 아직 모르는 명패는 'new'로만 세어
-        // (등록은 확정된 뒤에 하므로) 화면 전환 중 프레임이 장부에 끼어들지 않게 한다
-        const knownIds = [], knownHits = [], unknownPlates = [], ambiguousRows = [];
-        for (const row of occupied) {
-            const hit = lookupRaw(row);
-            if (hit && hit.match) { row.id = hit.match.id; knownIds.push(hit.match.id); knownHits.push([row, hit]); }
-            else if (hit && hit.ambiguous) ambiguousRows.push([row, hit.candidates.map(c => c.id)]);
-            else unknownPlates.push(row);
-        }
-        // 누구인지 엇비슷한 칸: 다른 칸이 이미 차지한 사람을 빼고 한 명만 남으면 그 사람이다
-        for (const [row, ids] of ambiguousRows) {
-            const left = ids.filter(id => !knownIds.includes(id));
-            if (left.length === 1) { knownIds.push(left[0]); row.id = left[0]; }
-        }
-
-        // 명패 모양으로 못 가린 칸은 자리로 잇는다 — 직전 프레임에 그 칸(또는 비어난 칸)에 있던 사람.
+        // (등록은 확정된 뒤에 하므로) 화면 전환 중 프레임이 장부에 끼어들지 않게 한다.
+        // 누구인지는 placeRows가 한 번에 정한다 — 명패로 확실한 칸 + 자리·엇비슷한 후보·READY 다시 잇기로 이은 칸.
         // 이어 붙인 사람은 '아는 사람'으로 쳐서 입·퇴장이 아예 일어나지 않게 한다
-        const carry = carryFromSlots(steady, knownIds);
-        const carried = [];
-        const takeCarry = (row, only) => {
-            const id = carry.get(row);
-            if (!id || knownIds.includes(id) || (only && !only.includes(id))) return false;
-            row.id = id; knownIds.push(id); carried.push([row, id]);
-            return true;
-        };
-        for (let i = unknownPlates.length - 1; i >= 0; i--) {
-            if (takeCarry(unknownPlates[i])) unknownPlates.splice(i, 1);
+        const { placed, open } = placeRows(occupied);
+        const knownIds = [], knownHits = [], carried = [];
+        for (const [row, pl] of placed) {
+            row.id = pl.id; knownIds.push(pl.id);
+            if (pl.hit) knownHits.push([row, pl.hit]); else carried.push([row, pl.id]);
         }
-        // 엇비슷한 칸은 후보 안에 있을 때만 (자리가 엉뚱한 사람을 끌어오지 않게)
-        for (const [row, ids] of ambiguousRows) if (!row.id) takeCarry(row, ids);
+        const ambiguousRows = open.filter(o => o.cands).map(o => [o.row, o.cands]);
+        const unknownPlates = open.filter(o => !o.cands).map(o => o.row);
         mergeCarried(carried);
+        const prevSlots = state.slots || [];
         rememberSlots(steady);
+        // 둘로 갈렸던 한 사람이 이제 드러났으면 합친다 — 합쳤으면 id가 바뀌었으니 명단을 처음부터 다시 센다
+        if (checkMerges(placed, prevSlots).length) { state.rosterKey = null; state.rosterCount = 0; return { pending: true }; }
 
         const stillAmbiguous = ambiguousRows.filter(([row]) => !row.id).length;
 
@@ -388,14 +422,21 @@
             || Object.values(present).some(n => n >= JOIN_DELAY_TICKS);
         if (!first && !due) return { changed: false, unreadable, waiting: waitingCount(absent, present, unknownPlates.length) };
 
-        // 여기서부터 확정 — 아는 사람의 닉네임 지문을 채우고, READY를 바꾼 사람을 잇고, 처음 보는 명패를 장부에 올린다.
+        // 여기서부터 확정 — 아는 사람의 닉네임 지문을 채우고, 처음 보는 명패를 장부에 올린다.
         // 처음 보는 명패는 입장 딜레이가 찬 뒤에만 장부에 올린다 (잘못 읽은 명패가 유령으로 남지 않게)
         if (first) for (const [row, hit] of knownHits) refreshName(row, hit);
+        const suspects = [];
         if (newDue) {
-            const relinked = relinkStateChanges(unknownPlates, knownIds);
-            for (const row of unknownPlates) row.id = relinked.get(row) || resolveId(row);
-            // 이어 붙인 사람은 이번 프레임에 보인 것으로 친다
-            for (const id of relinked.values()) delete absent[id];
+            // (READY를 바꾼 사람 잇기는 placeRows가 매 프레임 이미 했다 — 여기 남은 것은 정말 처음 보는 명패다)
+            for (const row of unknownPlates) {
+                const seq = room.autoSeq;
+                row.id = resolveId(row);
+                // 새 id를 만들었는데 장부에 아바타가 같은 사람이 있다 — 한 사람이 둘로 갈렸을 수 있다 (의심 장면)
+                if (row.id && room.autoSeq !== seq) {
+                    const like = lookalikes(row, row.id, knownIds);
+                    if (like.length) suspects.push({ kind: 'split', note: '새 ' + row.id + ' — 장부에 비슷한 명패 ' + like.join(', '), ids: like.concat(row.id) });
+                }
+            }
             rememberSlots(steady);   // 새로 올린 사람도 다음 프레임부터 자리로 이어진다
         }
         const seen = knownIds.concat(unknownPlates.map(row => row.id).filter(Boolean));
@@ -422,21 +463,179 @@
         for (const p of leaving) delete state.absent[p.nickname];
         for (const id of joining) delete state.present[id];
         if (fresh.size) state.newStreak = 0;
-        const waiting = waitingCount(state.absent, state.present, 0);
-        if (!leaving.length && !joining.length) return { changed: false, unreadable, waiting };
+        // 처음 보는 명패는 이번에 장부에 올렸으면 끝난 것이고, 아니면(딜레이가 덜 찼다) 아직 기다리는 중이다
+        const waiting = waitingCount(state.absent, state.present, newDue ? 0 : unknownPlates.length);
+        if (!leaving.length && !joining.length) return { changed: false, unreadable, waiting, suspects };
 
         pushUndo();
         for (const p of leaving) {
             room.players = room.players.filter(x => x.nickname !== p.nickname);
             selected = selected.filter(x => x !== p.nickname);
             room.eventLog.push({ type: 'leave', round: room.round, nickname: p.nickname });
+            state.leftAt[p.nickname] = Date.now();
         }
         const added = [];
         for (const id of joining) {
             if (addPlayer(id, { auto: true, silent: true })) added.push(id);
+            // 방금 퇴장으로 찍힌 사람이 곧바로 돌아왔다 — 잘못 읽어 퇴장→입장이 찍혔을 수 있다 (의심 장면)
+            const left = state.leftAt[id];
+            if (left && Date.now() - left < BOUNCE_MS) suspects.push({ kind: 'bounce', note: id + ' 퇴장 ' + Math.round((Date.now() - left) / 1000) + '초 만에 다시 입장', ids: [id] });
         }
         refreshUI();
-        return { changed: true, left: leaving.map(p => p.nickname), joined: added, unreadable, waiting };
+        return { changed: true, left: leaving.map(p => p.nickname), joined: added, unreadable, waiting, suspects };
+    }
+
+    /* ── 둘로 갈린 사람 합치기 ─────────────────
+       한 사람이 장부에 두 id로 올라가는 일이 있다 — 나갔다가 READY인 채로 돌아왔는데 장부엔 그림에 묻힌 평소 명패뿐이고
+       레벨도 못 읽으면, 돌아온 순간에는 그 사람인지 알 길이 없어 새 id가 된다(나는핵을써개못핵, replay-test.js).
+       그 뒤 READY를 풀거나 레벨이 읽혀 **지금 명패가 옛 id를 장부에서 확실히 찾으면**(자기 id를 빼고 찾아서 그 사람 하나가
+       나오면 — 돌아온 순간에 봤다면 그 id로 이어졌을 기준이다) 그게 같은 사람이라는 증거다. MERGE_TICKS(3초) 이어지면 합친다.
+       - 옛 id는 지금 방에 없어야 한다 (둘 다 방에 있으면 두 사람이다)
+       - **한 로비 화면에 같이 앉아 있던 적이 있는 두 id는 절대 합치지 않는다** — 아바타가 같은 두 사람이 한 번이라도
+         같이 보이면 장부에 서로를 적어 둔다(fp가 아니라 장부 항목의 apart). 아바타가 다른 사람끼리는 애초에 찾아지지 않는다
+       - 남는 id는 먼저 만든 쪽(번호가 작은 쪽)이다 — 전적·로그가 거기 쌓여 있다. 전적은 더하고, 로그의 id는 바꾸고,
+         명패 모양은 지금 방에 있는 쪽 것을 앞세워 합친다
+       손으로 합치는 버튼은 두지 않는다(2026-09-22에 걷어냈다) — 이건 같은 판단을 자동으로 하는 것이다 */
+    const MERGE_TICKS = 6;
+
+    const seqOf = (id) => { const m = /(\d+)$/.exec(id); return m ? +m[1] : Infinity; };
+
+    /* 이번 로비에 같이 앉은, 아바타가 같은 사람들 — 서로를 '다른 사람'으로 적어 둔다 */
+    function markApart(ids) {
+        const b = book();
+        for (let i = 0; i < ids.length; i++) {
+            for (let j = i + 1; j < ids.length; j++) {
+                const x = b[ids[i]], y = b[ids[j]];
+                if (!x || !y || !Room.fpCurrent(x.fp) || !Room.fpCurrent(y.fp) || !Room.fpAvatarSame(x.fp, y.fp)) continue;
+                x.apart = x.apart || []; y.apart = y.apart || [];
+                if (!x.apart.includes(ids[j])) x.apart.push(ids[j]);
+                if (!y.apart.includes(ids[i])) y.apart.push(ids[i]);
+            }
+        }
+    }
+
+    /* placed: Map(칸 → { id }) — 이번 로비에서 누구로 정해졌는지. prevSlots — 직전 로비 프레임의 칸 배치.
+       두 갈래로 드러난다:
+         ① 방에 있는 id(B)의 칸 명패가, B를 빼고 찾으면 방에 없는 옛 id(A)를 확실히 찾는다
+         ② 명패가 곧바로 옛 id(A)로 찾아졌는데(장부에 그 상태 모양이 A에게만 있다) 그 칸에 직전까지 앉아 있던 건 B다 —
+            B는 이번에 안 보인다. 가만두면 B 퇴장 · A 입장이 찍힌다. 칸별로 '누가 누구로 바뀌었나'를 이어서 센다(state.takeover)
+       합친 [남는 id, 없어지는 id] 목록 */
+    function checkMerges(placed, prevSlots) {
+        const b = book();
+        const seated = [...placed.values()].map(p => p.id);
+        markApart(seated);
+        const inRoom = new Set(room.players.map(p => p.nickname));
+        const streak = {}, due = [];
+        for (const [row, pl] of placed) {
+            const B = pl.id;
+            if (!usableRow(row) || !inRoom.has(B) || !b[B]) continue;
+            const apart = b[B].apart || [];
+            const ids = Object.keys(b).filter(id => id !== B && !inRoom.has(id) && !seated.includes(id) && !apart.includes(id));
+            if (!ids.length) continue;
+            const hit = lookupRaw(row, ids);   // 엄격한 찾기 (loose 아님) — 새로 온 사람을 옛 사람으로 잇는 것과 같은 기준
+            if (!hit || !hit.match) continue;
+            const key = B + '>' + hit.match.id;
+            streak[key] = (state.mergeStreak[key] || 0) + 1;
+            if (streak[key] >= MERGE_TICKS) due.push([B, hit.match.id]);
+        }
+        state.mergeStreak = streak;
+        // ② 칸을 이어받은 경우
+        const takeover = {};
+        for (const [row, pl] of placed) {
+            const A = pl.id, i = row.index;
+            if (!usableRow(row) || inRoom.has(A) || !b[A]) continue;
+            const was = state.takeover[i];
+            const prevId = prevSlots[i] && prevSlots[i].id;
+            let from = was && was.to === A ? was.from : (prevId && prevId !== A ? prevId : null);
+            if (!from || !inRoom.has(from) || seated.includes(from) || !b[from]) continue;
+            const f = b[from];
+            if ((f.apart || []).includes(A) || !Room.fpCurrent(f.fp) || !Room.fpAvatarSame(row.fp, f.fp) || Room.fpLevelDiffers(row.fp, f.fp)) continue;
+            const n = (was && was.to === A && was.from === from ? was.n : 0) + 1;
+            takeover[i] = { from, to: A, n };
+            if (n >= MERGE_TICKS) due.push([from, A]);
+        }
+        state.takeover = takeover;
+        const done = [];
+        for (const [B, A] of due) {
+            if (!b[A] || !b[B]) continue;   // 같은 프레임에 앞의 합치기로 이미 없어졌다
+            const keep = seqOf(A) <= seqOf(B) ? A : B, drop = keep === A ? B : A;
+            mergeIds(keep, drop, B);
+            done.push([keep, drop]);
+        }
+        return done;
+    }
+
+    /* drop을 keep으로 합친다. live = 지금 방에 있는 쪽 id (그쪽 명패 모양·플레이어 칸이 지금 것이다) */
+    function mergeIds(keep, drop, live) {
+        pushUndo();
+        const b = book();
+        const K = b[keep], D = b[drop], L = live === keep ? K : D, O = live === keep ? D : K;
+        // 명패 장부 — 지금 방에 있는 쪽 모양을 앞세운다 (상태별 닉네임 모양·그림·움직이는 명패 평균·레벨)
+        const fp = Object.assign({}, O.fp, L.fp);
+        fp.names = Object.assign({}, O.fp.names, L.fp.names);
+        if (!L.fp.art && O.fp.art) fp.art = O.fp.art;
+        if (O.fp.animated || L.fp.animated) fp.animated = true;
+        if (!fp.artAvg && O.fp.artAvg) { fp.artAvg = O.fp.artAvg; fp.artN = O.fp.artN; }
+        const lvs = [K.fp, D.fp].filter(f => f.lv != null).sort((x, y) => (y.lvAt || 0) - (x.lvAt || 0));
+        if (lvs.length) { fp.lv = lvs[0].lv; fp.lvAt = lvs[0].lvAt; } else { delete fp.lv; delete fp.lvAt; }
+        const apart = [...new Set([...(K.apart || []), ...(D.apart || [])])].filter(id => id !== keep && id !== drop);
+        b[keep] = { fp, thumb: L.thumb || O.thumb };
+        if (apart.length) b[keep].apart = apart;
+        delete b[drop];
+        for (const id of Object.keys(b)) {
+            const a = b[id].apart;
+            if (a && a.includes(drop)) b[id].apart = [...new Set(a.map(x => x === drop ? keep : x))].filter(x => x !== id);
+        }
+
+        // 플레이어 — 방에 있는 칸(live)을 keep 이름으로. 전적은 두 id의 것을 더한다
+        const p = room.players.find(x => x.nickname === live);
+        const other = live === keep ? drop : keep;
+        const hist = room.playerHistory[other] || { matchCount: 0, chooserCount: 0, waitSum: 0 };
+        if (p) {
+            const sinceJoin = p.matchCount || 0;
+            p.matchCount = (p.matchCount || 0) + (hist.matchCount || 0);
+            p.chooserCount = (p.chooserCount || 0) + (hist.chooserCount || 0);
+            p.waitSum = (p.waitSum || 0) + (hist.waitSum || 0);
+            // 옛 id가 전에 있던 사람이면, 새 id로 들어온 것은 실은 재입장이다 (한 판 치면 딱지가 떨어진다 — recordMatch)
+            if (live === drop && !sinceJoin) p.rejoined = true;
+            const iKeep = room.seen.indexOf(keep), iDrop = room.seen.indexOf(drop);
+            if (iKeep >= 0 || iDrop >= 0) p.joinOrder = Math.min(...[iKeep, iDrop].filter(i => i >= 0));
+            p.nickname = keep;
+            room.playerHistory[keep] = { matchCount: p.matchCount, chooserCount: p.chooserCount, waitSum: p.waitSum };
+        }
+        delete room.playerHistory[drop];
+        room.seen = room.seen.filter(x => x !== drop);
+        if (!room.seen.includes(keep)) room.seen.push(keep);
+        const ren = (x) => x === drop ? keep : x;
+        for (const ev of room.eventLog) {
+            if (ev.nickname !== undefined) ev.nickname = ren(ev.nickname);
+            if (ev.chooser !== undefined) ev.chooser = ren(ev.chooser);
+            if (ev.opponent !== undefined) ev.opponent = ren(ev.opponent);
+        }
+        selected = selected.map(ren);
+        if (room.botId === drop) room.botId = keep;
+
+        // 인식 쪽 상태의 id도
+        state.slots = (state.slots || []).map(s => s ? Object.assign({}, s, { id: ren(s.id) }) : s);
+        for (const k of ['present', 'absent', 'carryStreak', 'leftAt']) {
+            if (state[k] && state[k][drop] !== undefined) { if (state[k][keep] === undefined) state[k][keep] = state[k][drop]; delete state[k][drop]; }
+        }
+        if (state.lastPair) state.lastPair = state.lastPair.map(ren);
+        state.mergeStreak = {}; state.takeover = {};
+        state.merges.push([keep, drop]);
+        log('같은 사람으로 합침 — ' + drop + ' → ' + keep + ' (전적·기록을 이어 붙였습니다)', 'hit');
+        refreshUI();
+    }
+
+    /* 장부에서 이 명패와 아바타가 같고 그림·레벨도 어긋나지 않는 다른 사람 (지금 다른 칸에 앉아 있는 사람은 뺀다 — 그건 확실히 남이다) */
+    function lookalikes(row, self, seated) {
+        const b = book(), out = [];
+        for (const id of Object.keys(b)) {
+            if (id === self || seated.includes(id)) continue;
+            const e = b[id].fp;
+            if (Room.fpCurrent(e) && Room.fpAvatarSame(row.fp, e) && !Room.fpArtDiffers(row.fp, e) && !Room.fpLevelDiffers(row.fp, e)) out.push(id);
+        }
+        return out;
     }
 
     // 딜레이가 걸려 아직 반영 안 된 입·퇴장 수 (상태 표시용)
@@ -447,7 +646,7 @@
     function resetDelays() {
         state.absent = {}; state.present = {}; state.newStreak = 0; state.rows = []; state.rowArt = [];
         // 로비가 아닌 화면을 거치면 칸 배치가 바뀔 수 있다 — 자리 단서는 로비가 끈기지 않고 이어질 때만 쓴다
-        state.slots = []; state.carryStreak = {};
+        state.slots = []; state.carryStreak = {}; state.takeover = {}; state.mergeStreak = {};
     }
 
     function samePlate(p, q) {
@@ -536,20 +735,40 @@
     }
 
     /* ── 프레임 한 장 ───────────────── */
-    async function onFrame(frame, W, H) {
+    async function onFrame(frame, W, H, info) {
+        // 자동 방장 봇이 메뉴를 움직이는 동안은 화면이 우리 것이 아니다 — 그 사이 프레임은 보지 않는다
+        if (window.VMH.AutoHost && window.VMH.AutoHost.busy()) return;
+        // 공유가 멈췄다 — 다른 창이 게임을 덮으면 게임이 화면을 새로 그리지 않아 같은 그림이 계속 온다.
+        // 그 옛 프레임으로 입·퇴장을 정하면 안 되고, '로비가 아닌 화면'으로 세도 안 된다(로비 복귀 알림이 잘못 울린다).
+        // 눈을 감고 있던 셈이니 세던 것은 모두 접는다 — 다시 그려지기 시작하면 저절로 이어서 읽는다
+        if (info && info.stale) {
+            state.rosterKey = null; state.rosterCount = 0;
+            leavePairScreen();
+            resetDelays();
+            if (window.VMH.Incidents) window.VMH.Incidents.forget();
+            setStatus('● 화면이 멈춰 있습니다 (' + Math.round(info.age / 1000) + '초) — 게임 창을 앞으로 가져오면 다시 읽습니다', 'warn');
+            return;
+        }
         if (Room.isLobbyScreen(frame, W, H)) {
             leavePairScreen();
             if (++state.lobbyStreak >= LOBBY_TAB_TICKS) {
                 window.VMH.Tabs.follow('match');
                 // 판이 끝나고 돌아온 것이면 한 번만 알린다. 로비가 확실해진 뒤에 세기를 접으므로
                 // 로비 한가운데의 오인식 한두 프레임으로 알림이 울리지는 않는다
-                if (state.awayStreak >= NOTIFY_AWAY_TICKS && window.VMH.Notify.lobbyBack()) log('로비로 돌아옴 — 알림', 'hit');
+                if (state.awayStreak >= NOTIFY_AWAY_TICKS) {
+                    if (window.VMH.Notify.lobbyBack()) log('로비로 돌아옴 — 알림', 'hit');
+                    // 자동 방장 봇에게도 알려야 하는데, 이 프레임에서는 명단이 아직 안 굳었을 수 있다
+                    // (로비 2프레임 vs 명단 3프레임). 그래서 걸어 두고 명단이 확정된 첫 프레임에 건넨다
+                    state.backPending = true;
+                }
                 state.awayStreak = 0;
             }
             if (state.matchLocked && ++state.lobbyCount >= MATCH_CLEAR_TICKS) state.matchLocked = false;
 
+            if (window.VMH.Incidents) window.VMH.Incidents.remember(frame, W, H);
             const r = syncRoster(Room.readLobby(frame, W, H));
             if (r.pending) return;
+            if (r.suspects && r.suspects.length) saveSuspects(r.suspects, frame, W, H);
             if (r.changed) {
                 const bits = [];
                 if (r.joined.length) bits.push('입장 ' + r.joined.length + '명');
@@ -559,16 +778,25 @@
             const note = (r.unreadable ? ` (기본 명패 ${r.unreadable}칸은 구분 불가)` : '')
                        + (r.waiting ? ` · 입·퇴장 확인 중 ${r.waiting}명` : '');
             setStatus('● 로비 인식 중 — ' + room.players.filter(p => p.auto).length + '명' + note + areaNote(), 'live');
+            // 명단이 확정된 로비 프레임에서만 자동 방장 봇에게 기회를 준다 (봇이 방장이 됐을 때 한 번).
+            // 판이 끝나고 돌아온 것인지도 여기서 한 번만 건넨다 — 봇이 쓰든 말든 건네면 접는다.
+            // r.waiting = 딜레이가 덜 찬 입·퇴장 수 — 봇은 이게 0이 될 때까지 방장을 넘기지 않는다
+            const back = state.backPending;
+            state.backPending = false;
+            if (window.VMH.AutoHost) window.VMH.AutoHost.onLobby(frame, W, H, back, r.waiting || 0);
             return;
         }
         state.rosterKey = null; state.rosterCount = 0;
         state.lobbyCount = 0; state.lobbyStreak = 0; state.awayStreak++;
+        if (window.VMH.Incidents) window.VMH.Incidents.forget();
         resetDelays();   // 로비가 아닌 화면에선 명단이 안 보인다 — 딜레이는 로비가 끊기지 않고 이어질 때만 센다
 
         const kind = Room.isResultScreen(frame, W, H) ? 'result' : Room.isRoundScreen(frame, W, H) ? 'round' : null;
         if (!kind) {
             leavePairScreen();
             setStatus('● 자동 인식 중 — ' + (state.matchLocked ? '대결 진행 중' : '로비/라운드/결과 화면 대기') + areaNote(), 'live');
+            // 대결 플레이 화면인지는 자동 방장 봇이 알아서 본다 (여기서는 그냥 모르는 화면이다)
+            if (window.VMH.AutoHost) window.VMH.AutoHost.onScreen(frame, W, H, null);
             return;
         }
 
@@ -583,6 +811,19 @@
             state.pairFailed = true;
             log(label + '을 읽었지만 누구인지 못 가렸습니다', 'warn');
             setStatus('● ' + label + ' — 대상을 못 가림', 'warn');
+        }
+        // 봇에게도 알린다 — 라운드 화면이면 곡 안내를 한 번 더 할 차례다
+        if (window.VMH.AutoHost) window.VMH.AutoHost.onScreen(frame, W, H, kind);
+    }
+
+    /* 의심 장면을 남긴다 (lib/incidents.js) — 인식 기록에도 한 줄 */
+    function saveSuspects(list, frame, W, H) {
+        const I = window.VMH.Incidents;
+        if (!I) return;
+        const b = book();
+        for (const s of list) {
+            log('의심 장면 저장 — ' + s.note, 'warn');
+            I.record(s.kind, s.note, frame, W, H, (s.ids || []).filter(id => b[id]).map(id => ({ id, dataUrl: b[id].thumb })));
         }
     }
 
@@ -625,6 +866,18 @@
         });
     }
 
+    /* 의심 장면 막대 — 모인 게 있을 때만 보인다 */
+    function initIncidents() {
+        const I = window.VMH.Incidents, bar = $('incident-bar');
+        if (!I || !bar) return;
+        const render = () => { bar.hidden = !I.count(); const n = $('incident-count'); if (n) n.textContent = I.count(); };
+        I.onChange(render);
+        const dl = $('incident-dl'), clr = $('incident-clear');
+        if (dl) dl.addEventListener('click', () => I.download());
+        if (clr) clr.addEventListener('click', () => I.clear());
+        render();
+    }
+
     /* 화면 공유를 켜면 손으로 하는 입력을 잠근다 —
        자동 인식과 수동 입력이 같은 명단을 서로 다르게 건드리면 어긋나기 때문. */
     function applyLock(on) {
@@ -646,7 +899,7 @@
         applyLock(on);
         if (!running) window.VMH.Tabs.forgetScene();
         if (!on) {
-            Object.assign(state, { rosterKey: null, rosterCount: 0, pairPrev: null, pairCount: 0, pairArt: {}, matchLocked: false, pairFailed: false, lobbyStreak: 0, awayStreak: 0 });
+            Object.assign(state, { rosterKey: null, rosterCount: 0, pairPrev: null, pairCount: 0, pairArt: {}, matchLocked: false, pairFailed: false, lobbyStreak: 0, awayStreak: 0, backPending: false });
             resetDelays();
             setStatus(running ? '화면 공유를 층수 측정기에만 주는 중 — 옵션 탭에서 바꿀 수 있습니다'
                               : '게임 화면을 연결하면 입·퇴장과 대진이 자동으로 기록됩니다', 'idle');
@@ -663,6 +916,7 @@
         inited = true;
 
         initActivityToggle();
+        initIncidents();
         Hub.subscribe('room', onFrame);
         Hub.onChange(onHubChange);
         Hub.onStatus((text, tone) => { if (tone === 'warn' && Hub.isTarget('room')) setStatus(text, 'warn'); });
@@ -687,5 +941,5 @@
     if (document.readyState !== 'loading') init();
 
     // 콘솔에서 상태를 들여다보거나, 화면 공유 없이 스샷 한 장을 그대로 먹여볼 수 있게 열어둔다
-    window.VMH.AutoRoom = { state, lookupId, resolveId, book, feed: onFrame };
+    window.VMH.AutoRoom = { state, lookupId, resolveId, identifyRows, book, feed: onFrame, log };
 })();
