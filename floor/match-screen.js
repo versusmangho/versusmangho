@@ -79,7 +79,64 @@ function nearestSig(sig, list) {
 function barFeatures(src, x, y, w, h) {
     const bar = cropToCanvas(src, x, y, w, h);
     const left = cropToCanvas(bar, 0, 0, bar.width * BAR_SPLIT, bar.height), right = cropToCanvas(bar, left.width, 0, bar.width * (1 - BAR_SPLIT), bar.height);
-    return { btnPh: pHashFromCanvas(binarizeButton(left)), btnColor: getColorGridFromCanvas(left), diffPh: pHashFromCanvas(binarizeDifficulty(right)) };
+    return { btnPh: pHashFromCanvas(binarizeButton(left)), btnColor: getColorGridFromCanvas(left), diffPh: pHashFromCanvas(binarizeDifficulty(right)),
+             diffBox: readDiffBox(src, x, y, w, h) };
+}
+
+/* ── 난이도 칸 읽기: 글자 폭 + 글자 색 ─────────────────────
+   바 오른쪽의 어두운 네모 칸 안에 난이도가 그 색 글자로 적혀 있다 — SC(분홍) · HARD(주황) · MAXIMUM(빨강) · NORMAL.
+   예전에는 칸을 이진화해 pHash 한 장과 견줬는데, 라운드·결과 화면의 겹쳐 그린 작은 바에서 SC가 NM으로 자주 읽혔다
+   (실측 23칸 중 8칸이 오독이거나 동점). 글자 모양 대신 두 가지를 잰다:
+     ① 글자 폭 / 칸 안쪽 폭 — 크기·위치와 무관하다. 실측 SC 0.20~0.23 · HARD 0.53~0.54 · MAXIMUM 0.87~0.96
+     ② 글자 색상각(원형 평균) — 실측 SC 315~331° · MAXIMUM 335~347° · HARD 23°
+   SC와 MAXIMUM은 색이 가까워 폭으로, NORMAL과 MAXIMUM은 폭이 가까워 색으로 가른다.
+   (밴픽·래더·라운드·결과 스샷 41칸, 픽셀마다 ±12 잡음까지 205번 모두 정답)
+   NORMAL은 스샷이 없어 게임 색(노랑)을 가정했다 — 어느 칸에도 안 맞으면 null이고, 그때는 예전 pHash로 읽는다.
+   칸은 바 자리보다 위아래로 넉넉히 잘라 그 안에서 찾으므로 라운드 화면의 1~4px 어긋남도 상관없다. */
+const DIFF_DARK = 70;           // 칸 안쪽 = 가장 밝은 채널이 이보다 어둡다
+const DIFF_INK_MIN = 90;        // 글자 = 이만큼 밝고
+const DIFF_INK_SAT = 40;        //        채널 차이가 이만큼 난다 (회색 잡음 제외)
+function readDiffBox(src, x, y, w, h) {
+    const u = w / 240, c = cropToCanvas(src, x + w * 0.42, y - 6 * u, w * 0.58, h + 12 * u);
+    const W = c.width, H = c.height, d = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data;
+    const bright = (px, py) => { const i = (py * W + px) * 4; return Math.max(d[i], d[i + 1], d[i + 2]); };
+    const longestRun = (arr, ok) => {
+        let best = [0, 0], s = -1;
+        for (let i = 0; i <= arr.length; i++) {
+            if (i < arr.length && ok(arr[i])) { if (s < 0) s = i; }
+            else if (s >= 0) { if (i - s > best[1] - best[0]) best = [s, i]; s = -1; }
+        }
+        return best;
+    };
+    // 세로: 어두운 픽셀이 있는 줄이 가장 길게 이어진 곳 (위의 자켓과는 밝은 바 바탕으로 끊긴다)
+    const rowF = [];
+    for (let py = 0; py < H; py++) { let n = 0; for (let px = 0; px < W; px++) if (bright(px, py) < DIFF_DARK) n++; rowF.push(n / W); }
+    const [y0, y1] = longestRun(rowF, f => f >= 0.02);
+    if (y1 - y0 < 6) return null;
+    // 가로: 글자가 없는 위아래 가장자리 줄만 보고 칸 폭을 잰다 (글자 줄까지 보면 MAXIMUM이 칸을 둘로 쪼갠다)
+    const q = Math.max(1, Math.round((y1 - y0) * 0.2)), edge = [];
+    for (let py = y0; py < y0 + q; py++) edge.push(py);
+    for (let py = y1 - q; py < y1; py++) edge.push(py);
+    const colF = [];
+    for (let px = 0; px < W; px++) { let n = 0; for (const py of edge) if (bright(px, py) < DIFF_DARK) n++; colF.push(n / edge.length); }
+    const [x0, x1] = longestRun(colF, f => f >= 0.5);
+    if (x1 - x0 < 8) return null;
+    const m = Math.max(1, Math.round((y1 - y0) * 0.08));
+    let sx = 0, sy = 0, n = 0, lx = Infinity, hx = -1;
+    for (let py = y0 + m; py < y1 - m; py++) for (let px = x0 + m; px < x1 - m; px++) {
+        const i = (py * W + px) * 4, r = d[i], g = d[i + 1], b = d[i + 2], M = Math.max(r, g, b), dd = M - Math.min(r, g, b);
+        if (M < DIFF_INK_MIN || dd < DIFF_INK_SAT) continue;
+        let hue = M === r ? ((g - b) / dd + 6) % 6 : M === g ? (b - r) / dd + 2 : (r - g) / dd + 4;
+        hue *= Math.PI / 3;
+        sx += Math.cos(hue); sy += Math.sin(hue); n++;
+        if (px < lx) lx = px; if (px > hx) hx = px;
+    }
+    if (n < 8) return null;
+    const hue = (Math.atan2(sy, sx) * 180 / Math.PI + 360) % 360, wr = (hx - lx + 1) / (x1 - x0);
+    const red = hue >= 290 || hue < 12, warm = hue >= 25 && hue < 75;
+    if (wr < 0.37) return hue >= 280 && hue < 345 ? 'SC' : null;
+    if (wr < 0.68) return hue >= 5 && hue < 36 ? 'HD' : hue >= 36 && hue < 75 ? 'NM' : null;
+    return red ? 'MX' : warm ? 'NM' : null;
 }
 
 /* 라운드/결과 화면의 버튼/난이도 바는 자켓 아래쪽 18%에 겹쳐 그려져 밴픽창보다 1~4px 어긋난다.

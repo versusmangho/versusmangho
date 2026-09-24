@@ -181,7 +181,7 @@ async function displayMatch(row, index) {
         updateRow(row, { titleId: id, name: ok ? d.name : "NO DATA", button: row.patternButton, difficulty: "SC", floorName: "NO DATA", floor: "-", level: 0, fromLope: ok && d.fromLope, noData: !ok });
         return;
     }
-    const m = row.matches[index], bM = bestMatch(row.btnPh, row.btnColor, buttonRefs), dM = bestMatch(row.diffPh, null, diffRefs), btn = bM.key || "4B", diff = dM.key || "SC", tId = m.id, d = await ensureSongData(tId);
+    const m = row.matches[index], bM = bestMatch(row.btnPh, row.btnColor, buttonRefs), dM = row.diffBox ? null : bestMatch(row.diffPh, null, diffRefs), btn = bM.key || "4B", diff = row.diffBox || dM.key || "SC", tId = m.id, d = await ensureSongData(tId);
     if (d && d.success) {
         row.apiData = d; const p = d.patterns?.[btn]?.[diff], fV = p?.floor ?? "-", fN = patternFloorName(p);
         updateRow(row, { titleId: tId, name: d.name, button: btn, difficulty: diff, floorName: fN, floor: fV, level: p?.level || 0, fromLope: d.fromLope });
