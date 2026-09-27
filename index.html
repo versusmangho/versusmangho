@@ -10,351 +10,16 @@
 
   <!-- 층수 측정기 화면이 Tailwind 유틸리티 클래스를 쓴다.
        preflight(전역 리셋)는 매칭 화면의 표·버튼까지 갈아엎으므로 끈다.
-       층수 화면이 기대하는 만큼은 style.css의 .floor-scope 규칙이 대신 깔아준다.
+       층수 화면이 기대하는 만큼은 css/floor.css의 .floor-scope 규칙이 대신 깔아준다.
        (config는 CDN 스크립트 '뒤'에서 넣어야 먹는다 — 앞에 두면 CDN이 덮어쓴다) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>tailwind.config = { corePlugins: { preflight: false } };</script>
 
-  <style>
-  /* 층수 측정기에서 가져온 스타일 — 전부 .floor-scope 안에서만 먹는다.
-     (합치기 전에는 floor.html의 전역 스타일이었다) */
-  :root {
-            --bg-main: #0f172a;
-            --bg-card: rgba(30, 41, 59, 0.7);
-            --bg-card-hover: rgba(30, 41, 59, 0.9);
-            --border-color: rgba(255, 255, 255, 0.08);
-            --accent-blue: #3b82f6;
-            --accent-indigo: #6366f1;
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-        }
-  .floor-scope {
-            background: var(--bg-main);
-            color: var(--text-primary);
-            font-family: 'Noto Sans KR', sans-serif;
-            background-image: 
-                radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.05) 0%, transparent 40%),
-                radial-gradient(circle at 90% 80%, rgba(99, 102, 241, 0.05) 0%, transparent 40%);
-            background-attachment: fixed;
-  }
-  .floor-scope .header-font { font-family: 'Orbitron', sans-serif; letter-spacing: 0.05em;
-  }
-  /* Glassmorphism effects */
-  .floor-scope .glass {
-            background: var(--bg-card);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid var(--border-color);
-  }
-  .floor-scope .track-row {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-  }
-  .floor-scope .track-row::before {
-            content: '';
-            position: absolute;
-            top: 0; left: 0; width: 4px; height: 100%;
-            background: transparent;
-            transition: background 0.3s;
-  }
-  .floor-scope .track-row:hover {
-            border-color: rgba(59, 130, 246, 0.4);
-            background: var(--bg-card-hover);
-            transform: translateY(-2px);
-            box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.3);
-  }
-  .floor-scope .track-row:hover::before {
-            background: var(--accent-blue);
-  }
-  .floor-scope .floor-value {
-            font-family: 'Orbitron', sans-serif;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-            line-height: 1;
-  }
-  .floor-scope .loading-shimmer {
-            background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
-            background-size: 200% 100%;
-            animation: shimmer 2s infinite linear;
-  }
-  @keyframes shimmer {
-            0% { background-position: 200% 0; }
-            100% { background-position: -200% 0; }
-        }
-  .floor-scope .track-row.played {
-            background: rgba(34, 197, 94, 0.08);
-            border-color: rgba(34, 197, 94, 0.4) !important;
-  }
-  .floor-scope .track-row.played::before { background: #22c55e;
-  }
-  .floor-scope .track-row.banned {
-            background: rgba(239, 68, 68, 0.08);
-            border-color: rgba(239, 68, 68, 0.4) !important;
-            opacity: 0.6;
-  }
-  .floor-scope .track-row.banned::before { background: #ef4444;
-  }
-  /* 플레이된 라운드 번호 — 라운드 화면에서 자동으로 붙는다 */
-  .floor-scope .round-badge {
-            position: absolute; top: 6px; left: 6px; z-index: 5; pointer-events: none;
-            font-family: 'Orbitron', sans-serif; font-weight: 900; font-size: 0.85rem; line-height: 1;
-            padding: 5px 8px; border-radius: 8px;
-            background: #16a34a; color: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
-  }
-  .floor-scope .track-row:not(.played) .round-badge { display: none;
-  }
-  /* 스크린샷 뷰어 — 좌우 화살표로 이전에 붙여넣은 스샷을 다시 본다 */
-  .floor-scope #shotViewer { display: none; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 2.5rem;
-  }
-  .floor-scope #screenshotContainer { display: none; justify-content: center;
-  }
-  .floor-scope .shot-nav-btn {
-            flex: none; width: 44px; height: 44px;
-            display: flex; align-items: center; justify-content: center;
-            border-radius: 999px;
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            color: var(--text-secondary);
-            backdrop-filter: blur(8px);
-            transition: all 0.2s;
-  }
-  .floor-scope .shot-nav-btn:hover:not(:disabled) { background: var(--accent-blue); color: #fff; border-color: transparent; transform: scale(1.08);
-  }
-  .floor-scope .shot-nav-btn:disabled { opacity: 0.2; cursor: default;
-  }
-  .floor-scope #shotCounter {
-            margin-top: 0.75rem; text-align: center;
-            font-family: 'Orbitron', sans-serif; font-size: 0.7rem;
-            letter-spacing: 0.15em; color: var(--text-secondary);
-  }
-  .floor-scope #screenshotPreview {
-            max-width: 320px;
-            cursor: pointer;
-            border-radius: 1rem;
-            border: 1px solid var(--border-color);
-            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
-  }
-  .floor-scope #screenshotPreview.expanded { 
-            max-width: 100%; 
-            border-color: var(--accent-blue); 
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  }
-  .floor-scope .mode-toggle-container {
-            position: absolute; top: 2rem; right: 2rem; display: flex;
-            background: rgba(15, 23, 42, 0.6); padding: 4px; border-radius: 14px;
-            border: 1px solid var(--border-color); z-index: 50;
-            backdrop-filter: blur(8px);
-  }
-  .floor-scope .mode-btn { 
-            padding: 8px 18px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; 
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; 
-            color: var(--text-secondary);
-  }
-  .floor-scope .mode-btn.active { 
-            background: var(--accent-blue); color: white; 
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-  }
-  .floor-scope .mode-btn:not(.active):hover { background: rgba(255, 255, 255, 0.08); color: white;
-  }
-  /* General Mode Grid Refinement */
-  .floor-scope .general-grid {
-            display: grid; grid-template-columns: 60px repeat(4, 1fr); gap: 1px;
-            background: var(--border-color); border: 1px solid var(--border-color); 
-            border-radius: 12px; overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  }
-  .floor-scope .grid-cell { 
-            background: #1e293b; padding: 14px 8px; text-align: center; 
-            font-family: 'Orbitron', sans-serif; font-size: 0.85rem; 
-            transition: background 0.2s;
-  }
-  .floor-scope .grid-header { background: #0f172a; font-weight: 700; color: #64748b; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; padding: 6px 4px;
-  }
-  .floor-scope .grid-row-label { background: #0f172a; font-weight: 700; color: #64748b; display: flex; align-items: center; justify-content: center; font-size: 1rem; padding: 6px 4px;
-  }
-  .floor-scope .grid-value {
-            font-weight: 900;
-            font-size: 1.7rem;
-            text-shadow: 2px 2px 3px rgba(0, 0, 0, 0.5);
-  }
-  .floor-scope .grid-value.empty { color: #334155; font-weight: normal; background: #161e2e;
-  }
-  /* 데이터 없는 칸은 실제 층수 값과 같은 크기로 찍히면 빈 칸이 데이터보다 커 보인다 */
-  .floor-scope .grid-value.nodata { font-size: 0.8rem; font-weight: 400; letter-spacing: 0.1em;
-  }
-  /* 패턴이 있는 칸은 클릭하면 버망호 Copy와 같은 형식으로 복사된다 */
-  .floor-scope .grid-cell.copyable { cursor: pointer;
-  }
-  .floor-scope .grid-cell.copyable:hover { filter: brightness(1.15);
-  }
-  /* Select Styles */
-  .floor-scope select {
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 0.4rem center;
-            background-size: 0.8rem;
-            padding-right: 1.4rem !important;
-            cursor: pointer;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  }
-  .floor-scope select:hover { filter: brightness(1.1);
-  }
-  .floor-scope .recheck-btn, .floor-scope .copy-btn, .floor-scope .memo-btn {
-            transition: all 0.2s;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-  /* 버튼·난이도 선택·Recheck/Copy도 층수 숫자와 같은 Orbitron으로 맞춘다 (전부 영문·숫자라 한글 대체 글꼴이 안 섞인다) */
-  .floor-scope .recheck-btn, .floor-scope .copy-btn,
-  .floor-scope .btn-select, .floor-scope .diff-select, .floor-scope .btn-select option, .floor-scope .diff-select option {
-            font-family: 'Orbitron', sans-serif;
-            letter-spacing: 0.04em;
-  }
-  /* Orbitron은 폭이 넓어 5열 카드에서 RECHECK가 넘치므로 조금 작게, 자간은 좁게 */
-  .floor-scope .recheck-btn, .floor-scope .copy-btn { font-weight: 700; font-size: 0.66rem; letter-spacing: 0.02em;
-  }
-  /* 누르기 쉽게 — 글씨 크기가 아니라 높이로 키운다 (폭은 5열 카드에 맞춰 그대로) */
-  .floor-scope .recheck-btn, .floor-scope .copy-btn, .floor-scope .memo-btn { min-height: 34px; border-radius: 8px;
-  }
-  .floor-scope .memo-btn { min-width: 34px;
-  }
-  .floor-scope .btn-select, .floor-scope .diff-select { min-height: 30px;
-  }
-  .floor-scope .recheck-btn:hover, .floor-scope .copy-btn:hover, .floor-scope .memo-btn:hover {
-            background: #334155;
-            transform: scale(1.05);
-  }
-  /* Keyboard Shortcut Hint */
-  .floor-scope kbd {
-            font-family: monospace;
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-bottom-width: 3px;
-            color: #e2e8f0;
-  }
-  /* Versus Mode Horizontal Layout */
-  .floor-scope #resultList.versus-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 1rem;
-            align-items: stretch;
-  }
-  .floor-scope #resultList.versus-grid .track-row {
-            flex-direction: column;
-            text-align: center;
-            padding: 1rem;
-            height: 100%;
-            display: flex;
-            align-items: center;
-  }
-  .floor-scope #resultList.versus-grid .track-row::before {
-            width: 100%; height: 4px; top: 0; left: 0;
-  }
-  /* Mobile Adjustments */
-  @media (max-width: 768px) {
-    .floor-scope .mode-toggle-container { position: relative; top: 0; right: 0; margin-bottom: 2rem; justify-content: center;
-    }
-    .floor-scope .help-btn-container { position: relative; top: 0; left: 0; margin-bottom: 1rem; display: flex; justify-content: center;
-    }
-    .floor-scope #resultList.versus-grid { grid-template-columns: 1fr;
-    }
-    .floor-scope .track-row { flex-direction: column; align-items: flex-start;
-    }
-    .floor-scope .track-row .text-right { text-align: left; align-items: flex-start; margin-top: 1rem; width: 100%;
-    }
-  }
-  /* Help Modal Styles */
-  .floor-scope .help-btn-container {
-            position: absolute; top: 2rem; left: 2rem; z-index: 50;
-  }
-  .floor-scope .help-btn {
-            background: #3b82f6 !important;
-            color: white !important;
-            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-  }
-  .floor-scope .help-btn:hover {
-            background: #2563eb !important;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
-  }
-  .floor-scope .help-modal {
-            display: none; position: fixed; inset: 0; z-index: 100;
-            background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px);
-            align-items: center; justify-content: center; padding: 20px;
-  }
-  .floor-scope .help-modal.active { display: flex;
-  }
-  .floor-scope .help-content {
-            background: #1e293b; border: 1px solid rgba(255, 255, 255, 0.1);
-            max-width: 700px; width: 100%; max-height: 85vh; overflow-y: auto;
-            border-radius: 24px; padding: 40px; position: relative;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  }
-  .floor-scope .close-help {
-            position: absolute; top: 20px; right: 20px; cursor: pointer;
-            color: #94a3b8; transition: all 0.2s;
-  }
-  .floor-scope .close-help:hover { color: white; transform: rotate(90deg);
-  }
-  .floor-scope .help-body h2 { font-family: 'Orbitron', sans-serif; color: #3b82f6; font-size: 1.5rem; margin-bottom: 20px; font-weight: 700; border-bottom: 1px solid rgba(59, 130, 246, 0.2); padding-bottom: 10px;
-  }
-  .floor-scope .help-body h3 { font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin-top: 20px; margin-bottom: 10px;
-  }
-  .floor-scope .help-body p { margin-bottom: 15px; line-height: 1.7; color: #cbd5e1; font-size: 0.95rem;
-  }
-  .floor-scope .help-body ul { list-style: none; padding: 0; margin-bottom: 20px;
-  }
-  .floor-scope .help-body li { margin-bottom: 8px; padding-left: 20px; position: relative; color: #94a3b8; font-size: 0.9rem;
-  }
-  .floor-scope .help-body li::before { content: '•'; position: absolute; left: 0; color: #3b82f6; font-weight: bold;
-  }
-  .floor-scope .help-body code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #facc15;
-  }
-  /* 패턴 메모(자작 태그) — 로페봇 태그와 구분되게 노란색 */
-  .floor-scope .grid-cell .memo-tag { background: rgba(0, 0, 0, 0.5); color: #fcd34d; box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.55);
-  }
-  .floor-scope .memo-cell-btn {
-            position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
-            display: flex; align-items: center; justify-content: center;
-            border-radius: 6px; font-size: 12px; line-height: 1;
-            background: rgba(0, 0, 0, 0.45); color: #fde68a;
-            opacity: 0; transition: opacity 0.15s, background 0.15s;
-  }
-  .floor-scope .grid-cell:hover .memo-cell-btn { opacity: 1;
-  }
-  .floor-scope .memo-cell-btn:hover { background: rgba(0, 0, 0, 0.75);
-  }
-  @media (hover: none) {
-    .floor-scope .memo-cell-btn { opacity: 0.7;
-    }
-  }
-  .floor-scope .help-content.memo-content { max-width: 480px; padding: 28px;
-  }
-  .floor-scope .memo-chip {
-            display: inline-flex; align-items: center; gap: 2px; padding: 3px 4px 3px 10px;
-            border-radius: 8px; font-size: 0.8rem; font-weight: 700;
-            background: rgba(120, 53, 15, 0.45); color: #fcd34d; border: 1px solid rgba(217, 119, 6, 0.5);
-  }
-  .floor-scope .memo-chip button { width: 20px; height: 20px; border-radius: 5px; color: #fbbf24; line-height: 1;
-  }
-  .floor-scope .memo-chip button:hover { background: rgba(0, 0, 0, 0.35); color: #fff;
-  }
-  .floor-scope .memo-suggest {
-            padding: 3px 9px; border-radius: 8px; font-size: 0.75rem; font-weight: 700;
-            color: #cbd5e1; background: rgba(51, 65, 85, 0.6); border: 1px dashed rgba(148, 163, 184, 0.4);
-            transition: all 0.15s;
-  }
-  .floor-scope .memo-suggest:hover { border-color: #fbbf24; color: #fcd34d;
-  }
-  </style>
+  <!-- 층수 측정기 스타일 — 전부 .floor-scope 안에서만 먹는다 -->
+  <link rel="stylesheet" href="css/floor.css" />
 
   <!-- 층수 스타일보다 뒤에 둔다 — .floor-toolbar 같은 조정 규칙이 이겨야 하기 때문 -->
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="css/style.css" />
 </head>
 
 <body>
@@ -427,7 +92,7 @@
 
   <section class="card log-card">
     <div class="collapsible-header" id="log-toggle-btn" role="button" tabindex="0" aria-expanded="false">
-      <h2 style="border-bottom:0; padding-bottom:0; margin-bottom:0;">로그</h2>
+      <h2 class="h2-flush">로그</h2>
       <span class="toggle-icon" id="log-toggle-icon">▼</span>
     </div>
 
@@ -501,8 +166,8 @@
       <div id="analysis-msg" class="analysis-status">대기 중...</div>
     </div>
     
-    <canvas id="processCanvas" style="display:none;"></canvas>
-    <canvas id="thumbCanvas" width="16" height="16" style="display:none;"></canvas>
+    <canvas id="processCanvas"></canvas>
+    <canvas id="thumbCanvas" width="16" height="16"></canvas>
   </section>
 
 </main>
@@ -526,7 +191,7 @@
             <input type="text" id="songSearchInput" autocomplete="off" placeholder="곡 제목 또는 별명(태그)으로 검색..."
                 class="w-full px-5 py-4 rounded-2xl bg-slate-900/80 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 glass"
                 oninput="handleSongSearchInput(this.value)" onfocus="handleSongSearchInput(this.value)" onkeydown="handleSongSearchKeydown(event)">
-            <div id="songSearchResults" class="hidden absolute left-0 right-0 mt-2 max-h-80 overflow-y-auto rounded-2xl border border-slate-700 shadow-2xl glass" style="background: rgba(15, 23, 42, 0.97); z-index: 20;"></div>
+            <div id="songSearchResults" class="hidden absolute left-0 right-0 mt-2 max-h-80 overflow-y-auto rounded-2xl border border-slate-700 shadow-2xl glass song-search-results"></div>
         </div>
 
         <div id="dropZone" class="mb-8 border-2 border-dashed border-slate-700 rounded-3xl p-10 text-center cursor-pointer hover:border-blue-500 hover:bg-slate-800/40 transition-all duration-300 glass group">
@@ -614,7 +279,7 @@
 </div>
 
 <!-- ── 티어별 난이도 탭 ─────────────────
-     표는 script.js의 TIER_DIFFICULTY 하나에서 그려진다 -->
+     표는 tier/chart.js의 TIER_DIFFICULTY 하나에서 그려진다 -->
 <div data-tab-panel="tier" hidden>
 <main>
   <section class="card tier-card">
@@ -1047,7 +712,7 @@
       <li>다른 브라우저로 옮기거나 백업하려면 메모 파일을 <b>내보내기/가져오기</b> 하세요. 가져오기는 기존 메모를 지우지 않고 합칩니다.</li>
       <li><b>메모 초기화</b>는 이 브라우저에 저장된 메모를 전부 지웁니다. 되돌릴 수 없으니 필요하면 먼저 내보내기로 백업하세요.</li>
     </ul>
-    <div class="row" style="gap:8px;">
+    <div class="row row-tight">
       <button class="secondary" onclick="exportPatternMemos()">메모 내보내기</button>
       <label class="file-btn secondary">메모 가져오기<input type="file" accept=".json,application/json" onchange="importPatternMemos(this)"></label>
       <button class="danger" onclick="clearPatternMemos()">메모 초기화</button>
@@ -1121,12 +786,21 @@
 <script src="lib/screen-capture.js"></script>
 <script src="lib/capture-hub.js"></script>
 <script src="lib/tabs.js"></script>
+<script src="lib/help-links.js"></script>
 <script src="lib/notify.js"></script>
 <script src="lib/popup.js"></script>
 <script src="lib/djmax-room.js"></script>
 <script src="lib/incidents.js"></script>
 
-<script src="script.js"></script>
+<!-- 매칭 탭 (예전 script.js) — 이 순서대로 -->
+<script src="match/state.js"></script>
+<script src="match/score.js"></script>
+<script src="match/players.js"></script>
+<script src="match/render.js"></script>
+<script src="match/manual-analyzer.js"></script>
+<script src="match/weight-editor.js"></script>
+<script src="match/controls.js"></script>
+<script src="tier/chart.js"></script>
 <script src="auto-room.js"></script>
 
 <script src="floor/core.js"></script>
@@ -1141,7 +815,7 @@
 <script src="scan/reader.js"></script>
 <script src="scan/app.js"></script>
 
-<!-- 자동 방장 봇 — script.js(priorityOrder) · auto-room.js(장부) · scan/app.js(도우미 호출) 다음이어야 한다 -->
+<!-- 자동 방장 봇 — match/players.js(priorityOrder) · auto-room.js(장부) · scan/app.js(도우미 호출) 다음이어야 한다 -->
 <script src="auto-host.js"></script>
 </body>
 </html>

@@ -6,7 +6,8 @@
    해시와 화면 공유는 버망호 도우미와 같은 코드를 쓴다(lib/). 여기서는 쓰던 이름 그대로 별칭만 만든다. */
 const { cropToCanvas, getColorGridFromCanvas,
         aHashFromCanvas, dHashFromCanvas, pHashFromCanvas,
-        popcnt32, hamDist, colorDist } = VMH.ImgHash;
+        popcnt32, hamDist, colorDist,
+        binarizeButton, binarizeDifficulty, jacketSig, sigDist } = VMH.ImgHash;
 const { frameToImage } = VMH.ScreenCapture;
 // 창 테두리를 잘라낸 사실은 화면에 알려준다 (showTemporaryMessage는 song-db.js에 있다)
 const fitGameArea = (img) => VMH.ScreenCapture.fitGameArea(img, showTemporaryMessage);

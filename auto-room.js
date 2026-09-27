@@ -1,5 +1,5 @@
 /* 게임 화면 자동 인식 — 화면 공유 하나로 입·퇴장과 대진을 방에 그대로 반영한다.
-   script.js 다음에 읽혀야 한다 (room / addPlayer / recordMatch / refreshUI 를 쓴다).
+   match/*.js 다음에 읽혀야 한다 (room / addPlayer / recordMatch / refreshUI 를 쓴다).
 
    흐름:
      로비 화면       → 8칸 명패를 읽어 지금 방에 누가 있는지 맞춘다 → 입·퇴장 반영

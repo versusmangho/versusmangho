@@ -22,8 +22,9 @@
     // 표 (점수·MAX를 읽고, 검토용 사진도 여기서 자른다) — 버튼·패턴 이름표까지 들어가게
     const TABLE = { x: 1100, y: 600, w: 830, h: 500 };
 
-    // sig — floor/match-screen.js의 jacketSig와 같은 계산 (자켓 가운데 12×8칸 평균 색)
-    const SIG_W = 12, SIG_H = 8, SIG_X0 = 0.06, SIG_X1 = 0.94, SIG_Y0 = 0.2, SIG_Y1 = 0.78;
+    // sig — 층수 탭과 같은 자켓 지문 (lib/imghash.js — 자켓 가운데 12×8칸 평균 색)
+    const IH = global.VMH.ImgHash, SIG = IH.SIG;
+    const SIG_W = SIG.W, SIG_H = SIG.H;
     /* 실측(이 코드, images/collection/ 10장): 정답 거리 1.8~6.2, 1위/2위 0.05~0.15.
        컬렉션이 아닌 화면(로비·결과·라운드·밴픽 11장)에서 가장 맞는 자리: 거리 13.5~23, 1위/2위 0.60 이상.
        Permutation Part.1↔Part.2는 DB에서 10.1 떨어져 있어, 둘 중 하나를 제대로 읽어도 1위/2위가 0.4쯤 → 확인 필요로 간다 */
@@ -116,24 +117,11 @@
     }
 
     // ── 자켓 ─────────────────
+    // 프레임 픽셀 d(폭 dw)의 (x0, y0)에 놓인 size×size 자켓의 지문. 1px씩 훑으므로 캔버스를 새로 만들지 않고 버퍼에서 바로 센다
     function sigAt(d, dw, x0, y0, size) {
-        const rx = x0 + Math.round(size * SIG_X0), ry = y0 + Math.round(size * SIG_Y0);
-        const cw = Math.round(size * (SIG_X1 - SIG_X0)), ch = Math.round(size * (SIG_Y1 - SIG_Y0));
-        const out = new Float32Array(SIG_W * SIG_H * 3);
-        for (let cy = 0; cy < SIG_H; cy++) {
-            const ya = Math.floor(cy * ch / SIG_H), yb = Math.max(ya + 1, Math.floor((cy + 1) * ch / SIG_H));
-            for (let cx = 0; cx < SIG_W; cx++) {
-                const xa = Math.floor(cx * cw / SIG_W), xb = Math.max(xa + 1, Math.floor((cx + 1) * cw / SIG_W));
-                let r = 0, g = 0, b = 0, n = 0;
-                for (let yy = ya; yy < yb; yy++) {
-                    let i = ((ry + yy) * dw + rx + xa) * 4;
-                    for (let xx = xa; xx < xb; xx++, i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
-                }
-                const o = (cy * SIG_W + cx) * 3;
-                out[o] = Math.round(r / n); out[o + 1] = Math.round(g / n); out[o + 2] = Math.round(b / n);
-            }
-        }
-        return out;
+        const rx = x0 + Math.round(size * SIG.X0), ry = y0 + Math.round(size * SIG.Y0);
+        const cw = Math.round(size * (SIG.X1 - SIG.X0)), ch = Math.round(size * (SIG.Y1 - SIG.Y0));
+        return IH.sigFromPixels(d, dw, rx, ry, cw, ch, new Float32Array(SIG.LEN));
     }
 
     /* 지문을 3×2 블록으로 뭉친 작은 지문 — 자리를 훑을 때 쓰는 '하한' 계산용.

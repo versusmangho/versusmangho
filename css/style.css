@@ -471,3 +471,14 @@ body.sharing .top-grid { grid-template-columns: 1fr; }
 .scan-helper-dl { color: var(--accent-blue); font-weight: 700; }
 .scan-inline-btn { padding: 2px 10px; font-size: 12px; margin-left: 4px; }
 .scan-checks small { color: var(--text-secondary); font-size: 12px; }
+
+/* ── HTML·JS에 인라인으로 박혀 있던 모양 ───────────────── */
+.card h2.h2-flush { border-bottom: 0; padding-bottom: 0; margin-bottom: 0; }
+.row.row-tight { gap: 8px; }
+#processCanvas, #thumbCanvas { display: none; }          /* 수동 분석기의 작업용 캔버스 */
+.floor-scope .song-search-results { background: rgba(15, 23, 42, 0.97); z-index: 20; }
+.floor-scope .general-grid.general-grid-single { grid-template-columns: 1fr; }
+.tag.tag-new { border-color: #4ade80; color: #86efac; }
+.tag.tag-bot { border-color: #a78bfa; color: #c4b5fd; }
+#player-table-body tr.urgent { color: #fca5a5; }         /* 세이프가드 기준 이상 기다린 사람 */
+.offscreen { position: fixed; left: -9999px; }          /* 클립보드 복사용 숨은 textarea */

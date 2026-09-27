@@ -1,37 +1,5 @@
 /* 화면 그리기 — 층수 표, 곡 검색, 복사, 보정, 이벤트 연결. */
 
-function binarizeButton(canvas) {
-    const ctx = canvas.getContext('2d');
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i+1], b = data[i+2];
-        const isWhite = r >= 240 && g >= 240 && b >= 240;
-        const v = isWhite ? 255 : 0;
-        data[i] = data[i+1] = data[i+2] = v;
-        data[i+3] = 255;
-    }
-    const newCanvas = document.createElement('canvas'); newCanvas.width = canvas.width; newCanvas.height = canvas.height;
-    newCanvas.getContext('2d').putImageData(imageData, 0, 0);
-    return newCanvas;
-}
-
-function binarizeDifficulty(canvas) {
-    const ctx = canvas.getContext('2d');
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i+1], b = data[i+2];
-        const isBlack = r <= 64 && g <= 64 && b <= 64;
-        const v = isBlack ? 255 : 0;
-        data[i] = data[i+1] = data[i+2] = v;
-        data[i+3] = 255;
-    }
-    const newCanvas = document.createElement('canvas'); newCanvas.width = canvas.width; newCanvas.height = canvas.height;
-    newCanvas.getContext('2d').putImageData(imageData, 0, 0);
-    return newCanvas;
-}
-
 async function processImage(img, hash) {
     window.lastProcessedImg = img; statusLogs = []; resultList.innerHTML = '';
     const W = img.width, H = img.height, rows = [];
@@ -90,7 +58,7 @@ function updateGeneralRow(row, data, titleId) {
                     ${row.matches ? `<button class="recheck-btn bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button>` : ''}
                 </div>
             </div>
-            <div class="general-grid mt-6" style="grid-template-columns: 1fr">
+            <div class="general-grid general-grid-single mt-6">
                 <div class="grid-cell flex items-center justify-center h-24 text-slate-400">
                     <span class="grid-value nodata">NO DATA</span>
                 </div>
@@ -289,7 +257,7 @@ function copyGeneralCell(cell) {
 }
 
 function copyTextWithMessage(text) {
-    navigator.clipboard.writeText(text).then(() => {
+    copyToClipboard(text).then(() => {
         showTemporaryMessage("정보 복사됨!");
     }).catch(err => {
         showTemporaryMessage("복사 실패");
@@ -548,12 +516,10 @@ function popupGeneralChart() {
     const data = tId ? getSongDataSync(tId) : null;
     if (!data?.success) return `<div class="sec chart"><h2>층수 표</h2><p class="empty">${tId ? '이 곡은 층수 정보가 없습니다' : '방장이 곡을 고르면 여기에 층수 표가 뜹니다'}</p></div>`;
     const btns = ['4B', '5B', '6B', '8B'], diffs = ['NM', 'HD', 'MX', 'SC'];
-    // 팝업 창엔 Tailwind가 없어서 BTN_COLORS·DIFF_COLORS(클래스 이름)와 같은 색을 값으로 적는다
-    const head = { '4B': '#059669', '5B': '#0284c7', '6B': '#d97706', '8B': '#4f46e5' };
-    const dHead = { NM: '#eab308', HD: '#ea580c', MX: '#e11d48', SC: '#9333ea' };
-    let grid = '<div></div>' + diffs.map(d => `<div class="hd" style="background:${dHead[d]}">${d}</div>`).join('');
+    // 머리칸 색은 css/popup.css (.hd.b-4B, .hd.d-NM …)
+    let grid = '<div></div>' + diffs.map(d => `<div class="hd d-${d}">${d}</div>`).join('');
     btns.forEach(btn => {
-        grid += `<div class="hd" style="background:${head[btn]}">${btn}</div>`;
+        grid += `<div class="hd b-${btn}">${btn}</div>`;
         diffs.forEach(diff => {
             const p = data.patterns?.[btn]?.[diff];
             if (!p) { grid += '<div class="cell none">—</div>'; return; }

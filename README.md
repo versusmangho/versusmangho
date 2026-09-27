@@ -49,6 +49,17 @@ python helper.py
 
 ---
 
+### 폴더 구조
+
+- `lib/imghash.js` — 이미지 인식용 해시·자켓 지문 알고리즘 전부 (브라우저와 `generate-hashes.js`가 같은 코드를 쓴다)
+- `lib/` — 탭끼리 같이 쓰는 코드 (화면 공유, 방 인식, 팝업, 탭 전환, 복사 등)
+- `match/` — 매칭 탭 (상태 · 점수 · 플레이어 · 화면 · 수동 분석기 · 가중치 편집기 · 이벤트 연결)
+- `tier/` — 티어별 난이도 탭
+- `floor/` · `scan/` — 층수 측정기 · 성과 스캔 탭
+- `css/` — 모든 스타일 (`style.css` 본문, `floor.css` 층수 탭, `popup.css` 팝업 창, `hash-tool.css` 해시 도구)
+
+---
+
 ## 📌 Disclaimer & Attribution
 
 이 프로젝트의 코드는  

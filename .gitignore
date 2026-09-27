@@ -4,10 +4,11 @@
 # 페이지
 !/index.html
 !/floor.html
-!/style.css
+!/css/
 
 # 스크립트
-!/script.js
+!/match/
+!/tier/
 !/auto-room.js
 !/auto-host.js
 !/generate-hashes.js
@@ -35,5 +36,11 @@
 !/floor/*.js
 /scan/*
 !/scan/*.js
+/match/*
+!/match/*.js
+/tier/*
+!/tier/*.js
+/css/*
+!/css/*.css
 /download/*
 !/download/vmh-helper.exe

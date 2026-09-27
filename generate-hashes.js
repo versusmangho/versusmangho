@@ -30,227 +30,10 @@ const fs = require('fs');
 const path = require('path');
 const { createCanvas, loadImage } = require('canvas');
 
-// --- DJMAX 층수 측정기 해시 로직 ---
-function binarizeCanvas(canvas) {
-    const ctx = canvas.getContext('2d');
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    for (let i = 0; i < data.length; i += 4) {
-        const isDark = data[i] <= 70 && data[i + 1] <= 70 && data[i + 2] <= 70;
-        const value = isDark ? 0 : 255;
-        data[i] = value;
-        data[i + 1] = value;
-        data[i + 2] = value;
-    }
-    const newCanvas = createCanvas(canvas.width, canvas.height);
-    newCanvas.getContext('2d').putImageData(imageData, 0, 0);
-    return newCanvas;
-}
-
-function getGrayscaleFromCanvas(canvas, w, h) {
-    const ctx = canvas.getContext('2d');
-    const data = ctx.getImageData(0, 0, w, h).data;
-    const gray = new Float32Array(w * h);
-    for (let i = 0, p = 0; i < data.length; i += 4, p++) {
-        gray[p] = (data[i] + data[i + 1] + data[i + 2]) / 3.0;
-    }
-    return gray;
-}
-
-function getColorGridFromCanvas(canvas) {
-    const segments = 4;
-    const ctx = canvas.getContext('2d');
-    const w = canvas.width, h = canvas.height;
-    const sw = w / segments, sh = h / segments;
-    const colors = [];
-
-    for (let sy = 0; sy < segments; sy++) {
-        for (let sx = 0; sx < segments; sx++) {
-            const data = ctx.getImageData(sx * sw, sy * sh, sw, sh).data;
-            let r = 0, g = 0, b = 0, count = 0;
-            for (let i = 0; i < data.length; i += 4) {
-                r += data[i]; g += data[i + 1]; b += data[i + 2];
-                count++;
-            }
-            colors.push(Math.round(r / count), Math.round(g / count), Math.round(b / count));
-        }
-    }
-    return colors;
-}
-
-function aHashFromCanvas(canvas) {
-    const size = 16;
-    const c = createCanvas(size, size);
-    c.getContext('2d').drawImage(canvas, 0, 0, size, size);
-    const gray = getGrayscaleFromCanvas(c, size, size);
-    let avg = 0;
-    for (let i = 0; i < gray.length; i++) avg += gray[i];
-    avg /= gray.length;
-    
-    const bits = [];
-    for (let i = 0; i < 8; i++) {
-        let val = 0;
-        for (let j = 0; j < 32; j++) {
-            const bit = gray[i * 32 + j] >= avg ? 1 : 0;
-            val = (val << 1) | bit;
-        }
-        bits.push(val >>> 0);
-    }
-    return bits;
-}
-
-function dHashFromCanvas(canvas) {
-    const size = 16;
-    const c = createCanvas(size + 1, size);
-    c.getContext('2d').drawImage(canvas, 0, 0, size + 1, size);
-    const gray = getGrayscaleFromCanvas(c, size + 1, size);
-    
-    const bits = [];
-    let bitCount = 0;
-    let currentVal = 0;
-    for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-            const left = gray[y * (size + 1) + x];
-            const right = gray[y * (size + 1) + x + 1];
-            const bit = left < right ? 1 : 0;
-            currentVal = (currentVal << 1) | bit;
-            bitCount++;
-            if (bitCount % 32 === 0) {
-                bits.push(currentVal >>> 0);
-                currentVal = 0;
-            }
-        }
-    }
-    return bits;
-}
-
-function dct1D(vec, N) {
-    const out = new Float32Array(N);
-    const factor = Math.PI / N;
-    for (let u = 0; u < N; u++) {
-        let sum = 0;
-        for (let x = 0; x < N; x++) {
-            sum += vec[x] * Math.cos((x + 0.5) * u * factor);
-        }
-        const c = (u === 0) ? Math.sqrt(1 / N) : Math.sqrt(2 / N);
-        out[u] = c * sum;
-    }
-    return out;
-}
-
-function pHashFromCanvas(canvas) {
-    const N = 32;
-    const c = createCanvas(N, N);
-    const ctx = c.getContext('2d');
-    ctx.drawImage(canvas, 0, 0, N, N);
-    const gray = getGrayscaleFromCanvas(c, N, N);
-    const tmp = new Array(N);
-    for (let y = 0; y < N; y++) {
-        const row = new Float32Array(N);
-        for (let x = 0; x < N; x++) row[x] = gray[y * N + x];
-        tmp[y] = dct1D(row, N);
-    }
-    const dct = new Array(N);
-    for (let x = 0; x < N; x++) {
-        const col = new Float32Array(N);
-        for (let y = 0; y < N; y++) col[y] = tmp[y][x];
-        const colD = dct1D(col, N);
-        for (let y = 0; y < N; y++) {
-            if (!dct[y]) dct[y] = new Float32Array(N);
-            dct[y][x] = colD[y];
-        }
-    }
-    const vals = [];
-    for (let y = 0; y < 8; y++) {
-        for (let x = 0; x < 8; x++) {
-            if (x === 0 && y === 0) continue;
-            vals.push(dct[y][x]);
-        }
-    }
-    const sorted = vals.slice().sort((a, b) => a - b);
-    const med = sorted[Math.floor(sorted.length / 2)];
-    let hi = 0, lo = 0;
-    let i = 0;
-    for (let y = 0; y < 8; y++) {
-        for (let x = 0; x < 8; x++) {
-            if (x === 0 && y === 0) continue;
-            const bit = dct[y][x] > med ? 1 : 0;
-            if (i < 32) hi = (hi << 1) | bit;
-            else lo = (lo << 1) | bit;
-            i++;
-        }
-    }
-     if (i < 64) {
-        const pad = 64 - i;
-        if (pad <= 32) lo = (lo << pad) >>> 0;
-        else {
-            hi = (hi << (pad - 32)) >>> 0;
-            lo = 0;
-        }
-    }
-    return { hi: hi >>> 0, lo: lo >>> 0 };
-}
-
-function binarizeButton(canvas) {
-    const ctx = canvas.getContext('2d');
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i+1], b = data[i+2];
-        const isWhite = r >= 240 && g >= 240 && b >= 240;
-        const v = isWhite ? 255 : 0;
-        data[i] = data[i+1] = data[i+2] = v;
-        data[i+3] = 255;
-    }
-    const newCanvas = createCanvas(canvas.width, canvas.height);
-    newCanvas.getContext('2d').putImageData(imageData, 0, 0);
-    return newCanvas;
-}
-
-function binarizeDifficulty(canvas) {
-    const ctx = canvas.getContext('2d');
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i+1], b = data[i+2];
-        const isBlack = r <= 64 && g <= 64 && b <= 64;
-        const v = isBlack ? 255 : 0; // 검은색을 전경(흰색)으로 추출
-        data[i] = data[i+1] = data[i+2] = v;
-        data[i+3] = 255;
-    }
-    const newCanvas = createCanvas(canvas.width, canvas.height);
-    newCanvas.getContext('2d').putImageData(imageData, 0, 0);
-    return newCanvas;
-}
-
-// 자켓 시그니처: 라운드/결과 화면에서 BPM 글자(위)와 버튼/난이도 바(아래)가 덮지 않는 영역을
-// 12x8 칸으로 나눠 칸별 평균 RGB를 담은 288바이트(base64). floor.html의 jacketSig()와 같은 계산이어야 한다.
-const SIG_W = 12, SIG_H = 8, SIG_X0 = 0.06, SIG_X1 = 0.94, SIG_Y0 = 0.2, SIG_Y1 = 0.78;
-function jacketSigFromCanvas(canvas) {
-    const w = canvas.width, h = canvas.height;
-    const sx = w * SIG_X0, sy = h * SIG_Y0, sw = w * (SIG_X1 - SIG_X0), sh = h * (SIG_Y1 - SIG_Y0);
-    const cw = Math.max(1, Math.round(sw)), ch = Math.max(1, Math.round(sh));
-    const c = createCanvas(cw, ch);
-    c.getContext('2d').drawImage(canvas, sx, sy, sw, sh, 0, 0, cw, ch);
-    const d = c.getContext('2d').getImageData(0, 0, cw, ch).data;
-    const out = Buffer.alloc(SIG_W * SIG_H * 3);
-    for (let cy = 0; cy < SIG_H; cy++) {
-        for (let cx = 0; cx < SIG_W; cx++) {
-            const xa = Math.floor(cx * cw / SIG_W), xb = Math.max(xa + 1, Math.floor((cx + 1) * cw / SIG_W));
-            const ya = Math.floor(cy * ch / SIG_H), yb = Math.max(ya + 1, Math.floor((cy + 1) * ch / SIG_H));
-            let r = 0, g = 0, b = 0, n = 0;
-            for (let y = ya; y < yb; y++) {
-                for (let x = xa; x < xb; x++) {
-                    const i = (y * cw + x) * 4;
-                    r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
-                }
-            }
-            const o = (cy * SIG_W + cx) * 3;
-            out[o] = Math.round(r / n); out[o + 1] = Math.round(g / n); out[o + 2] = Math.round(b / n);
-        }
-    }
-    return out.toString('base64');
-}
+// --- 해시 로직 — 브라우저와 같은 코드(lib/imghash.js)를 쓴다 ---
+const { aHashFromCanvas, dHashFromCanvas, pHashFromCanvas, getColorGridFromCanvas,
+        binarizeButton, binarizeDifficulty, jacketSig, sigDist, sigToBase64, sigFromBase64 } = require('./lib/imghash.js')(createCanvas);
+const jacketSigFromCanvas = (canvas) => sigToBase64(jacketSig(canvas, 0, 0, canvas.width, canvas.height));
 
 
 // --- 파일 이름 → 대상, 이미지 → 해시 ---
@@ -345,15 +128,6 @@ function currentEntry(data, part) {
     return data.trackinfo[part.group][part.key] || null;
 }
 
-function sigBytes(b64) {
-    return Buffer.from(b64, 'base64');
-}
-
-function sigDist(a, b) {
-    let d = 0;
-    for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]);
-    return d / a.length;
-}
 
 // floor/match-screen.js의 SIG_MAX_DIST — 이보다 가까운 두 자켓은 라운드·결과 화면에서 서로 헷갈린다
 const SIG_CONFUSE_DIST = 8;
@@ -365,12 +139,12 @@ function describePart(data, part) {
     const cur = currentEntry(data, part);
     const out = { status: !cur ? 'new' : (JSON.stringify(cur) === JSON.stringify(part.entry) ? 'same' : 'changed') };
     if (part.group !== 'thumbnails' || !part.entry.sig) return out;
-    const sig = sigBytes(part.entry.sig);
-    if (cur && cur.sig && out.status === 'changed') out.prevDist = +sigDist(sig, sigBytes(cur.sig)).toFixed(2);
+    const sig = sigFromBase64(part.entry.sig);
+    if (cur && cur.sig && out.status === 'changed') out.prevDist = +sigDist(sig, sigFromBase64(cur.sig)).toFixed(2);
     let best = null;
     for (const t of data.thumbnails) {
         if (t.id === part.key || !t.sig) continue;
-        const d = sigDist(sig, sigBytes(t.sig));
+        const d = sigDist(sig, sigFromBase64(t.sig));
         if (!best || d < best.d) best = { id: t.id, d };
     }
     if (best) out.nearest = { id: best.id, d: +best.d.toFixed(2), confusable: best.d <= SIG_CONFUSE_DIST };
@@ -563,6 +337,11 @@ function runGui(port, { open = true } = {}) {
             if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/hash-tool.html')) {
                 res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
                 res.end(fs.readFileSync(path.join(ROOT, 'hash-tool.html')));
+                return;
+            }
+            if (req.method === 'GET' && url.pathname === '/css/hash-tool.css') {
+                res.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'no-store' });
+                res.end(fs.readFileSync(path.join(ROOT, 'css', 'hash-tool.css')));
                 return;
             }
             // 기존 해시 요약

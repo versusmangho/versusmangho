@@ -33,38 +33,14 @@ const ROUND_BIG = { x: 1160, y: 227, size: 240, step: 400 };
 const ROUND_SMALL = { x: 1196, y: 263, size: 168, step: 400 };
 const RESULT_BOX = { x: 1200, y: 360, size: 160, step: 373 };
 const BAN_BOXES = [{ x: 2087, y: 1267, size: 93 }, { x: 2220, y: 1267, size: 93 }];
-// 자켓 시그니처 — generate-hashes.js의 jacketSigFromCanvas와 같은 계산이어야 한다
-const SIG_W = 12, SIG_H = 8, SIG_X0 = 0.06, SIG_X1 = 0.94, SIG_Y0 = 0.2, SIG_Y1 = 0.78;
+// 자켓 지문(jacketSig·sigDist)은 lib/imghash.js에 있다 — hashes.json을 만드는 generate-hashes.js와 같은 코드
 // 실제 스샷 기준: 같은 자켓 1~4, 다른 자켓·'?' 칸·밴픽창 등 엉뚱한 자리는 12 이상
 const SIG_MAX_DIST = 8;     // 칸별 평균 색 차이(0~255)가 이보다 작아야 같은 자켓
 const SIG_MAX_RATIO = 0.5;  // 1위가 2위보다 확실히 가까워야 인정
 let sigTable = [];          // [{ id, sig }] — hashes.json thumbnails[].sig
 
 function loadSigTable(thumbs) {
-    sigTable = thumbs.filter(t => t.sig).map(t => ({ id: t.id, sig: Uint8Array.from(atob(t.sig), c => c.charCodeAt(0)) }));
-}
-
-function jacketSig(src, x, y, w, h) {
-    const c = cropToCanvas(src, x + w * SIG_X0, y + h * SIG_Y0, w * (SIG_X1 - SIG_X0), h * (SIG_Y1 - SIG_Y0));
-    const cw = c.width, ch = c.height, d = c.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, cw, ch).data;
-    const out = new Uint8Array(SIG_W * SIG_H * 3);
-    for (let cy = 0; cy < SIG_H; cy++) {
-        for (let cx = 0; cx < SIG_W; cx++) {
-            const xa = Math.floor(cx * cw / SIG_W), xb = Math.max(xa + 1, Math.floor((cx + 1) * cw / SIG_W));
-            const ya = Math.floor(cy * ch / SIG_H), yb = Math.max(ya + 1, Math.floor((cy + 1) * ch / SIG_H));
-            let r = 0, g = 0, b = 0, n = 0;
-            for (let yy = ya; yy < yb; yy++) for (let xx = xa; xx < xb; xx++) { const i = (yy * cw + xx) * 4; r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
-            const o = (cy * SIG_W + cx) * 3;
-            out[o] = Math.round(r / n); out[o + 1] = Math.round(g / n); out[o + 2] = Math.round(b / n);
-        }
-    }
-    return out;
-}
-
-function sigDist(a, b) {
-    let d = 0;
-    for (let i = 0; i < a.length; i++) d += Math.abs(a[i] - b[i]);
-    return d / a.length;
+    sigTable = thumbs.filter(t => t.sig).map(t => ({ id: t.id, sig: VMH.ImgHash.sigFromBase64(t.sig) }));
 }
 
 function nearestSig(sig, list) {
