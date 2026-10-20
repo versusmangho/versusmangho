@@ -39,8 +39,8 @@
     // 자리(칸)로 이어 붙인 사람의 지금 모양을 장부에 넣기까지 기다리는 프레임 수 —
     // 한두 프레임 잘못 읽은 것으로 장부가 더러워지지 않게 한다
     const CARRY_MERGE_TICKS = 3;
-    const LV_STABLE_TICKS = 3;
-    const BOUNCE_MS = 60000;         // 퇴장한 사람이 이 안에 다시 들어오면 의심 장면으로 남긴다       // 로비 칸의 레벨이 이만큼 같은 숫자로 이어져야 판정·장부에 쓴다
+    const LV_STABLE_TICKS = 3;       // 로비 칸의 레벨이 이만큼 같은 숫자로 이어져야 판정·장부에 쓴다
+    const BOUNCE_MS = 60000;         // 퇴장한 사람이 이 안에 다시 들어오면 의심 장면으로 남긴다
     const ACTIVITY_MAX = 12;
 
     const state = {
