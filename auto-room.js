@@ -768,6 +768,10 @@
             if (window.VMH.Incidents) window.VMH.Incidents.remember(frame, W, H);
             const r = syncRoster(Room.readLobby(frame, W, H));
             if (r.pending) return;
+            // 퇴장 순간의 로비를 떠 둔다 — 곧바로 돌아오면(bounce) 그때 무엇이 보였는지가 원인이다
+            if (r.changed && r.left.length && window.VMH.Incidents && window.VMH.Incidents.noteLeave) {
+                window.VMH.Incidents.noteLeave(r.left, frame, W, H);
+            }
             if (r.suspects && r.suspects.length) saveSuspects(r.suspects, frame, W, H);
             if (r.changed) {
                 const bits = [];
@@ -823,7 +827,8 @@
         const b = book();
         for (const s of list) {
             log('의심 장면 저장 — ' + s.note, 'warn');
-            I.record(s.kind, s.note, frame, W, H, (s.ids || []).filter(id => b[id]).map(id => ({ id, dataUrl: b[id].thumb })));
+            I.record(s.kind, s.note, frame, W, H, (s.ids || []).filter(id => b[id]).map(id => ({ id, dataUrl: b[id].thumb })),
+                     s.kind === 'bounce' ? s.ids : []);
         }
     }
 
