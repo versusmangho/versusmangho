@@ -205,7 +205,8 @@ function applyMatchMarks(info) {
     });
     info.rounds.forEach((h, i) => {
         const r = h.row; if (!r || !once(r, `round${i + 1}`)) return;
-        r.classList.add('played'); r.classList.remove('banned'); r.dataset.round = i + 1; renderRoundBadge(r);
+        // roundAt — 언제 이 라운드로 표시했는가. 자동 방장 봇의 곡 안내가 '이번 라운드에 읽은 곡'인지 가리는 데 쓴다
+        r.classList.add('played'); r.classList.remove('banned'); r.dataset.round = i + 1; r.dataset.roundAt = Date.now(); renderRoundBadge(r);
         changes.push(`R${i + 1} ${name(h)}`);
     });
     return changes;

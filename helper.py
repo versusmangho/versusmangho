@@ -218,7 +218,7 @@ if IS_WIN:
                 time.sleep(0.02)
             time.sleep(hold_ms / 1000)
             ok = True
-            for scan, ext in reversed(keys):   # 누른 반대로 뗴다 — Ctrl을 먼저 떼면 V가 맨 글자로 들어간다
+            for scan, ext in reversed(keys):   # 누른 반대로 뗀다 — Ctrl을 먼저 떼면 V가 맨 글자로 들어간다
                 ok = send_scan(scan, ext, True) and ok
             return ok
         scan, ext = KEYS[key]
@@ -229,7 +229,7 @@ if IS_WIN:
 
     # ── 클립보드 ───────────────
     # 자동 방장 봇이 인게임 채팅에 붙여넣기로 안내문을 보낸다. 게임 채팅은 한 글자씩 치는 것보다
-    # 붙여넣는 것이 훨씬 빠르고(한글 입력기를 거치지 않는다), 중간에 끊겨도 즐 내용이 반씩 나가지 않는다.
+    # 붙여넣는 것이 훨씬 빠르고(한글 입력기를 거치지 않는다), 중간에 끊겨도 줄 내용이 반씩 나가지 않는다.
     CF_UNICODETEXT, GMEM_MOVEABLE = 13, 0x0002
     kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
     kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
@@ -254,7 +254,7 @@ if IS_WIN:
             return False
         ctypes.memmove(ptr, buf, size)
         kernel32.GlobalUnlock(handle)
-        # 다른 프로그램이 클립보드를 잠긐 잡고 있을 수 있다 — 몇 번 다시 두드린다
+        # 다른 프로그램이 클립보드를 잠깐 잡고 있을 수 있다 — 몇 번 다시 두드린다
         for _ in range(5):
             if user32.OpenClipboard(None):
                 break

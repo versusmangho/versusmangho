@@ -11,9 +11,11 @@
    한 사이클
      로비 확정 · 0번 칸이 YOU · 0번 칸에 HOST 뱃지  (여기가 에지 트리거. 방장에서 내려올 때까지 한 번만)
        F9            → 방장 메뉴인지 확인 (방장이 아닐 때 뜨는 보기 전용 창에는 탭이 없다)
-       ↓ × (k-1)     → 노란 점이 한 칸씩 내려갔는지 매번 확인   (k = 1순위의 로비 칸 번호. 메뉴 목록은 나를 빼므로 k-1줄)
+       ↓ × (k-1)     → 노란 점이 한 칸씩 내려갔는지 매번 확인   (k = 1순위의 로비 칸 번호. 메뉴 목록은 나를 빼므로 k-1줄.
+                       봇과 1순위 사이에 빈칸이 있으면 줄을 확신할 수 없어 시작하지 않는다)
        →  한 번      → 노란 칠이 PLAYER 1 (HOST)인지 확인       ★ 옆의 KICK 오발을 막는 유일한 방벽
-       Enter         → 지정하면 창이 저절로 닫힌다 → 로비에서 내가 0번 칸을 벗어났는지 확인 (같은 칸을 두 번 봐야 믿는다)
+       Enter         → 지정하면 창이 저절로 닫힌다 → 로비에서 내가 0번 칸을 벗어났는지 확인 (같은 칸을 두 번 봐야 믿는다).
+                       새 방장이 1순위가 아니면 되돌리지 않고 인식 기록에 경고만 남긴다
        F5            → 봇이 PLAYER 1도 PLAYER 2도 아니고, 아직 비레디일 때만
        채팅          → 클립보드에 한 줄 넣고 Enter(입력칸 주황 테두리 확인) → Ctrl+V → Enter.
                        라운드 직후엔 채팅이 몇 초간 잠기므로 열릴 때까지 Enter를 다시 친다 (openChat)
@@ -70,6 +72,13 @@
     const SETTLE_MAX_MS = 15000;   // 게임 창이 앞에 없어 멈췄으면 이만큼 뒤에 같은 일을 다시 해 본다
     const READY_RETRY_MS = 3000;   // 레디를 눌렀는데 안 바뀌었으면 이만큼 뒤에 다시 본다
     const HANDOFF_RETRY_MS = 8000; // 방장 넘기기가 멈췄으면 이만큼 뒤에 처음부터 다시 해 본다 (봇이 방장을 쥔 채 방이 서지 않게)
+    // 그런데 화면 인식이 계속 어긋나면(해상도 등) 8초마다 F9·Esc를 끝없이 게임에 넣게 된다 — 간격을 두 배씩 늘리다가
+    // 이만큼 실패하면 그만둔다. 봇 스위치를 껐다 켜거나 봇이 방장에서 내려오면 다시 센다
+    const HANDOFF_TRIES = 5;
+    // 2픽 안내가 멈췄으면(채팅칸이 안 열렸다 등) 이만큼 뒤에 다시 — 안 알리면 방장이 봇을 고른 채 판이 안 시작된다
+    const P2_RETRY_MS = 8000, P2_TRIES = 3;
+    // 곡 안내는 이번 라운드 화면 '뒤에' 층수 측정기가 표시한 곡만 — 두 쪽이 같은 화면을 따로 읽으므로 이만큼은 앞서도 된다
+    const ROUND_SKEW_MS = 10000;
     // 방장 요청 채팅이 멈췄으면(채팅칸이 안 열렸다 등) 이만큼 뒤에 다시 — 이게 빠지면 방장이 안 돌아와 봇 순환이 끊긴다.
     // 채팅이라 끝없이 되풀이하지는 않는다
     const ASK_RETRY_MS = 8000, ASK_TRIES = 3;
@@ -79,8 +88,9 @@
 
     const state = { busy: false, latched: false, note: '', at: null,
                     vsStreak: 0, songDone: false,
-                    unready: 0, readyRetryAt: 0, p2Streak: 0, p2Ready: 0, p2Told: false,
-                    disbandStreak: 0, restartDone: false, handoffRetryAt: 0, lastFail: '',
+                    roundSeenAt: 0,
+                    unready: 0, readyRetryAt: 0, p2Streak: 0, p2Ready: 0, p2Told: false, p2Tries: 0, p2RetryAt: 0,
+                    disbandStreak: 0, restartDone: false, handoffRetryAt: 0, handoffTries: 0, lastFail: '',
                     restartPending: false, restartTries: 0, restartRetryAt: 0,
                     askPending: false, askTries: 0, askRetryAt: 0,
                     focusLost: false, retryAt: 0, settleSince: 0 };
@@ -232,10 +242,12 @@
     }
 
     /* 한 줄 보내기 — 클립보드에 넣고 붙여넣는다. 한 글자씩 치면 한글 입력기를 거쳐야 하고 훨씬 느리다.
-       채팅칸이 열린 것을 눈으로 본 뒤에만 붙여넣는다 (안 열렸는데 치면 엉뚱한 곳에 들어간다) */
+       채팅칸이 열린 것을 눈으로 본 뒤에만 붙여넣는다 (안 열렸는데 치면 엉뚱한 곳에 들어간다).
+       클립보드는 붙여넣기 바로 앞에서 넣는다 — 먼저 넣어 두면 채팅칸을 여는 동안(최대 8초) 사용자가 다른 것을
+       복사했을 때 그 내용(비밀번호일 수도 있다)이 공개 채팅으로 나간다 */
     async function sendChat(text, chat) {
-        await clip(text);
         if (!await openChat(chat)) stop('채팅칸이 열리지 않았습니다');
+        await clip(text);
         await key('paste');
         await sleep(STEP_MS);
         await key('enter');
@@ -271,6 +283,12 @@
         const target = order.find(id => seats.some(s => s.id === id && s.row >= 1));
         if (!target) stop('넘길 사람을 못 찾았습니다');
         const k = seats.find(s => s.id === target).row;
+        // 메뉴 줄 번호 = k-1 은 '봇과 1순위 사이에 빈칸이 없다'는 전제다. 빈칸이 끼어 있으면 메뉴가 빈칸을
+        // 줄로 세는지 아닌지 알 수 없으므로(줄이 하나 어긋나면 다른 사람이 방장을 받는다) 넘기지 않고 멈춘다.
+        // 사람이 나간 직후 목록이 다시 정렬되는 동안 잠깐 생기는 빈칸이면 다음 시도에서 풀린다
+        const menuRow = k - 1;
+        const between = Room.readLobby(g0.frame, g0.W, g0.H).rows.filter(r => r.index >= 1 && r.index < k);
+        if (between.some(r => r.empty)) stop('봇과 1순위 사이에 빈칸이 있어 메뉴 줄을 확신할 수 없습니다');
 
         // 2. F9 — 방장 메뉴가 맞는지. 방장이 아닐 때 뜨는 보기 전용 창에는 ROOM/PLAYER 탭이 없어 null이 나온다
         await key('f9');
@@ -283,8 +301,8 @@
         }
         if (menu.row !== 0) { await closeMenu(); stop('메뉴가 첫 줄에서 시작하지 않습니다 (' + menu.row + '번째 줄)'); }
 
-        // 3. ↓ — 메뉴 목록은 나를 빼고 로비 순서 그대로다. 로비 k번 칸 = 메뉴 k-1번 줄
-        for (let i = 1; i <= k - 1; i++) {
+        // 3. ↓ — 메뉴 목록은 나를 빼고 로비 순서 그대로다. 로비 k번 칸 = 메뉴 k-1번 줄 (menuRow 주석 참고)
+        for (let i = 1; i <= menuRow; i++) {
             await key('down');
             menu = await waitFor((f, W, H) => { const m = Room.hostMenu(f, W, H); return m && m.row === i ? m : null; });
             if (!menu) { await closeMenu(); stop('메뉴 줄이 ' + (i + 1) + '번째로 내려가지 않았습니다'); }
@@ -294,7 +312,7 @@
         await key('right');
         menu = await waitFor((f, W, H) => {
             const m = Room.hostMenu(f, W, H);
-            return m && m.row === k - 1 && m.button === Room.BTN_HOST ? m : null;
+            return m && m.row === menuRow && m.button === Room.BTN_HOST ? m : null;
         });
         if (!menu) { await closeMenu(); stop('PLAYER 1 (HOST) 칸이 안 잡혔습니다'); }
 
@@ -307,6 +325,11 @@
         const seats2 = seatsOf(after.f, after.W, after.H, false) || [];
         const isP2 = after.youRow === 1;
         let done = '방장을 ' + target + '에게 넘김';
+        // 넘겨받은 사람이 정말 1순위인가 — 로비를 읽은 뒤 Enter까지 1~2초 사이에 누가 들고 나면 줄이 밀려 다른 사람이
+        // 받는다. 이미 넘어간 것은 되돌리지 않고(되돌리기가 더 위험하다) 기록에 남겨 사람이 알게 한다
+        const newHost = seats2.find(s => s.row === 0);
+        if (!newHost) done += ' (받은 사람은 확인 못 함)';
+        else if (newHost.id !== target) { done += ' — 그런데 ' + newHost.id + '이(가) 받았습니다'; log('1순위가 아닌 사람이 방장을 받았습니다 — 그새 누가 들고 났을 수 있습니다', 'warn'); }
 
         // 6. F5 — 봇이 PLAYER 2면 누르지 않는다 (누르면 봇이 대결에 들어간다). 이미 레디여도, 레디인지 모르겠어도 누르지 않는다
         if (isP2) {
@@ -346,6 +369,9 @@
         const F = window.VMH.Floor;
         const s = F && F.playingSong();
         if (!s || !s.title) return null;
+        // 이번 라운드 화면을 본 뒤에 표시된 곡이어야 한다. 아니면 층수 측정기가 이번 라운드를 놓친 것이고
+        // (인식 실패 · 일망호 모드 · 화면 공유를 매칭에만 줌), 그때 나오는 것은 지난 라운드·지난 판의 곡이다
+        if (!state.roundSeenAt || !s.markedAt || s.markedAt < state.roundSeenAt - ROUND_SKEW_MS) return null;
         const t = opts.textSong
             .replace(/\{라운드\}/g, 'R' + s.round).replace(/\{곡\}/g, s.title)
             .replace(/\{패턴\}/g, s.pattern).replace(/\{층수\}/g, s.floor).replace(/\{태그\}/g, s.tags);
@@ -393,7 +419,8 @@
            알릴 다음 순서가 아직 없으면(방에 방장과 봇뿐) 사람이 들어올 때까지 미룬다 */
     function watchP2(frm, W, H, marks) {
         if (marks.youRow !== 1) {
-            if (marks.youRow >= 0) state.p2Told = false;   // 2픽을 벗어났다 — 다시 오면 또 알린다 (-1은 나를 못 찾은 것뿐)
+            // 2픽을 벗어났다 — 다시 오면 또 알린다 (-1은 나를 못 찾은 것뿐)
+            if (marks.youRow >= 0) { state.p2Told = false; state.p2Tries = 0; state.p2RetryAt = 0; }
             state.p2Streak = 0; state.p2Ready = 0;
             return;
         }
@@ -408,15 +435,20 @@
             return;   // 레디부터 푼 뒤에 알린다
         }
         state.p2Ready = 0;
-        if (state.p2Told || state.p2Streak < READY_TICKS || !ready()) return;
+        if (state.p2Told || state.p2Streak < READY_TICKS || Date.now() < state.p2RetryAt || !ready()) return;
         const seats = seatsOf(frm, W, H);
         if (!seats) return;
         const host = seats.find(s => s.row === 0);
         const text = chatText(queueOf(seats, 1), seats, 1, host ? host.id : null);
         if (!text) return;
         state.p2Told = true;
+        // 채팅칸이 안 열리는 등으로 멈추면 잠시 뒤 다시 (P2_TRIES번까지) — 예전엔 p2Told가 걸린 채 남아
+        // 봇이 2픽에서 말없이 앉아 있었다
         run(async () => { await sendChat(text, LOBBY_CHAT); return '2픽이라 다른 분을 골라 달라고 알림'; },
-            '2픽 안내 중…', () => { state.p2Told = false; });
+            '2픽 안내 중…', () => { state.p2Told = false; }, () => {
+                if (++state.p2Tries >= P2_TRIES) return false;
+                state.p2Told = false; state.p2RetryAt = Date.now() + P2_RETRY_MS;
+            });
     }
 
     /* ── 방이 터졌을 때 다시 만들기 ─────────────────
@@ -471,12 +503,12 @@
     /* 글자칸 채우기 — Backspace로 비우고 클립보드에서 붙여넣는다.
        빈 것·채워진 것을 눈으로 확인한다 (게임이 붙여넣기를 안 받으면 이름 없는 방이 만들어진다) */
     async function fillField(which, text) {
-        await clip(text);
         for (let i = 0; i < CLEAR_ROUNDS; i++) {
             if (!(await createBox(which))[which]) break;
             for (let k = 0; k < CLEAR_KEYS; k++) await key('backspace');
         }
         if ((await createBox(which))[which]) stop(CR_NAME[which] + ' 칸을 비우지 못했습니다');
+        await clip(text);   // 붙여넣기 바로 앞에서 — sendChat 주석과 같은 이유
         await key('paste');
         if (!await waitFor((f, W, H) => { const x = Room.createRoom(f, W, H); return x && x[which] ? x : null; }))
             stop(CR_NAME[which] + ' 칸에 붙여넣지 못했습니다');
@@ -567,7 +599,7 @@
        waiting = 딜레이가 덜 찬 입·퇴장 수 (0이면 room이 화면과 같다) */
     function onLobby(frm, W, H, back, waiting = 0) {
         // 판이 끝났다 — 로비가 아닐 때만 쓰는 표시는 여기서 모두 접는다
-        state.vsStreak = 0; state.songDone = false;
+        state.vsStreak = 0; state.songDone = false; state.roundSeenAt = 0;
         state.disbandStreak = 0; state.restartDone = false;
         state.restartPending = false; state.restartTries = 0; state.restartRetryAt = 0;   // 방이 있다 — 다시 만들던 것은 끝났다
         if (back) state.readyRetryAt = 0;   // 새 판 — 레디를 곧바로 다시 볼 수 있게
@@ -579,13 +611,22 @@
             if (!state.latched && Date.now() >= state.handoffRetryAt
                 && ready() && hasTarget(frm, W, H, 0) && settled(waiting)) {
                 state.latched = true;
-                run(cycle, '방장 넘기는 중…', () => { state.latched = false; },
-                    () => { state.latched = false; state.handoffRetryAt = Date.now() + HANDOFF_RETRY_MS; });
+                run(async () => { const note = await cycle(); state.handoffTries = 0; return note; },
+                    '방장 넘기는 중…', () => { state.latched = false; }, () => {
+                        state.latched = false;
+                        // 8초 · 16초 · 32초 · 64초 뒤에 다시, 다섯 번째도 멈추면 그만둔다
+                        if (++state.handoffTries >= HANDOFF_TRIES) {
+                            state.handoffRetryAt = Infinity;
+                            log('방장 넘기기가 ' + HANDOFF_TRIES + '번 멈춰 그만둡니다 — 직접 넘기거나 봇 스위치를 껐다 켜면 다시 해 봅니다', 'warn');
+                            return false;
+                        }
+                        state.handoffRetryAt = Date.now() + HANDOFF_RETRY_MS * 2 ** (state.handoffTries - 1);
+                    });
             }
             state.unready = 0; state.p2Streak = 0; state.p2Ready = 0; state.askPending = false;
             return;
         }
-        state.latched = false; state.settleSince = 0; state.handoffRetryAt = 0;
+        state.latched = false; state.settleSince = 0; state.handoffRetryAt = 0; state.handoffTries = 0;
         // 방장이 남에게 있다 — 판이 끝난 그 한 번만 도로 달라고 알린다.
         // 0번 칸이면 움직이지 않는다(대결 덮개에 HOST 뱃지가 가려진 것일 수 있다). 나를 못 찾아도(-1) 마찬가지다
         // (게임 창이 앞에 없어 못 보냈으면 askPending으로 남겨 두고 다음 로비 프레임에 다시 한다)
@@ -624,9 +665,11 @@
     function onScreen(frm, W, H, kind) {
         if (kind === 'round') {   // 새 라운드가 시작됐다 — 곡 안내를 한 번 더 할 차례
             state.vsStreak = 0; state.songDone = false;
+            if (!state.roundSeenAt) state.roundSeenAt = Date.now();   // 이 라운드 화면을 처음 본 때 (songText가 쓴다)
             return;
         }
-        if (kind === 'result') { state.vsStreak = 0; return; }
+        // 결과 화면 뒤에는 새 라운드 화면을 봐야 곡 안내를 다시 한다 (놓치면 지난 곡을 말하지 않고 건너뛴다)
+        if (kind === 'result') { state.vsStreak = 0; state.roundSeenAt = 0; return; }
         // 방이 터졌다 — 해체 알림이 뜨면 같은 방을 다시 만든다. 한 판에 한 번만 (로비를 다시 보면 풀린다)
         if (!state.restartDone && Room.isDisbandBox(frm, W, H)) {
             state.vsStreak = 0;
@@ -753,7 +796,9 @@
             el.checked = !!opts[k];
             el.addEventListener('change', () => {
                 opts[k] = el.checked;
-                state.latched = false; state.retryAt = 0; state.handoffRetryAt = 0; state.readyRetryAt = 0;   // 껐다 켜면 곧바로 다시 해 본다 (멈춘 뒤 손으로 다시 시키는 길)
+                // 껐다 켜면 곧바로 다시 해 본다 (멈춘 뒤 손으로 다시 시키는 길)
+                state.latched = false; state.retryAt = 0; state.handoffRetryAt = 0; state.handoffTries = 0; state.readyRetryAt = 0;
+                state.p2Tries = 0; state.p2RetryAt = 0;
                 save(); render();
                 if (k === 'on' && el.checked) ensureHelper(true);   // 켠 그 클릭에서 도우미를 찾는다 (스캔 탭을 안 열어도)
                 if (k === 'on' && typeof refreshUI === 'function') refreshUI();   // 표의 보류 ↔ 봇 지정 버튼

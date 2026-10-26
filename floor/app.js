@@ -511,6 +511,7 @@ VMH.Floor = {
         const tagBox = best.querySelector('.tags-container');
         return {
             round: Number(best.dataset.round),
+            markedAt: Number(best.dataset.roundAt) || 0,   // 라운드 화면에서 표시한 시각 (손으로 고친 카드는 0)
             title: best.querySelector('h3')?.innerText || '',
             pattern: [best.querySelector('.btn-select')?.value, best.querySelector('.diff-select')?.value].filter(Boolean).join(' '),
             floor: (lv ? lv + ' ' : '') + floorName,
