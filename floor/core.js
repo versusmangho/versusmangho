@@ -27,20 +27,20 @@ const VA_IMG_BASE = 'https://v-archive.net/s3/images/jackets/';
 const BTN_COLORS = { '4B': 'bg-emerald-600', '5B': 'bg-sky-600', '6B': 'bg-amber-600', '8B': 'bg-indigo-600' };
 const DIFF_COLORS = { 'SC': 'bg-purple-600', 'MX': 'bg-rose-600', 'HD': 'bg-orange-600', 'NM': 'bg-yellow-500' };
 
-/* 층수 측정기 설명도 도움말 탭에 있다 (예전에는 이 탭 안의 모달이었다) */
+/* 층수 측정기 설명도 도움말 탭에 있다 (예전에는 이 탭 안의 모달이었다).
+   도움말 단추는 다른 탭처럼 data-goto-help로 간다 — 돌아가기 단추가 같이 뜬다 (script.js gotoHelp) */
 function toggleHelp(show) {
     if (show === false) return;
-    VMH.Tabs.show('help');
-    requestAnimationFrame(() => {
-        const el = document.getElementById('help-floor');
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    gotoHelp('help-floor');
 }
 
 function setMode(mode) {
     currentMode = mode;
-    document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
-    document.getElementById(`mode-${mode}`).classList.add('active');
+    document.querySelectorAll('.mode-toggle-container .mode-btn').forEach(btn => {
+        const on = btn.id === `mode-${mode}`;
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
     
     if (mode === 'versus') {
         resultList.classList.add('versus-grid');

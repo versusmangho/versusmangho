@@ -1,11 +1,24 @@
 /* 곡 데이터베이스 — hashes.json 적재, 자켓/버튼/난이도 해시 매칭, 상태 표시. */
 
 const songDatabase = {}; let statusLogs = []; window.lastProcessedImg = null; 
+let floorReady = false;   // 곡 정보·자켓 해시를 다 받았다 — 그 뒤로는 받아온 기록 대신 빈 화면 안내를 보여준다
 function renderStatus() {
     if (!resultList) return;
     const containerClass = currentMode === 'versus' ? 'grid grid-cols-1 w-full col-span-full' : 'w-full';
+    if (floorReady) {
+        // 받다가 실패한 줄만 남긴다 (태그가 빠지는 등 알아 둘 것) — 다 됐으면 안내만
+        const failed = statusLogs.filter(log => /실패|중단/.test(log));
+        const hint = currentMode === 'versus'
+            ? '밴픽 화면이 뜨면 여기에 곡 다섯 개와 층수가 나옵니다'
+            : '곡을 검색하거나 방 화면을 붙여넣으면 여기에 층수 표가 나옵니다';
+        // 넣는 방법은 바로 위 안내 칸(드롭존)이 말해 주므로 여기서는 무엇이 나올지만
+        resultList.innerHTML = `<div class="floor-empty ${containerClass}"><p class="floor-empty-title">${hint}</p>` +
+            failed.map(log => `<p class="floor-empty-fail">${log}</p>`).join('') + `</div>`;
+        return;
+    }
     resultList.innerHTML = `<div class="text-center py-20 space-y-3 ${containerClass}">${statusLogs.map(log => `<p class="text-slate-500 text-xs font-medium tracking-wide">${log}</p>`).join('')}</div>`;
 }
+function markFloorReady() { floorReady = true; renderStatus(); }
 function updateStatus(msg, isAppend = false) {
     if (isAppend && statusLogs.length > 0) statusLogs[statusLogs.length - 1] += ` ${msg}`; else statusLogs.push(msg);
     renderStatus();
@@ -69,14 +82,14 @@ function handleHashUpload(input) {
                 Object.assign(buttonRefs, d.trackinfo.buttons); Object.assign(diffRefs, d.trackinfo.diffs);
                 thumbRefs.length = 0; thumbRefs.push(...d.thumbnails); loadSigTable(d.thumbnails); document.getElementById('hashUploadContainer').classList.add('hidden');
                 if (statusLogs.length > 0) statusLogs[statusLogs.length - 1] = statusLogs[statusLogs.length - 1].replace(/<span.*>.*<\/span>/, "<span class='text-green-500 font-bold'>완료!</span>");
-                renderStatus(); updateStatus("<div class='mt-6 text-blue-400 font-bold text-lg'>준비 완료!</div>");
+                markFloorReady();
             }
-        } catch (err) { alert("오류 발생"); }
+        } catch (err) { VMH.toast('해시 파일을 읽지 못했습니다 — hashes.json이 맞는지 확인하세요', { tone: 'error', ms: 4000 }); }
     };
     reader.readAsText(file);
 }
 
-async function init() { statusLogs = []; const s = await loadHashes(); if (s) updateStatus("<div class='mt-6 text-blue-400 font-bold text-lg'>준비 완료!</div>"); }
+async function init() { statusLogs = []; const s = await loadHashes(); if (s) markFloorReady(); }
 
 function getSortedMatches(hashA, hashD, colorGrid) {
     const W_COLOR = 2.0; // 색상 유사도 가중치

@@ -155,9 +155,9 @@ function importPatternMemos(input) {
     const reader = new FileReader();
     reader.onload = (e) => {
         let data;
-        try { data = JSON.parse(e.target.result); } catch (err) { alert('메모 파일을 읽을 수 없습니다 (JSON 형식 아님)'); return; }
+        try { data = JSON.parse(e.target.result); } catch (err) { VMH.toast('메모 파일을 읽을 수 없습니다 (JSON 형식 아님)', { tone: 'error', ms: 4000 }); return; }
         const memos = data?.type === MEMO_FILE_TYPE ? data.memos : data;
-        if (!memos || typeof memos !== 'object' || Array.isArray(memos)) { alert('메모 파일 형식이 아닙니다'); return; }
+        if (!memos || typeof memos !== 'object' || Array.isArray(memos)) { VMH.toast('메모 파일 형식이 아닙니다', { tone: 'error', ms: 4000 }); return; }
         let added = 0;
         for (const [id, song] of Object.entries(memos)) {
             if (!song || typeof song !== 'object') continue;

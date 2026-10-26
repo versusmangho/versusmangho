@@ -44,7 +44,7 @@
         serverDj: '',
         skip: new Set(),      // 올릴 목록에서 사용자가 체크를 뺀 칸
         results: new Map(),   // 칸 → 업로드 결과 { ok, text }
-        account: null,        // { userNo, token } — 옵션 탭에서 고른다 (기억해 두기를 켰을 때만 LocalStorage)
+        account: null,        // { userNo, token } — 스캔 설정에서 고른다 (기억해 두기를 켰을 때만 LocalStorage)
         uploading: false
     };
 
@@ -368,16 +368,30 @@
     }
     const helperListeners = [];
 
+    /* 준비 목록 한 줄. 표시를 색만이 아니라 모양(✓ / !)으로도 가르고, 내용은 <span> 하나로 감싼다 —
+       li가 flex라 감싸지 않으면 글자와 <b>가 따로 칸이 되어 띄어쓰기가 깨진다. 방장 봇 탭도 같은 것을 쓴다 */
+    const checkLi = (ok, html) => '<li>' + (ok ? '<span class="ok" aria-label="준비됨">✓</span>' : '<span class="no" aria-label="준비 안 됨">!</span>') +
+        '<span class="check-text">' + html + '</span></li>';
+    const CONNECT_LINK = '<button type="button" class="link-btn" data-press="auto-capture-btn">게임 화면 연결</button>';
+    const SETTINGS_LINK = '<button type="button" class="link-btn" data-goto="scan#scan-settings">스캔 설정</button>';
+
+    function renderSettingsNote() {
+        const el = $('scan-settings-note');
+        if (!el) return;
+        const parts = [opts.dj ? 'DJ ' + esc(opts.dj) : 'DJ 이름 없음', state.account ? '계정 ' + state.account.userNo : 'account.txt 없음'];
+        el.innerHTML = '— ' + parts.join(' · ');
+    }
+
     function renderChecks() {
-        const ok = (b) => b ? '<span class="ok">●</span>' : '<span class="no">●</span>';
         const h = state.helper;
         helperListeners.forEach(cb => { try { cb(); } catch (e) { console.error('[Scan]', e); } });
         $('scan-checks').innerHTML = [
-            ok(!!h) + helperHtml('곡 넘기기·업로드에 필요합니다.'),
-            ok(Hub.isRunning()) + (Hub.isRunning() ? '게임 화면 연결됨' : '게임 화면이 연결되지 않았습니다 — 오른쪽 위 <b>게임 화면 연결</b>'),
-            ok(dbReady()) + (dbReady() ? '곡 정보 ' + Object.keys(songDatabase).length + '곡 · 자켓 ' + jackets().length + '개' : '곡 정보·자켓 해시를 받는 중 (층수 측정기 탭 상태 참고)'),
-            ok(!!opts.dj) + (opts.dj ? 'DJ 이름: ' + esc(opts.dj) : 'DJ 이름이 없습니다 — <b>옵션 탭</b>에서 넣으세요 (서버 기록 비교에 필요)')
-        ].map(s => '<li>' + s + '</li>').join('');
+            checkLi(!!h, helperHtml('곡 넘기기·업로드에 필요합니다.')),
+            checkLi(Hub.isRunning(), Hub.isRunning() ? '게임 화면 연결됨' : '게임 화면이 연결되지 않았습니다 — ' + CONNECT_LINK),
+            checkLi(dbReady(), dbReady() ? '곡 정보 ' + Object.keys(songDatabase).length + '곡 · 자켓 ' + jackets().length + '개' : '곡 정보·자켓 해시를 받는 중 (층수 측정기 탭 상태 참고)'),
+            checkLi(!!opts.dj, opts.dj ? 'DJ 이름: ' + esc(opts.dj) : 'DJ 이름이 없습니다 — ' + SETTINGS_LINK + '에서 넣으세요 (서버 기록 비교에 필요)')
+        ].join('');
+        renderSettingsNote();
     }
 
     function renderButtons() {
@@ -518,7 +532,7 @@
     // ── 서버 기록 비교 ─────────────────
     async function loadServer() {
         const dj = opts.dj;
-        if (!dj) { $('scan-compare-note').innerHTML = '<b>옵션 탭</b>에서 DJ 이름을 먼저 넣으세요'; return false; }
+        if (!dj) { $('scan-compare-note').innerHTML = SETTINGS_LINK + '에서 DJ 이름을 먼저 넣으세요'; return false; }
         $('scan-compare-note').textContent = '서버 기록을 받는 중…';
         const map = new Map();
         try {
@@ -608,7 +622,7 @@
     }
 
     // ── 업로드 ─────────────────
-    // 계정 파일은 옵션 탭에서 고른다. '기억해 두기'를 켰을 때만 LocalStorage에 남긴다 (끄면 바로 지운다)
+    // 계정 파일은 이 탭의 스캔 설정에서 고른다. '기억해 두기'를 켰을 때만 LocalStorage에 남긴다 (끄면 바로 지운다)
     const ACCOUNT_KEY = 'scanAccountV1';
     const parseAccount = (text) => {
         const m = String(text || '').split(/\r?\n/)[0].trim().match(/^(\d+)\s+([0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})$/);
@@ -625,7 +639,8 @@
         const a = state.account;
         $('scan-account-note').textContent = msg || (a ? '계정 번호 ' + a.userNo + ($('scan-account-remember').checked ? ' — 이 브라우저에 기억함' : ' — 페이지를 닫으면 잊습니다') : '고른 파일이 없습니다');
         $('scan-account-clear').hidden = !a;
-        $('scan-account-state').innerHTML = a ? '계정 번호 ' + a.userNo + ' (옵션 탭)' : '올리려면 <b>옵션 탭</b>에서 account.txt를 고르세요';
+        $('scan-account-state').innerHTML = a ? '계정 번호 ' + a.userNo : '올리려면 ' + SETTINGS_LINK + '에서 account.txt를 고르세요';
+        renderSettingsNote();
         updateUploadBtn(diffRows().up);
     }
     function readAccount(file) {
@@ -725,6 +740,8 @@
         if (sameOriginHelper || VMH.Tabs.active === 'scan') checkHelper();
         bindAccount();
         renderAll();
+        // 처음 쓰는 사람은 DJ 이름부터 넣어야 하므로 설정을 펼쳐 둔다
+        if (!opts.dj && $('scan-settings')) $('scan-settings').open = true;
         // 곡 정보·자켓 해시는 층수 측정기가 페이지를 연 뒤에 받는다 — 다 받으면 상태 줄을 다시 그린다
         if (!dbReady()) { const t = setInterval(() => { if (dbReady()) { clearInterval(t); renderChecks(); } }, 1000); }
     }
@@ -735,5 +752,5 @@
     // 브라우저가 로컬 접근 권한을 또 묻는다
     // helperHtml·onHelperClick·onHelper는 방장 봇 탭의 도우미 줄 (도우미 상태가 바뀌면 onHelper로 알린다)
     global.VMH.Scan = { state, readImages, readNow, helperCall, checkHelper,
-                        helperHtml, onHelperClick, onHelper: (cb) => helperListeners.push(cb) };
+                        helperHtml, checkLi, onHelperClick, onHelper: (cb) => helperListeners.push(cb) };
 })(window);

@@ -857,7 +857,7 @@
         const toggle = () => {
             const open = body.style.display === 'none';
             body.style.display = open ? 'flex' : 'none';
-            icon.textContent = open ? '▲' : '▼';
+            icon.textContent = open ? '▼' : '▶';   // 다른 접기 칸과 같은 표시 — ▶ 접힘 / ▼ 펼침
             head.setAttribute('aria-expanded', open ? 'true' : 'false');
         };
         head.addEventListener('click', toggle);
@@ -892,7 +892,9 @@
         const running = Hub.isRunning(), on = Hub.receiving('room');
         const btn = $('auto-capture-btn');
         if (btn) {
-            btn.textContent = running ? '연결 해제' : '🎮 게임 화면 연결';
+            // 좁은 화면에서는 .btn-label이 숨어 아이콘만 남는다
+            btn.innerHTML = running ? '⏹<span class="btn-label"> 연결 해제</span>' : '🎮<span class="btn-label"> 게임 화면 연결</span>';
+            btn.title = running ? '연결 해제' : '게임 화면 연결';
             btn.classList.toggle('danger', running);
             btn.classList.toggle('secondary', !running);
         }

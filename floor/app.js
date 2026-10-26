@@ -288,11 +288,12 @@ function copyGeneralCell(cell) {
     copyTextWithMessage(text);
 }
 
+// 결과는 매칭·티어 탭과 같은 토스트로 — 카드 위쪽 메시지 줄은 아래 칸을 누르면 화면 밖이었다
 function copyTextWithMessage(text) {
-    navigator.clipboard.writeText(text).then(() => {
-        showTemporaryMessage("정보 복사됨!");
-    }).catch(err => {
-        showTemporaryMessage("복사 실패");
+    copyToClipboard(text).then(() => {
+        VMH.toast('복사됨 — ' + text);
+    }).catch(() => {
+        VMH.toast('복사하지 못했습니다 — 브라우저가 클립보드 쓰기를 막았습니다', { tone: 'error', ms: 4000 });
     });
 }
 

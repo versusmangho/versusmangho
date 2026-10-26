@@ -48,19 +48,44 @@ function updateShotNav() {
         list.length > 0 ? `${i + 1} / ${list.length}${entry?.partial ? ' (라운드 화면에서 확인된 곡만)' : entry && !entry.src ? ' (검색)' : ''}` : '';
 }
 
+/* 붙여넣기 · 끌어다 놓기 · 파일 고르기가 같이 쓰는 입구 */
+function loadFloorImage(blob) {
+    if (!blob || !blob.type.startsWith('image/')) { showTemporaryMessage('이미지 파일이 아닙니다'); return; }
+    if (isProcessing) return;
+    if (Date.now() - (window.lastProcessTime || 0) < COOLDOWN_MS) { showTemporaryMessage("쿨다운 중..."); return; }
+    const img = new Image(); img.src = URL.createObjectURL(blob);
+    img.onload = () => fitGameArea(img).then(g => analyzeScreenshot(g)).catch(err => console.error('[Paste]', err));
+}
+
 window.addEventListener('paste', async (e) => {
     if (VMH.Tabs.active !== 'floor') return;   // 매칭 탭을 보고 있으면 그쪽이 받는다
     if (memoEditor.open) return; // 메모 입력칸에 글자를 붙여넣는 중
-    const now = Date.now(); if (isProcessing) return;
-    if (now - (window.lastProcessTime || 0) < COOLDOWN_MS) { showTemporaryMessage("쿨다운 중..."); return; }
-    const items = e.clipboardData.items;
-    for (let item of items) {
-        if (item.type.indexOf('image') !== -1) {
-            const blob = item.getAsFile(), img = new Image(); img.src = URL.createObjectURL(blob);
-            img.onload = () => fitGameArea(img).then(g => analyzeScreenshot(g)).catch(err => console.error('[Paste]', err));
-        }
-    }
+    const item = Array.from(e.clipboardData.items).find(i => i.type.indexOf('image') !== -1);
+    if (item) loadFloorImage(item.getAsFile());
 });
+
+/* 안내 칸은 눌러서 파일을 고를 수도 있고, 층수 탭 어디에든 이미지를 끌어다 놓아도 된다 */
+(function initFloorDrop() {
+    const panel = document.querySelector('[data-tab-panel="floor"]');
+    const zone = document.getElementById('dropZone'), input = document.getElementById('floorFileInput');
+    if (!panel || !zone || !input) return;
+    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+    });
+    input.addEventListener('change', () => { if (input.files[0]) loadFloorImage(input.files[0]); input.value = ''; });
+
+    const hasFile = (e) => Array.from(e.dataTransfer?.types || []).includes('Files');
+    let depth = 0;   // 안쪽 칸을 지날 때마다 dragenter/dragleave가 짝으로 오므로 깊이로 센다
+    panel.addEventListener('dragenter', (e) => { if (!hasFile(e)) return; e.preventDefault(); depth++; panel.classList.add('drag-over'); });
+    panel.addEventListener('dragover', (e) => { if (hasFile(e)) e.preventDefault(); });
+    panel.addEventListener('dragleave', () => { if (depth && --depth === 0) panel.classList.remove('drag-over'); });
+    panel.addEventListener('drop', (e) => {
+        if (!hasFile(e)) return;
+        e.preventDefault(); depth = 0; panel.classList.remove('drag-over');
+        loadFloorImage(e.dataTransfer.files[0]);
+    });
+})();
 
 /* 붙여넣기와 게임 화면 자동 인식이 함께 쓰는 진입점.
    force: 동일 이미지 검사를 건너뛴다 — 일망호 방 화면은 자켓이 작아서 곡이 달라도 전체 해시가 같게 나올 수 있다 */

@@ -717,16 +717,13 @@
     function renderChecks() {
         const el = $('auto-host-helper'), S = Scan();
         if (!el || !S || !S.helperHtml) return;
-        const ok = (b) => b ? '<span class="ok">●</span>' : '<span class="no">●</span>';
         const running = Hub.isRunning(), seen = Hub.receiving('room');
-        const screen = !running ? '게임 화면이 연결되지 않았습니다 — 오른쪽 위 <b>게임 화면 연결</b>'
-                     : !seen ? '게임 화면을 층수 측정기에만 주고 있어 봇이 로비를 못 봅니다 — 옵션 탭의 <b>화면 공유를 줄 곳</b>'
+        const target = '옵션 탭의 <button type="button" class="link-btn" data-goto="options#opt-capture">화면 공유를 줄 곳</button>';
+        const screen = !running ? '게임 화면이 연결되지 않았습니다 — <button type="button" class="link-btn" data-press="auto-capture-btn">게임 화면 연결</button>'
+                     : !seen ? '게임 화면을 층수 측정기에만 주고 있어 봇이 로비를 못 봅니다 — ' + target
                      : '게임 화면 연결됨' + (opts.song && Hub.target !== 'both'
-                         ? ' — 곡 안내는 옵션 탭의 <b>화면 공유를 줄 곳</b>이 <b>둘 다</b>여야 합니다' : '');
-        el.innerHTML = [
-            ok(!!S.state.helper) + S.helperHtml('봇이 게임에 키를 누르려면 필요합니다.'),
-            ok(seen) + screen
-        ].map(x => '<li>' + x + '</li>').join('');
+                         ? ' — 곡 안내는 ' + target + '이 <b>둘 다</b>여야 합니다' : '');
+        el.innerHTML = S.checkLi(!!S.state.helper, S.helperHtml('봇이 게임에 키를 누르려면 필요합니다.')) + S.checkLi(seen, screen);
     }
 
     function render() {

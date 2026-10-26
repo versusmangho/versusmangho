@@ -498,12 +498,17 @@ function setImage(img, ph, src, onReady) {
 }
 
 if(ui.anaToggle) {
-    ui.anaToggle.onclick = () => {
-        const hide = ui.anaContent.style.display === 'none';
-        ui.anaContent.style.display = hide ? 'block' : 'none';
-        ui.anaToggle.querySelector('.toggle-icon').innerText = hide ? '▲' : '▼';
-        saveState(); // <--- saveState() 호출 추가
-    }
+    const toggleAnalysis = () => {
+        const open = ui.anaContent.style.display === 'none';
+        ui.anaContent.style.display = open ? 'block' : 'none';
+        ui.anaToggle.querySelector('.toggle-icon').innerText = open ? '▼' : '▶';
+        ui.anaToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        saveState();
+    };
+    ui.anaToggle.onclick = toggleAnalysis;
+    ui.anaToggle.onkeydown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleAnalysis(); }
+    };
 }
 
 // 스토리지 및 상태 관리
@@ -596,33 +601,22 @@ function loadState() {
         // 복원하지 않는다(새로고침 시 분석 패널은 초기화됨). 플레이어/라운드 데이터는 정상 유지된다.
 
         // 접힘/펼침 상태 복원
+        // 접힘 표시는 어디서나 ▶(접힘) / ▼(펼침)
+        const restoreCollapsed = (headerId, contentId, hide) => {
+            const header = document.getElementById(headerId), content = document.getElementById(contentId);
+            const icon = header && header.querySelector('.toggle-icon');
+            if (!content || !icon) return;
+            content.style.display = hide ? "none" : "block";
+            icon.innerText = hide ? "▶" : "▼";
+            header.setAttribute('aria-expanded', hide ? 'false' : 'true');
+        };
         if (parsed.uiState) {
-            if (typeof parsed.uiState.logCollapsed === "boolean") {
-                const logContent = document.getElementById("log-content");
-                const logIcon = document.getElementById("log-toggle-icon");
-                if (logContent && logIcon) {
-                    const hide = parsed.uiState.logCollapsed;
-                    logContent.style.display = hide ? "none" : "block";
-                    logIcon.innerText = hide ? "▼" : "▲";
-                }
-            }
-            if (typeof parsed.uiState.analysisCollapsed === "boolean") {
-                const analysisContent = document.getElementById("analysis-content");
-                const analysisIcon = document.querySelector("#analysis-toggle-btn .toggle-icon");
-                if (analysisContent && analysisIcon) {
-                    const hide = parsed.uiState.analysisCollapsed;
-                    analysisContent.style.display = hide ? "none" : "block";
-                    analysisIcon.innerText = hide ? "▼" : "▲";
-                }
-            }
+            if (typeof parsed.uiState.logCollapsed === "boolean")
+                restoreCollapsed("log-toggle-btn", "log-content", parsed.uiState.logCollapsed);
+            if (typeof parsed.uiState.analysisCollapsed === "boolean")
+                restoreCollapsed("analysis-toggle-btn", "analysis-content", parsed.uiState.analysisCollapsed);
         } else if (typeof parsed.logCollapsed === "boolean") { // 이전 버전 호환성
-            const logContent = document.getElementById("log-content");
-            const logIcon = document.getElementById("log-toggle-icon");
-            if (logContent && logIcon) {
-                const hide = parsed.logCollapsed;
-                logContent.style.display = hide ? "none" : "block";
-                logIcon.innerText = hide ? "▼" : "▲";
-            }
+            restoreCollapsed("log-toggle-btn", "log-content", parsed.logCollapsed);
         }
 
 
@@ -858,15 +852,14 @@ function refreshUI() {
 
         // 자동 방장 봇이 켜져 있으면 보류 대신 '봇 지정'을 단다. 봇은 한 명뿐이라, 방에 봇이 있으면 남의 줄에는 아무것도 안 단다
         const isBot = autoHostOn() && p.nickname === room.botId;   // 기능이 꺼져 있으면 봇도 그냥 한 사람이다
-        const holdBtn = !autoHostOn() ? `<button class="small-hold">${hold?"복귀":"보류"}</button>`
+        const holdBtn = !autoHostOn() ? `<button class="small-hold" title="${hold ? '매칭 순서로 되돌립니다' : '잠시 매칭에서 뺍니다'}">${hold?"복귀":"보류"}</button>`
             : isBot ? '<button class="small-bot">봇 해제</button>'
             : !botInRoom() ? '<button class="small-bot">봇 지정</button>' : '';
 
+        // 이름 칸에는 이름과 태그만, 보류·삭제는 맨 오른쪽 작업 칸으로 — 이름 칸이 비좁아 버튼이 줄바꿈되던 것을 푼다
         tr.innerHTML = `
             <td>${stats.score.toFixed(2)}</td>
-            <td>${playerLabelHtml(p)} ${p.rejoined?'<span class="tag danger">재입장</span>':''} ${!hold && p.matchCount===0?'<span class="tag" style="border-color:#4ade80;color:#86efac">신입</span>':''} ${isBot?'<span class="tag" style="border-color:#a78bfa;color:#c4b5fd">봇</span>':hold?'<span class="tag danger">보류</span>':''}
-                ${holdBtn}<button class="small-delete">×</button>
-            </td>
+            <td class="name-cell">${playerLabelHtml(p)} ${p.rejoined?'<span class="tag danger">재입장</span>':''} ${!hold && p.matchCount===0?'<span class="tag tag-new">신입</span>':''} ${isBot?'<span class="tag tag-bot">봇</span>':hold?'<span class="tag danger">보류</span>':''}</td>
             <td class="extra-col">${p.chooserCount||0}</td>
             <td>${stats.W_curr}</td>
             <td>${stats.W_avg.toFixed(2)}</td>
@@ -874,16 +867,36 @@ function refreshUI() {
             <td class="extra-col">${p.waitSum||0}</td>
             <td class="extra-col">${heldTotal}</td>
             <td class="extra-col">R${p.joinedAt||0}</td>
+            <td class="actions-cell">${holdBtn}<button class="small-delete" title="방에서 뺍니다 (실행 취소로 되돌릴 수 있음)" aria-label="삭제">×</button></td>
         `;
         tr.dataset.nickname = p.nickname;
+        tr.classList.add(hold ? 'row-held' : 'row-pick');
         if(selected.includes(p.nickname)) tr.classList.add("highlight");
-        if (!hold && stats.W_curr >= safeguardThreshold()) tr.style.color = "#fca5a5";
+        if (!hold && stats.W_curr >= safeguardThreshold()) tr.classList.add('row-urgent');
         ui.pTable.appendChild(tr);
     });
-    
+    if (!sorted.length && ui.pTable) {
+        ui.pTable.innerHTML = '<tr class="row-empty"><td colspan="10">아직 플레이어가 없습니다 — 위에서 닉네임을 추가하거나 오른쪽 위 <b>게임 화면 연결</b>로 자동으로 채우세요.</td></tr>';
+    }
+
+    renderChooserStatus();
+    if (ui.undoBtn) ui.undoBtn.disabled = undoStack.length === 0;
+    if (ui.redoBtn) ui.redoBtn.disabled = redoStack.length === 0;
+
     renderLog();
     saveState();
     VMH.Popup.update();
+}
+
+/* 매칭 카드의 안내 한 줄 — 지금 몇 명을 골랐는지에 따라 다음에 할 일을 알려준다 */
+function renderChooserStatus() {
+    const el = document.getElementById('chooser-status');
+    if (!el) return;
+    const first = selected.length === 1 && room.players.find(p => p.nickname === selected[0]);
+    el.classList.toggle('picking', !!first);
+    el.innerHTML = first
+        ? `${logLabelHtml(first.nickname)} <b>선택됨</b> (원디골) — 상대를 누르세요 <span class="hint">· 같은 줄을 다시 누르면 취소</span>`
+        : '표에서 <b>두 명을 차례로</b> 누르면 한 판이 기록됩니다 <span class="hint">· 먼저 누른 쪽이 원디골</span>';
 }
 
 /* 보류 켜기/끄기. 끌 때는 보류한 라운드만큼 대기를 보정한다 (보류 버튼과 봇 지정이 같이 쓴다) */
@@ -1131,14 +1144,20 @@ if(ui.pTable) ui.pTable.onclick = (e) => {
         else room.botId = nick;                      // 보류는 syncBotHold가 건다
         refreshUI(); return;
     }
-    if(room.players.find(p=>p.nickname===nick)?.onHold) return;
+    if(room.players.find(p=>p.nickname===nick)?.onHold) {
+        VMH.toast('보류 중인 사람은 매칭할 수 없습니다 — 먼저 복귀를 누르세요', { tone: 'warn' });
+        return;
+    }
     if(selected.includes(nick)) selected = selected.filter(x=>x!==nick); else selected.push(nick);
     if(selected.length === 2) {
         const [cName, oName] = selected;
         pushUndo();
-        if(!recordMatch(cName, oName)) undoStack.pop(); // 매칭이 성립 안 하면 스냅샷도 되돌린다
+        const ok = recordMatch(cName, oName);
+        if(!ok) undoStack.pop(); // 매칭이 성립 안 하면 스냅샷도 되돌린다
         selected=[];
         refreshUI();
+        if (ok) VMH.toast(`R${room.round} 기록됨 — ${logLabelHtml(cName)} vs ${logLabelHtml(oName)}`,
+            { html: true, action: { label: '실행 취소', run: () => ui.undoBtn && ui.undoBtn.click() } });
     } else refreshUI();
 }
 if(ui.resetBtn) ui.resetBtn.onclick = () => {
@@ -1159,11 +1178,11 @@ if(ui.resetBtn) ui.resetBtn.onclick = () => {
     }
 };
 if(ui.undoBtn) ui.undoBtn.onclick = () => {
-    if (undoStack.length === 0) { alert("되돌릴 기록이 없습니다."); return; }
+    if (undoStack.length === 0) return;   // 비어 있으면 단추가 꺼져 있다
     redoStack.push(JSON.parse(JSON.stringify(room))); room = undoStack.pop(); selected = []; refreshUI();
 };
 if(ui.redoBtn) ui.redoBtn.onclick = () => {
-    if (redoStack.length === 0) { alert("다시 실행할 기록이 없습니다."); return; }
+    if (redoStack.length === 0) return;
     undoStack.push(JSON.parse(JSON.stringify(room))); room = redoStack.pop(); selected = []; refreshUI();
 };
 
@@ -1276,16 +1295,60 @@ function scrollToHelpSection(id) {
     el.classList.add('help-flash');
 }
 
+/* 다른 탭에서 도움말로 왔으면 '돌아가기' 단추를 띄운다 — 보던 탭과 스크롤 자리로 되돌려 놓는다 */
+let helpReturn = null;   // { tab, y }
+function syncHelpBack() {
+    const box = document.getElementById('help-back');
+    if (!box) return;
+    const show = !!helpReturn && VMH.Tabs.active === 'help';
+    box.hidden = !show;
+    if (show) {
+        const name = document.querySelector(`[data-tab-btn="${helpReturn.tab}"]`)?.textContent.trim() || '이전 탭';
+        box.querySelector('.help-back-name').textContent = name;
+    }
+}
+function gotoHelp(sectionId) {
+    if (VMH.Tabs.active !== 'help') helpReturn = { tab: VMH.Tabs.active, y: window.scrollY };
+    VMH.Tabs.show('help');
+    syncHelpBack();
+    // 탭이 보이게 된 다음에 움직여야 자리가 제대로 잡힌다
+    requestAnimationFrame(() => scrollToHelpSection(sectionId));
+}
+VMH.Tabs.onChange((tab) => {
+    if (tab !== 'help') helpReturn = null;   // 탭 단추로 직접 옮겨 갔으면 돌아갈 자리는 잊는다
+    syncHelpBack();
+});
+
+/* 다른 탭의 칸으로 데려가기 — data-goto="탭#칸id" (예: 준비 목록의 '옵션 탭' 링크) */
+function gotoSection(target) {
+    const [tab, id] = target.split('#');
+    VMH.Tabs.show(tab);
+    const el = id && document.getElementById(id);
+    if (el && el.tagName === 'DETAILS') el.open = true;   // 접혀 있는 설정 칸이면 펼쳐서 보여준다
+    if (el) requestAnimationFrame(() => scrollToHelpSection(id));
+}
+
 document.addEventListener('click', (e) => {
     const inHelp = e.target.closest('[data-help-go]');
     if (inHelp) { scrollToHelpSection(inHelp.dataset.helpGo); return; }
 
     const toHelp = e.target.closest('[data-goto-help]');
-    if (toHelp) {
-        VMH.Tabs.show('help');
-        // 탭이 보이게 된 다음에 움직여야 자리가 제대로 잡힌다
-        requestAnimationFrame(() => scrollToHelpSection(toHelp.dataset.gotoHelp));
+    if (toHelp) { gotoHelp(toHelp.dataset.gotoHelp); return; }
+
+    const back = e.target.closest('#help-back-btn');
+    if (back && helpReturn) {
+        const { tab, y } = helpReturn;
+        VMH.Tabs.show(tab);   // onChange가 helpReturn을 지운다
+        requestAnimationFrame(() => window.scrollTo(0, y));
+        return;
     }
+
+    const go = e.target.closest('[data-goto]');
+    if (go) { e.preventDefault(); gotoSection(go.dataset.goto); return; }
+
+    // data-press="id" — 다른 곳에 있는 단추를 대신 누른다 (예: 준비 목록의 '게임 화면 연결')
+    const press = e.target.closest('[data-press]');
+    if (press) { e.preventDefault(); document.getElementById(press.dataset.press)?.click(); }
 });
 
 // 매칭 로그 접기/펼치기
@@ -1296,9 +1359,10 @@ document.addEventListener('click', (e) => {
     if(!btn || !content || !icon) return;
 
     const toggle = () => {
-        const hide = content.style.display !== 'none' ? true : false;
+        const hide = content.style.display !== 'none';
         content.style.display = hide ? 'none' : 'block';
-        icon.innerText = hide ? '▼' : '▲';
+        icon.innerText = hide ? '▶' : '▼';
+        btn.setAttribute('aria-expanded', hide ? 'false' : 'true');
         saveState();
     };
 
@@ -1370,8 +1434,10 @@ function fallbackCopyText(text) {
   ta.style.left = "-9999px";
   document.body.appendChild(ta);
   ta.select();
-  try { document.execCommand("copy"); } catch { /* fallback, ignore */ }
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch { /* 아래에서 실패로 알린다 */ }
   document.body.removeChild(ta);
+  return ok;
 }
 
 function copyToClipboard(text) {
@@ -1379,8 +1445,7 @@ function copyToClipboard(text) {
     return navigator.clipboard.writeText(text);
   }
   // file:// 로 열었거나 일부 환경에서 권한 문제 시 대비
-  fallbackCopyText(text);
-  return Promise.resolve();
+  return fallbackCopyText(text) ? Promise.resolve() : Promise.reject(new Error('copy failed'));
 }
 
 const TIER_DIFFICULTY = [
@@ -1557,7 +1622,6 @@ function setTierGroupOpen(headRow, open) {
 
 function initTierUI() {
   const host = document.getElementById('tier-chart');
-  const msg = document.getElementById('tier-copy-msg');
   const expandBtn = document.getElementById('tier-expand-btn');
   if (!host) return;
 
@@ -1572,11 +1636,14 @@ function initTierUI() {
     const x = TIER_DIFFICULTY[parseInt(row.dataset.tierIdx, 10)];
     if (!x) return;
     const text = formatTierCopyText(x);
+    // 결과는 화면 아래 토스트로 — 표가 길어서 카드 맨 아래 문구는 위쪽 줄을 누르면 화면 밖에 찍혔다
     copyToClipboard(text).then(() => {
-      showInlineMsg(msg, '복사됨 — ' + text);
+      VMH.toast('복사됨 — ' + text);
       row.classList.remove('copied');
       void row.offsetWidth;
       row.classList.add('copied');
+    }).catch(() => {
+      VMH.toast('복사하지 못했습니다 — 브라우저가 클립보드 쓰기를 막았습니다', { tone: 'error', ms: 4000 });
     });
   };
 
@@ -1638,4 +1705,4 @@ document.addEventListener('DOMContentLoaded', function() {
     // 토글 스위치 변경 시 UI 즉시 새로고침
     document.getElementById('newcomer-toggle')?.addEventListener('change', () => refreshUI());
     document.getElementById('safeguard-toggle')?.addEventListener('change', () => refreshUI());
-});
+});
