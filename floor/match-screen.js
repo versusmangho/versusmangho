@@ -238,6 +238,9 @@ function createIdentifiedRow(h, banButton) {
    라운드 화면에서 확인된 곡만으로 새 판을 만든다. src는 읽은 화면(버튼/난이도 바를 읽는 데 씀),
    getPreviewSrc는 새 카드가 생길 때만 부른다. */
 async function applyMatchScreen(info, src, getPreviewSrc) {
+    const context = floorWorkContext();
+    const cancelled = () => ({ changes: [], created: 0, partial: false, cancelled: true });
+    if (context.mode !== 'versus' || isProcessing) return cancelled();
     isProcessing = true;
     try {
         let entry = currentMatchEntry();
@@ -251,18 +254,25 @@ async function applyMatchScreen(info, src, getPreviewSrc) {
             const r1 = info.rounds[0].bar || barFeatures(src, info.rounds[0].rect.x, info.rounds[0].rect.y + info.rounds[0].rect.h * 0.82, info.rounds[0].rect.w, info.rounds[0].rect.h * 0.18);
             const banButton = bestMatch(r1.btnPh, r1.btnColor, buttonRefs).key || '4B'; // 한 판의 곡은 버튼 모드가 같다
             const preview = await getPreviewSrc();
-            if (!entry) { entry = addShot(preview, [], null); entry.partial = true; }
-            else if (preview) { if (entry.src && entry.src.startsWith('blob:') && entry.src !== preview) URL.revokeObjectURL(entry.src); entry.src = preview; }
+            if (!floorWorkCurrent(context)) { if (preview) URL.revokeObjectURL(preview); return cancelled(); }
             const fresh = [];
             for (const h of missing) {
-                h.row = entry.rows.find(r => r.getAttribute('data-title-id') === h.id) || null;
+                h.row = (entry?.rows || []).concat(fresh).find(r => r.getAttribute('data-title-id') === h.id) || null;
                 if (h.row) continue;
                 h.row = createIdentifiedRow(h, info.bans.includes(h) ? banButton : null);
-                entry.rows.push(h.row); fresh.push(h.row);
+                fresh.push(h.row);
             }
             created = fresh.length;
             await Promise.all(fresh.map(r => r.ready));
+            if (!floorWorkCurrent(context)) { if (preview) URL.revokeObjectURL(preview); return cancelled(); }
+            // 미완성 로딩 칸을 히스토리에 먼저 넣지 않는다. 취소된 작업은 흔적 없이 버린다.
+            if (!entry) { entry = addShot(preview, fresh, null, context.mode); entry.partial = true; }
+            else {
+                entry.rows.push(...fresh);
+                if (preview) { if (entry.src && entry.src.startsWith('blob:') && entry.src !== preview) URL.revokeObjectURL(entry.src); entry.src = preview; }
+            }
         }
+        if (!floorWorkCurrent(context)) return cancelled();
         // 밴픽 5곡에 없는 곡(h.row 없음)은 오인식으로 보고 무시된다
         const changes = applyMatchMarks(info);
         if (entry.partial) {

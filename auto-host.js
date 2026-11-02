@@ -103,6 +103,8 @@
     function stop(reason, focus) { const e = new Error(reason); e.quiet = true; e.focus = !!focus; throw e; }
 
     async function helper(path, body) {
+        if (!(Scan()?.state.helper?.version >= 8)) stop('도우미 프로그램을 새로 받아 실행하세요 (v8 이상 필요)');
+        if (Scan().state.running) stop('성과 스캔이 진행 중입니다');
         let r;
         try { r = await Scan().helperCall(path, body); }
         catch {
@@ -547,6 +549,7 @@
         const S = Scan();
         if (!S || !S.state.helper) { ensureHelper(); return false; }
         if (!S.state.helper.windows) return false;
+        if (!(S.state.helper.version >= 8)) return false;   // v8 이전은 게임 밖 키 입력 차단에 결함이 있다
         return !S.state.running;   // 성과 스캔과 같이 돌지 않는다 — 둘 다 게임에 키를 보낸다
     }
 
@@ -724,7 +727,7 @@
                      : '게임 화면 연결됨' + (opts.song && Hub.target !== 'both'
                          ? ' — 곡 안내는 옵션 탭의 <b>화면 공유를 줄 곳</b>이 <b>둘 다</b>여야 합니다' : '');
         el.innerHTML = [
-            ok(!!S.state.helper) + S.helperHtml('봇이 게임에 키를 누르려면 필요합니다.'),
+            ok(!!S.state.helper && S.state.helper.version >= 8) + S.helperHtml('봇이 게임에 키를 누르려면 필요합니다.'),
             ok(seen) + screen
         ].map(x => '<li>' + x + '</li>').join('');
     }
@@ -738,6 +741,7 @@
         const why = !Hub.isRunning() ? '게임 화면이 연결되지 않았습니다'
                   : !(S && S.state.helper) ? '도우미 프로그램이 켜져 있지 않습니다 — 위의 "도우미 켜기"로 켜세요'
                   : !S.state.helper.windows ? '도우미가 Windows가 아니라 키를 보낼 수 없습니다'
+                  : !(S.state.helper.version >= 8) ? '도우미 프로그램을 새로 받아 실행하세요 (v8 이상 필요)'
                   : null;
         const last = state.note ? ' · 마지막: ' + state.note + (state.at ? ' (' + state.at.toLocaleTimeString() + ')' : '') : '';
         const what = '대기 중' + (opts.chat ? ' · 순서 안내' : '') + (opts.song ? ' · 곡 안내' : '');

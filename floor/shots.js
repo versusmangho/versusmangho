@@ -8,14 +8,14 @@ const SHOT_HISTORY_MAX = 20;
 const shotHistory = { versus: [], general: [] };
 const shotIndex = { versus: -1, general: -1 };
 
-function addShot(src, rows, hash) {
-    const list = shotHistory[currentMode], entry = { src, rows, hash: hash || null };
+function addShot(src, rows, hash, mode = currentMode) {
+    const list = shotHistory[mode], entry = { src, rows, hash: hash || null };
     list.push(entry);
     while (list.length > SHOT_HISTORY_MAX) {
         const dropped = list.shift();
         if (dropped.src && dropped.src.startsWith('blob:')) URL.revokeObjectURL(dropped.src);
     }
-    showShot(list.length - 1);
+    if (mode === currentMode) showShot(list.length - 1);
     return entry;
 }
 

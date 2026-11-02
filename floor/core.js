@@ -17,6 +17,10 @@ const RATIO_X_START = 307 / BASE_W, RATIO_THUMB_W = 240 / BASE_W, RATIO_GAP = 18
 const RATIO_GENERAL_X = 885 / BASE_W, RATIO_GENERAL_Y = 711 / BASE_H, RATIO_GENERAL_W = 80 / BASE_W, RATIO_GENERAL_H = 80 / BASE_H;
 
 let currentMode = 'versus';
+// 비동기 분석이 끝나기 전에 모드/공유가 바뀌면 이전 작업은 화면에 적용하지 않는다.
+let floorWorkVersion = 0;
+const floorWorkContext = () => ({ mode: currentMode, version: floorWorkVersion });
+const floorWorkCurrent = ctx => ctx.mode === currentMode && ctx.version === floorWorkVersion;
 
 // 로페봇(xn--2o2bk9ff9x = 로페봇) — v-archive에 없는 곡의 보충 출처
 const LOPE_SONGS_URL = 'https://xn--2o2bk9ff9x.com/data/songs.json';
@@ -38,6 +42,8 @@ function toggleHelp(show) {
 }
 
 function setMode(mode) {
+    if (!['versus', 'general'].includes(mode) || mode === currentMode) return;
+    floorWorkVersion++;
     currentMode = mode;
     document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
     document.getElementById(`mode-${mode}`).classList.add('active');

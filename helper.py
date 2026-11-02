@@ -29,6 +29,7 @@
 """
 import ctypes
 import json
+import math
 import os
 import re
 import sys
@@ -39,7 +40,7 @@ import urllib.request
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = 7                              # 2: 웹에서 부를 수 있게 CORS·exe / 3: onrender 출처, exe는 트레이로 / 4: vmh:// 로 웹에서 켜기 / 5: 자동 방장 봇용 키·붙여넣기·클립보드 / 6: 방 다시 만들기용 F3·Backspace / 7: 봇이 게임 창을 앞으로 불러온다(activate·restore)
+VERSION = 8                              # 8: 실제 게임 프로세스·포커스 확인, 입력 중단·키 해제, 업로드 검증
 HOST = '127.0.0.1'
 DEFAULT_PORT = 8777                      # 웹 페이지가 http://127.0.0.1:8777 로 부른다 — 바꾸면 scan/app.js의 HELPER_URL도
 FROZEN = getattr(sys, 'frozen', False)   # PyInstaller로 만든 exe
@@ -52,6 +53,15 @@ UPLOAD_URL = 'https://v-archive.net/client/open/{}/score'
 UUID_RE = re.compile(r'^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$')
 CLIP_MAX = 200                           # 게임 채팅 한 줄 — 이보다 길면 잘라서 넣는다
 PATTERNS = ('NORMAL', 'HARD', 'MAXIMUM', 'SC')
+
+
+class NoUploadRedirect(urllib.request.HTTPRedirectHandler):
+    # 인증 토큰과 기록을 다른 주소로 전달하지 않는다. 등록 API 주소 하나만 사용한다.
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+upload_opener = urllib.request.build_opener(NoUploadRedirect())
 
 # ── Windows 키 입력 (SendInput) ─────────────────
 # 게임은 스캔 코드로 키를 읽는 경우가 많아 가상 키가 아니라 스캔 코드로 보낸다.
@@ -124,8 +134,7 @@ if IS_WIN:
     _k32.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
     _k32.QueryFullProcessImageNameW.argtypes = (wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD))
     _k32.CloseHandle.argtypes = (wintypes.HANDLE,)
-    # 제목에 DJMAX가 들어간 브라우저 탭(V-ARCHIVE 등)을 게임으로 잘못 부르지 않게 — 실행 파일 이름을 먼저 본다
-    BROWSER_CLASSES = ('Chrome_WidgetWin', 'MozillaWindowClass')
+    # 제목뿐 아니라 실행 파일도 확인한다. 프로세스를 확인할 수 없으면 입력하지 않는다.
     focus_saved = {'prev': None}   # 게임을 불러오기 전에 앞에 있던 창 — restore가 돌려놓는다
 
     def window_exe(hwnd):
@@ -140,21 +149,24 @@ if IS_WIN:
         finally:
             _k32.CloseHandle(h)
 
+    def is_game_window(hwnd):
+        if not hwnd or not user32.IsWindow(hwnd) or not is_game(window_title(hwnd)):
+            return False
+        exe = os.path.basename(window_exe(hwnd)).lower()
+        return exe.startswith('djmax') and exe.endswith('.exe')
+
+    def foreground_is_game():
+        return is_game_window(user32.GetForegroundWindow())
+
     def find_game():
-        by_exe, by_title = [], []
+        games = []
 
         def each(hwnd, _):
-            if user32.IsWindowVisible(hwnd) and is_game(window_title(hwnd)):
-                if 'djmax' in os.path.basename(window_exe(hwnd)).lower():
-                    by_exe.append(hwnd)
-                else:
-                    cls = ctypes.create_unicode_buffer(256)
-                    user32.GetClassNameW(hwnd, cls, 256)
-                    if not cls.value.startswith(BROWSER_CLASSES):
-                        by_title.append(hwnd)
+            if user32.IsWindowVisible(hwnd) and is_game_window(hwnd):
+                games.append(hwnd)
             return True
         user32.EnumWindows(WNDENUMPROC(each), 0)
-        return (by_exe or by_title or [None])[0]
+        return (games or [None])[0]
 
     def bring_to_front(hwnd):
         """hwnd를 맨 앞으로. 윈도우는 뒤에 있는 프로그램이 포커스를 가져가는 것을 막으므로
@@ -184,7 +196,7 @@ if IS_WIN:
 
     def activate_game():
         """게임 창이 앞에 있으면 True. 아니면 불러와 보고 된 경우만 True — 원래 앞에 있던 창은 기억해 둔다"""
-        if is_game(foreground_title()):
+        if foreground_is_game():
             return True
         game = find_game()
         if not game:
@@ -195,12 +207,12 @@ if IS_WIN:
         if focus_saved['prev'] is None and prev and prev != game:
             focus_saved['prev'] = prev
         time.sleep(0.12)   # 앞으로 온 직후 첫 키를 게임이 흘리지 않게
-        return True
+        return user32.GetForegroundWindow() == game and is_game_window(game)
 
     def restore_focus():
         """activate_game 전에 앞에 있던 창으로 돌려놓는다 — 그새 사용자가 직접 다른 창으로 옮겼으면 그대로 둔다"""
         prev, focus_saved['prev'] = focus_saved['prev'], None
-        if not prev or not user32.IsWindow(prev) or not is_game(foreground_title()):
+        if not prev or not user32.IsWindow(prev) or not foreground_is_game():
             return False
         return bring_to_front(prev)
 
@@ -210,22 +222,28 @@ if IS_WIN:
         return user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT)) == 1
 
     def press(key, hold_ms):
-        if key in COMBOS:
-            keys = COMBOS[key]
+        keys = COMBOS[key] if key in COMBOS else [KEYS[key]]
+        pressed, ok = [], True
+        try:
             for scan, ext in keys:
-                if not send_scan(scan, ext, False):
-                    return False
-                time.sleep(0.02)
-            time.sleep(hold_ms / 1000)
-            ok = True
-            for scan, ext in reversed(keys):   # 누른 반대로 뗴다 — Ctrl을 먼저 떼면 V가 맨 글자로 들어간다
+                if not foreground_is_game() or not send_scan(scan, ext, False):
+                    ok = False
+                    break
+                pressed.append((scan, ext))
+                if len(keys) > 1:
+                    time.sleep(0.02)
+            if ok:
+                until = time.monotonic() + hold_ms / 1000
+                while time.monotonic() < until:
+                    if not foreground_is_game():
+                        ok = False
+                        break
+                    time.sleep(min(0.01, max(0, until - time.monotonic())))
+        finally:
+            # 두 번째 키 입력이 실패하거나 포커스가 바뀌어도 Ctrl 등을 반드시 해제한다.
+            for scan, ext in reversed(pressed):
                 ok = send_scan(scan, ext, True) and ok
-            return ok
-        scan, ext = KEYS[key]
-        if not send_scan(scan, ext, False):
-            return False
-        time.sleep(hold_ms / 1000)
-        return send_scan(scan, ext, True)
+        return ok
 
     # ── 클립보드 ───────────────
     # 자동 방장 봇이 인게임 채팅에 붙여넣기로 안내문을 보낸다. 게임 채팅은 한 글자씩 치는 것보다
@@ -263,6 +281,9 @@ if IS_WIN:
             kernel32.GlobalFree(handle)
             return False
         try:
+            if not foreground_is_game():
+                kernel32.GlobalFree(handle)
+                return False
             user32.EmptyClipboard()
             if not user32.SetClipboardData(CF_UNICODETEXT, handle):
                 kernel32.GlobalFree(handle)
@@ -273,6 +294,9 @@ if IS_WIN:
 else:
     def foreground_title():
         return ''
+
+    def foreground_is_game():
+        return False
 
     def activate_game():
         return False
@@ -355,13 +379,17 @@ class Handler(SimpleHTTPRequestHandler):
         return not origin or bool(ALLOWED_ORIGINS.match(origin))
 
     def _body(self):
-        n = int(self.headers.get('Content-Length') or 0)
-        if n <= 0 or n > 64 * 1024:
-            return None
         try:
-            return json.loads(self.rfile.read(n).decode('utf-8'))
+            n = int(self.headers.get('Content-Length') or 0)
+            if n <= 0 or n > 64 * 1024:
+                return None
+            return json.loads(self.rfile.read(n).decode('utf-8'), parse_constant=self._bad_json_constant)
         except ValueError:
             return None
+
+    @staticmethod
+    def _bad_json_constant(value):
+        raise ValueError('non-finite JSON number')
 
     def do_GET(self):
         if not self._host_ok():
@@ -407,28 +435,30 @@ class Handler(SimpleHTTPRequestHandler):
     def _key(self, data):
         key = data.get('key')
         hold = data.get('hold', 40)
-        if (key not in KEYS and key not in COMBOS) or not isinstance(hold, (int, float)) or not 10 <= hold <= 500:
+        if not isinstance(key, str) or (key not in KEYS and key not in COMBOS) or type(hold) not in (int, float) or not 10 <= hold <= 500:
             return self._json(400, {'ok': False, 'error': 'bad key'})
         if not IS_WIN:
             return self._json(200, {'ok': False, 'error': 'windows-only'})
         with key_lock:
             err = self._focus(data)
             if err:
-                return err
+                return self._json(200, err)
             if not press(key, hold):
+                if not foreground_is_game():
+                    return self._json(200, {'ok': False, 'error': 'focus', 'foreground': foreground_title()})
                 return self._json(200, {'ok': False, 'error': 'sendinput', 'code': ctypes.get_last_error()})
         return self._json(200, {'ok': True})
 
     # 맨 앞 창이 게임인지. activate가 참이면(자동 방장 봇) 게임 창을 앞으로 불러와 본다.
     # 성과 스캔은 activate를 안 보낸다 — 거기서는 '브라우저를 누르면 멈춘다'가 멈추는 방법이다.
-    # 게임이면 None, 아니면 돌려줄 거절 답
+    # 게임이면 None, 아니면 오류 데이터. 여기서 응답을 쓰면 _json의 None이 성공과 구별되지 않는다.
     def _focus(self, data):
         if data.get('activate') is True and activate_game():
             return None
         title = foreground_title()
-        if is_game(title):
+        if foreground_is_game():
             return None
-        return self._json(200, {'ok': False, 'error': 'focus', 'foreground': title})
+        return {'ok': False, 'error': 'focus', 'foreground': title}
 
     # 자동 방장 봇이 한 가지 일을 마치면 부른다 — 게임을 불러오기 전에 앞에 있던 창으로 돌려놓는다
     def _restore(self):
@@ -450,32 +480,35 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json(200, {'ok': False, 'error': 'windows-only'})
         with key_lock:
             err = self._focus(data)
-        if err:
-            return err
-        if not set_clipboard(text):
-            return self._json(200, {'ok': False, 'error': 'clipboard'})
+            if err:
+                return self._json(200, err)
+            if not set_clipboard(text):
+                return self._json(200, {'ok': False, 'error': 'clipboard'})
         return self._json(200, {'ok': True, 'text': text})
 
     def _upload(self, data):
         user_no, token, rec = data.get('userNo'), data.get('token'), data.get('record')
-        if not isinstance(user_no, int) or user_no <= 0 or not isinstance(token, str) or not UUID_RE.match(token):
+        if type(user_no) is not int or user_no <= 0 or not isinstance(token, str) or not UUID_RE.fullmatch(token):
             return self._json(400, {'ok': False, 'error': 'bad account'})
         if not isinstance(rec, dict):
             return self._json(400, {'ok': False, 'error': 'bad record'})
-        # 보내는 필드는 V-ARCHIVE 기록 등록 API가 받는 것만 골라 다시 만든다
-        try:
-            body = {'name': str(rec['name']), 'button': int(rec['button']), 'pattern': str(rec['pattern']),
-                    'score': float(rec['score']), 'maxCombo': 1 if rec.get('maxCombo') else 0}
-        except (KeyError, TypeError, ValueError):
+        name, button, pattern, score = (rec.get(k) for k in ('name', 'button', 'pattern', 'score'))
+        max_combo = rec.get('maxCombo', 0)
+        composer = rec.get('composer')
+        # 4.5B가 int 변환으로 4B가 되거나, 문자열 "false"가 MAX가 되는 것을 막는다.
+        if (not isinstance(name, str) or not name.strip() or type(button) is not int or button not in (4, 5, 6, 8)
+                or not isinstance(pattern, str) or pattern not in PATTERNS
+                or type(score) not in (int, float) or not 0 <= score <= 100 or not math.isfinite(score)
+                or type(max_combo) not in (bool, int) or max_combo not in (0, 1)
+                or (composer is not None and not isinstance(composer, str))):
             return self._json(400, {'ok': False, 'error': 'bad record'})
-        if body['button'] not in (4, 5, 6, 8) or body['pattern'] not in PATTERNS or not 0 <= body['score'] <= 100:
-            return self._json(400, {'ok': False, 'error': 'bad record'})
-        if rec.get('composer'):
-            body['composer'] = str(rec['composer'])
+        body = {'name': name, 'button': button, 'pattern': pattern, 'score': score, 'maxCombo': int(max_combo)}
+        if composer:
+            body['composer'] = composer
         req = urllib.request.Request(UPLOAD_URL.format(user_no), data=json.dumps(body, ensure_ascii=False).encode('utf-8'),
                                      method='POST', headers={'Content-Type': 'application/json', 'Authorization': token})
         try:
-            with urllib.request.urlopen(req, timeout=20) as res:
+            with upload_opener.open(req, timeout=20) as res:
                 return self._json(200, {'ok': True, 'status': res.status, 'body': res.read().decode('utf-8', 'replace')})
         except urllib.error.HTTPError as e:
             return self._json(200, {'ok': False, 'status': e.code, 'body': e.read().decode('utf-8', 'replace')})

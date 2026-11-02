@@ -904,7 +904,8 @@
         applyLock(on);
         if (!running) window.VMH.Tabs.forgetScene();
         if (!on) {
-            Object.assign(state, { rosterKey: null, rosterCount: 0, pairPrev: null, pairCount: 0, pairArt: {}, matchLocked: false, pairFailed: false, lobbyStreak: 0, awayStreak: 0, backPending: false });
+            // 수신을 잠깐 끄거나 연결을 다시 잡아도 같은 판이다. 다음 로비가 확인될 때만 판 잠금을 푼다.
+            Object.assign(state, { rosterKey: null, rosterCount: 0, pairPrev: null, pairCount: 0, pairArt: {}, lobbyCount: 0, pairFailed: false, lobbyStreak: 0, awayStreak: 0, backPending: false });
             resetDelays();
             setStatus(running ? '화면 공유를 층수 측정기에만 주는 중 — 옵션 탭에서 바꿀 수 있습니다'
                               : '게임 화면을 연결하면 입·퇴장과 대진이 자동으로 기록됩니다', 'idle');

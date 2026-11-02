@@ -33,6 +33,7 @@ function binarizeDifficulty(canvas) {
 }
 
 async function processImage(img, hash) {
+    const context = floorWorkContext();
     window.lastProcessedImg = img; statusLogs = []; resultList.innerHTML = '';
     const W = img.width, H = img.height, rows = [];
     if (currentMode === 'versus') {
@@ -43,14 +44,17 @@ async function processImage(img, hash) {
             row.matches = getSortedMatches(ah, dh, color); row.matchIndex = 0;
             row.jacketSig = jacketSig(img, x, y, tw, th); // 라운드/결과 화면에서 이 곡을 찾을 때 쓰는 기준
             Object.assign(row, barFeatures(img, x, by, tw, bh));
-            displayMatch(row, 0);
+            row.ready = displayMatch(row, 0, context);
         }
+        await Promise.all(rows.map(row => row.ready));
     } else {
         const row = createLoadingRow(1); resultList.appendChild(row); rows.push(row);
         const { matches } = readGeneralJacket(img, W, H), best = matches[0], data = await ensureSongData(best.id);
+        if (!floorWorkCurrent(context)) { URL.revokeObjectURL(img.src); return; }
         row.matches = matches; row.matchIndex = 0; updateGeneralRow(row, data, best.id);
     }
-    addShot(img.src, rows, hash);
+    if (!floorWorkCurrent(context)) { URL.revokeObjectURL(img.src); return; }
+    addShot(img.src, rows, hash, context.mode);
 }
 
 function circledLevel(level) {
@@ -174,14 +178,18 @@ function updateGeneralRow(row, data, titleId) {
     `;
 }
 
-async function displayMatch(row, index) {
+async function displayMatch(row, index, context = floorWorkContext()) {
+    const request = row.renderRequest = (row.renderRequest || 0) + 1;
+    const current = () => floorWorkCurrent(context) && row.renderRequest === request;
     if (row.patternUnknown) {
         // 라운드 화면의 밴 칸은 자켓만 보여서 난이도를 알 수 없다 — 버튼은 같은 판 라운드에서 가져온다
         const id = row.matches[index].id, d = await ensureSongData(id), ok = !!(d && d.success);
+        if (!current()) return;
         updateRow(row, { titleId: id, name: ok ? d.name : "NO DATA", button: row.patternButton, difficulty: "SC", floorName: "NO DATA", floor: "-", level: 0, fromLope: ok && d.fromLope, noData: !ok });
         return;
     }
     const m = row.matches[index], bM = bestMatch(row.btnPh, row.btnColor, buttonRefs), dM = row.diffBox ? null : bestMatch(row.diffPh, null, diffRefs), btn = bM.key || "4B", diff = row.diffBox || dM.key || "SC", tId = m.id, d = await ensureSongData(tId);
+    if (!current()) return;
     if (d && d.success) {
         row.apiData = d; const p = d.patterns?.[btn]?.[diff], fV = p?.floor ?? "-", fN = patternFloorName(p);
         updateRow(row, { titleId: tId, name: d.name, button: btn, difficulty: diff, floorName: fN, floor: fV, level: p?.level || 0, fromLope: d.fromLope });
@@ -461,7 +469,11 @@ document.addEventListener('click', (e) => {
 async function handleRecheck(btn) {
     const r = btn.closest('.track-row'); if (!r || !r.matches) return;
     r.matchIndex = (r.matchIndex + 1) % Math.min(r.matches.length, 10);
-    if (currentMode === 'general') { const m = r.matches[r.matchIndex], d = await ensureSongData(m.id); updateGeneralRow(r, d, m.id); }
+    if (currentMode === 'general') {
+        const context = floorWorkContext(), request = r.renderRequest = (r.renderRequest || 0) + 1;
+        const m = r.matches[r.matchIndex], d = await ensureSongData(m.id);
+        if (floorWorkCurrent(context) && r.renderRequest === request) updateGeneralRow(r, d, m.id);
+    }
     else displayMatch(r, r.matchIndex);
 }
 
