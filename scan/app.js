@@ -169,7 +169,7 @@
         }
         return null;
     }
-    const NO_HELPER = '도우미 프로그램이 꺼져 있습니다 — 위의 "도우미 프로그램 받기"로 받아 켠 뒤 다시 누르세요';
+    const NO_HELPER = '도우미를 실행한 뒤 다시 시도하세요. 처음이라면 준비 목록에서 다운로드하세요.';
 
     // ── 곡 DB ─────────────────
     // songDatabase(곡 정보)와 sigTable(자켓)은 층수 측정기가 페이지를 열 때 받아 둔다
@@ -191,8 +191,8 @@
 
     function itemReasons(item) {
         const out = [];
-        if (!songOf(item.id)) out.push('DB에 없는 곡');
-        if (!item.sure) out.push('자켓 애매');
+        if (!songOf(item.id)) out.push('곡 정보 없음');
+        if (!item.sure) out.push('곡 확인 필요');
         if (item.dup) out.push('같은 곡이 두 번 읽힘');
         item.cells.forEach(c => { if (c.flags.length) out.push(c.button + 'B ' + c.pattern + ' ' + c.flags.join('·')); });
         return out;
@@ -370,27 +370,26 @@
     // 도우미 상태 한 줄 (켜기·받기·다시 확인 단추 포함) — 방장 봇 탭도 같은 줄을 쓴다 (auto-host.js).
     // 단추는 data-act="helper-open" | "helper-retry"라, 그 줄을 담은 곳이 onHelperClick으로 넘긴다
     // need = 이 도우미가 어디에 필요한지 (탭마다 다르다)
-    function helperHtml(need) {
+    function helperHtml(need, compact = false) {
         const h = state.helper;
-        if (h && !(h.version >= HELPER_MIN_VERSION)) return '도우미 업데이트가 필요합니다 — '
-            + '<a href="' + HELPER_DOWNLOAD + '" download>새 도우미 프로그램 받기</a>로 받아 기존 프로그램을 끄고 다시 실행하세요. '
-            + '<button type="button" class="scan-link" data-act="helper-retry">다시 확인</button>';
+        const name = compact ? '' : '도우미 ';
+        if (h && !(h.version >= HELPER_MIN_VERSION)) return '도우미 업데이트 필요 '
+            + '<a class="scan-helper-dl" href="' + HELPER_DOWNLOAD + '" download>새 버전 받기</a> '
+            + '<button type="button" class="secondary scan-inline-btn" data-act="helper-retry">다시 확인</button>'
+            + '<br><small>기존 도우미를 종료하고 새 버전을 실행하세요.</small>';
         return h
-            ? '도우미 연결됨' + (h.exe ? ' (프로그램)' : ' (start.bat)') + (h.windows ? '' : ' — Windows가 아니라 키 입력 불가')
-            : state.lnaAsking ? '<span>브라우저 주소창 아래 권한 창에서 <b>"이 기기의 다른 앱 및 서비스에 액세스"</b>를 <b>허용</b>하세요 — 도우미 프로그램에 연결하는 데 필요합니다.</span>'
-            : !state.helperChecked ? '도우미 확인 중…'
-            : state.lnaDenied ? '<span>브라우저가 이 사이트의 <b>"이 기기의 다른 앱 및 서비스에 액세스"</b>를 막아 두어 도우미 프로그램에 연결할 수 없습니다 — ' +
-              '주소창 왼쪽 <b>사이트 설정</b>에서 그 권한(로컬 네트워크 접근)을 <b>허용</b>으로 바꾸고 새로고침하세요. ' +
-              '(프로그램이 아직 없으면 <a class="scan-helper-dl" href="' + HELPER_DOWNLOAD + '" download>도우미 프로그램 받기</a>)</span>'
-            : state.launching ? '<span>도우미 프로그램을 켜는 중입니다 — 브라우저가 <b>"vmh-helper을(를) 여시겠습니까?"</b>를 물으면 <b>열기</b>를 누르세요. (다음부터 안 묻게 하려면 "항상 허용"을 같이 체크)</span>'
-            : '<span>도우미 프로그램이 꺼져 있습니다 — ' +
+            ? name + '준비됨' + (h.windows ? '' : ' · 자동 키 입력은 Windows에서만 지원')
+            : state.lnaAsking ? '<span>연결 권한을 허용해 주세요.<br><small>브라우저의 <b>"이 기기의 다른 앱 및 서비스에 액세스"</b>에서 <b>허용</b>을 선택하세요.</small></span>'
+            : !state.helperChecked ? name + '연결 확인 중…'
+            : state.lnaDenied ? '<span>연결 권한이 차단되어 있습니다.<br><small>주소창의 <b>사이트 설정</b>에서 로컬 네트워크 접근을 허용한 뒤 새로고침하세요.</small></span>'
+            : state.launching ? '<span>도우미 실행 확인 중…<br><small>프로그램을 열지 묻는 창이 나타나면 <b>열기</b>를 누르세요.</small></span>'
+            : '<span>' + name + '실행 필요 ' +
               (IS_WIN ? '<button type="button" class="secondary scan-inline-btn" data-act="helper-open">도우미 켜기</button> ' : '') +
-              '<a class="scan-helper-dl" href="' + HELPER_DOWNLOAD + '" download>도우미 프로그램 받기</a> (vmh-helper.exe, 설치 없음) ' +
+              '<a class="scan-helper-dl" href="' + HELPER_DOWNLOAD + '" download>처음 사용: 다운로드</a> ' +
               '<button type="button" class="secondary scan-inline-btn" data-act="helper-retry">다시 확인</button>' +
               '<br><small>' + (state.launchFailed
-                ? '<b>프로그램이 뜨지 않았습니다.</b> 받은 뒤 <b>한 번은 직접 실행</b>해야 "도우미 켜기"가 동작합니다 — 그때 이 단추가 쓰는 주소가 등록됩니다. 그 뒤로는 여기서 켜면 됩니다. '
-                : '') +
-              need + ' 켜면 창 없이 트레이(시계 옆)에 아이콘만 생깁니다. 켰는데도 안 되면 주소창 왼쪽 사이트 설정에서 "이 기기의 다른 앱 및 서비스에 액세스"(로컬 네트워크 접근)가 허용인지 확인하세요.</small></span>';
+                ? '실행을 확인하지 못했습니다. 받은 파일을 직접 실행한 뒤 <b>다시 확인</b>을 누르세요.'
+                : '처음에는 다운로드한 파일을 직접 실행하세요. ' + esc(need)) + '</small></span>';
     }
     function onHelperClick(e) {
         if (e.target.dataset.act === 'helper-retry') checkHelper();
@@ -402,12 +401,12 @@
         const ok = (b) => b ? '<span class="ok">●</span>' : '<span class="no">●</span>';
         const h = state.helper;
         helperListeners.forEach(cb => { try { cb(); } catch (e) { console.error('[Scan]', e); } });
+        const check = (ready, name, text) => '<li>' + ok(ready) + '<span class="scan-check-name">' + name + '</span><div>' + text + '</div></li>';
         $('scan-checks').innerHTML = [
-            ok(!!h && h.version >= HELPER_MIN_VERSION) + helperHtml('곡 넘기기·업로드에 필요합니다.'),
-            ok(Hub.isRunning()) + (Hub.isRunning() ? '게임 화면 연결됨' : '게임 화면이 연결되지 않았습니다 — 오른쪽 위 <b>게임 화면 연결</b>'),
-            ok(dbReady()) + (dbReady() ? '곡 정보 ' + Object.keys(songDatabase).length + '곡 · 자켓 ' + jackets().length + '개' : '곡 정보·자켓 해시를 받는 중 (층수 측정기 탭 상태 참고)'),
-            ok(!!opts.dj) + (opts.dj ? 'DJ 이름: ' + esc(opts.dj) : 'DJ 이름이 없습니다 — <b>옵션 탭</b>에서 넣으세요 (서버 기록 비교에 필요)')
-        ].map(s => '<li>' + s + '</li>').join('');
+            check(!!h && h.version >= HELPER_MIN_VERSION, '도우미', helperHtml('자동 스캔과 업로드에 필요합니다.', true)),
+            check(Hub.isRunning(), '게임 화면', Hub.isRunning() ? '연결됨' : '헤더의 <b>게임 화면 연결</b>을 누르세요.'),
+            check(dbReady(), '곡 정보', dbReady() ? '준비됨' : '불러오는 중…')
+        ].join('');
     }
 
     function renderButtons() {
@@ -426,8 +425,8 @@
     function renderList() {
         renderProgress();
         const f = filter(), items = state.items;
-        const checkN = items.filter(needsCheck).length, inc = items.filter(it => it.include).length;
-        $('scan-count').textContent = items.length ? '— ' + items.length + '곡 · 확인 필요 ' + checkN + ' · 올릴 대상 ' + inc : '';
+        const inc = items.filter(it => it.include).length;
+        $('scan-count').textContent = items.length ? '· ' + items.length + '곡 · 선택 ' + inc + '곡' : '';
         const shown = f === 'all' ? items : items.filter(needsCheck);
         const list = $('scan-list');
         if (!items.length) { list.innerHTML = '<p class="scan-empty">아직 읽은 곡이 없습니다.</p>'; return; }
@@ -441,13 +440,13 @@
         const recN = item.cells.filter(c => c.score !== null).length;
         const badges = (item.edited ? '<span class="tag scan-tag-edit">고침</span>' : '') +
             (reasons.length ? reasons.map(r => '<span class="tag scan-tag-warn">' + esc(r) + '</span>').join('')
-            : '<span class="tag scan-tag-ok">확실</span>');
+            : '<span class="tag scan-tag-ok">판독 완료</span>');
         return '<div class="scan-item' + (check ? ' need' : '') + '" data-seq="' + item.seq + '">' +
-            '<label class="scan-inc" title="올릴 대상에 넣기"><input type="checkbox" data-act="include"' + (item.include ? ' checked' : '') + '></label>' +
+            '<label class="scan-inc" title="업로드할 곡 선택"><input type="checkbox" data-act="include"' + (item.include ? ' checked' : '') + '></label>' +
             '<img class="scan-thumb" src="' + item.thumb + '" alt="" title="찍힌 자켓">' +
             '<img class="scan-jacket" src="' + esc(jacketUrl(item.id)) + '" alt="" title="맞춘 곡의 자켓" loading="lazy">' +
-            '<div class="scan-info"><div class="scan-name">' + esc(s ? s.name : '곡 id ' + item.id) + '</div>' +
-            '<div class="scan-sub">' + esc(s ? s.composer || '' : '') + ' · 기록 ' + recN + '칸 · 자켓 거리 ' + item.jd.toFixed(1) + '</div>' +
+            '<div class="scan-info"><div class="scan-name">' + esc(s ? s.name : '곡을 확인해 주세요') + '</div>' +
+            '<div class="scan-sub">' + (s && s.composer ? esc(s.composer) + ' · ' : '') + '기록 ' + recN + '개</div>' +
             '<div class="scan-badges">' + badges + '</div></div>' +
             '<button class="secondary scan-more" data-act="more">자세히</button>' +
             '<div class="scan-detail" hidden></div></div>';
@@ -490,7 +489,7 @@
         if (keepOpen) { const d = box.querySelector('.scan-detail'); d.innerHTML = detailHtml(item); d.hidden = false; box.querySelector('[data-act="more"]').textContent = '접기'; }
         old.replaceWith(box);
         const items = state.items;
-        $('scan-count').textContent = '— ' + items.length + '곡 · 확인 필요 ' + items.filter(needsCheck).length + ' · 올릴 대상 ' + items.filter(it => it.include).length;
+        $('scan-count').textContent = '· ' + items.length + '곡 · 선택 ' + items.filter(it => it.include).length + '곡';
         renderDiff();
     }
 
@@ -635,8 +634,8 @@
         const box = $('scan-diff');
         if (!state.server) { box.innerHTML = ''; updateUploadBtn([]); return; }
         const { up, lower, conflicts } = diffRows();
-        $('scan-compare-note').textContent = state.serverDj + ' 기록과 비교 — 올라간 칸 ' + up.length + '개' + (lower.length ? ' · 서버보다 낮게 읽힌 칸 ' + lower.length + '개' : '')
-            + (conflicts.size ? ' · 중복 판독 충돌 ' + conflicts.size + '칸 (검토 목록에서 같은 곡 하나만 선택하세요)' : '');
+        $('scan-compare-note').textContent = state.serverDj + ' · 갱신 가능 ' + up.length + '개' + (lower.length ? ' · 낮게 읽힌 기록 ' + lower.length + '개 제외' : '')
+            + (conflicts.size ? ' · 같은 곡의 기록이 다릅니다. 검토 목록에서 하나만 선택하세요 (' + conflicts.size + '개)' : '');
         const rowHtml = (r, selectable) => {
             const s = songOf(r.item.id), res = resultOf(r);
             return '<tr data-key="' + esc(r.key) + '">' +
@@ -652,7 +651,7 @@
             ? '<table class="scan-diff-table">' + head(true) + '<tbody>' + up.map(r => rowHtml(r, true)).join('') + '</tbody></table>'
             : '<p class="scan-empty">서버보다 좋아진 칸이 없습니다.</p>';
         if (lower.length) {
-            html += '<details class="scan-lower"><summary>서버 기록보다 낮게 읽힌 칸 ' + lower.length + '개 — 오인식일 수 있으니 해당 곡을 확인해 보세요 (올리지 않습니다)</summary>' +
+            html += '<details class="scan-lower"><summary>서버보다 낮은 기록 ' + lower.length + '개 · 업로드에서 제외</summary>' +
                 '<table class="scan-diff-table">' + head(false) + '<tbody>' + lower.map(r => rowHtml(r, false)).join('') + '</tbody></table></details>';
         }
         box.innerHTML = html;
@@ -680,19 +679,19 @@
         const summary = $('scan-summary');
         if (summary) summary.textContent = !state.items.length ? '스캔하거나 스크린샷을 불러오세요.'
             : '읽은 곡 ' + state.items.length + ' · 확인 필요 ' + checkN
-                + (compared ? ' · 갱신 대상 ' + up.length + '칸' : ' · 서버 비교 전');
+                + (compared ? ' · 업로드 대상 ' + up.length + '개' : ' · 서버 비교 전');
         const context = $('scan-context');
-        if (context) context.textContent = 'DJ ' + (opts.dj || '미설정') + ' · 계정 번호 '
-            + (state.account ? state.account.userNo : '미선택') + ' · 선택 ' + selected.length + '칸';
+        if (context) context.textContent = '비교할 DJ: ' + (opts.dj || '설정 필요') + ' · 업로드 계정: '
+            + (state.account ? state.account.userNo : '설정 필요') + ' · 선택 ' + selected.length + '개';
         const result = $('scan-upload-summary');
         if (result) {
             result.hidden = !success && !failed && !state.uploading;
-            result.textContent = '선택 기록 — 성공 ' + success + ' · 실패 ' + failed + ' · 남음 ' + remaining;
+            result.textContent = '선택한 기록: 성공 ' + success + ' · 실패 ' + failed + ' · 아직 보내지 않음 ' + remaining;
         }
         const retry = $('scan-retry-btn');
         if (retry) {
             retry.hidden = !failed;
-            retry.textContent = '실패한 선택 기록만 재시도 (' + failed + ')';
+            retry.textContent = '선택한 실패 기록 재시도 (' + failed + ')';
             retry.disabled = state.uploading || state.running || state.readingImages || state.comparing || !state.account;
         }
     }
@@ -737,7 +736,7 @@
         const a = state.account;
         $('scan-account-note').textContent = msg || (a ? '계정 번호 ' + a.userNo + ($('scan-account-remember').checked ? ' — 이 브라우저에 기억함' : ' — 페이지를 닫으면 잊습니다') : '고른 파일이 없습니다');
         $('scan-account-clear').hidden = !a;
-        $('scan-account-state').innerHTML = a ? '계정 번호 ' + a.userNo + ' (옵션 탭)' : '올리려면 <b>옵션 탭</b>에서 account.txt를 고르세요';
+        $('scan-account-state').innerHTML = '<button type="button" class="secondary" data-scan-options>업로드 설정</button>';
         updateUploadBtn(diffRows().up);
     }
     function readAccount(file) {
@@ -746,7 +745,7 @@
         reader.onload = () => {
             if (state.uploading) return;
             const a = parseAccount(reader.result);
-            if (!a) { renderAccount('계정 파일 형식이 아닙니다 (첫 줄: 번호 토큰)' + (state.account ? ' — 먼저 고른 계정 ' + state.account.userNo + '을 그대로 씁니다' : '')); return; }
+            if (!a) { renderAccount('V-ARCHIVE 클라이언트 폴더의 account.txt를 선택하세요.' + (state.account ? ' 기존 계정 ' + state.account.userNo + '은 유지됩니다.' : '')); return; }
             state.account = a; state.skip.clear(); storeAccount(); renderAccount(); renderDiff();
         };
         reader.readAsText(file);
@@ -840,6 +839,12 @@
         $('scan-diff').addEventListener('change', onDiffChange);
         $('scan-compare-btn').addEventListener('click', async () => { if (await loadServer()) renderDiff(); });
         $('scan-checks').addEventListener('click', onHelperClick);
+        $('scan-account-state').addEventListener('click', (e) => {
+            if (e.target.closest('[data-scan-options]')) {
+                VMH.Tabs.show('options');
+                $('opt-scan').scrollIntoView({ block: 'start', behavior: 'smooth' });
+            }
+        });
         $('scan-upload-btn').addEventListener('click', () => upload());
         if ($('scan-retry-btn')) $('scan-retry-btn').addEventListener('click', () => upload(true));
         $('scan-dj-input').addEventListener('change', () => { renderChecks(); renderProgress(); if (state.server && state.serverDj !== opts.dj) { state.server = null; renderDiff(); $('scan-compare-note').textContent = 'DJ 이름이 바뀌었습니다 — 다시 비교하세요'; } });

@@ -1473,7 +1473,7 @@ function formatTierCopyText(x) {
    (스시 9~15는 패드에 대응이 없어서 축 오른쪽 끝으로 삐져나간다 — 빗금 친 구간)
 
    · 칸을 누르면 방 공지에 붙여넣을 문구가 복사된다
-   · 하위 등급(I~IV)은 기본으로 펼쳐져 있고, 티어 이름을 누르면 접을 수 있다 */
+   · 세부 티어마다 한 줄씩 표시하며, 상위 티어의 합산 범위는 만들지 않는다 */
 const TIER_LEVEL_MAX = 15;      // 패드·스시 모두 15레벨까지
 const TIER_SC_ORIGIN = 11;      // 스시 0레벨 자리 = 패드 11 끝 (그래서 스시 2가 패드 12와 같은 자리)
 
@@ -1482,24 +1482,6 @@ const tierScX = (lv) => TIER_SC_ORIGIN + lv / 2;          // 스시 lv칸의 오
 const TIER_X_MAX = tierScX(TIER_LEVEL_MAX);               // 축 전체 길이 (= 18.5)
 const tierPct = (x) => (x / TIER_X_MAX) * 100;
 const tierAxisX = (kind, lv) => (kind === 'pad' ? tierPadX(lv) : tierScX(lv));
-
-// 같은 티어끼리 묶는다 (DIAMOND I~IV → DIAMOND 한 묶음)
-function tierGroups() {
-  const out = [];
-  TIER_DIFFICULTY.forEach((x, idx) => {
-    const last = out[out.length - 1];
-    if (last && last.tier === x.tier) last.items.push({ x, idx });
-    else out.push({ tier: x.tier, items: [{ x, idx }] });
-  });
-  return out;
-}
-
-// 접힌 티어의 막대 = 하위 등급을 전부 아우르는 범위
-function tierUnionRange(items, key) {
-  const rs = items.map(it => it.x[key]).filter(r => Array.isArray(r) && r.length >= 2 && r[0] != null);
-  if (!rs.length) return null;
-  return [Math.min(...rs.map(r => r[0])), Math.max(...rs.map(r => r[1]))];
-}
 
 /* 그 난이도 체계에 자리가 없는 구간(패드는 12 위쪽 절반, 스시는 패드 11 아래쪽)을 빗금으로 덮는다 */
 function tierOutOfBoundsHtml(kind) {
@@ -1523,13 +1505,11 @@ function tierBarHtml(kind, label, range) {
          `</div></div>`;
 }
 
-function tierRowHtml(o) {
-  const copyable = (o.idx != null);
-  const attr = copyable ? `data-tier-idx="${o.idx}"` : 'data-tier-toggle="1" aria-expanded="true"';
-  const title = copyable ? ' title="클릭하면 복사됩니다"' : ' title="클릭하면 하위 등급이 접힙니다"';
-  return `<div class="tier-row ${o.cls}" ${attr} role="button" tabindex="0"${title}>` +
-           `<div class="tier-name"><span class="tier-icon">${o.icon}</span><span>${escapeHtml(o.name)}</span></div>` +
-           `<div class="tier-bars">${tierBarHtml('pad', '패드', o.pad)}${tierBarHtml('sc', '스시', o.sc)}</div>` +
+function tierRowHtml(x, idx) {
+  const name = x.div ? `${x.tier} ${x.div}` : x.tier;
+  return `<div class="tier-row tier-entry" data-tier="${escapeHtml(x.tier)}" data-tier-idx="${idx}" role="button" tabindex="0" title="클릭하면 복사됩니다">` +
+           `<div class="tier-name"><span>${escapeHtml(name)}</span></div>` +
+           `<div class="tier-bars">${tierBarHtml('pad', '패드', x.pad)}${tierBarHtml('sc', '스시', x.sc)}</div>` +
          `</div>`;
 }
 
@@ -1555,47 +1535,17 @@ function renderTierChart() {
   const scale = `<div class="tier-row tier-scale"><div class="tier-name tier-scale-label">레벨</div>` +
                 `<div class="tier-bars">${axisBar('pad', '패드')}${axisBar('sc', '스시')}</div></div>`;
 
-  const groups = tierGroups().map(g => {
-    // GRAND MASTER·MASTER처럼 하위 등급이 없는 티어는 제목 줄이 곧 복사 대상
-    const solo = g.items.length === 1 && !g.items[0].x.div;
-    const head = solo
-      ? tierRowHtml({ cls: 'tier-head', idx: g.items[0].idx, name: g.tier, pad: g.items[0].x.pad, sc: g.items[0].x.sc, icon: '📋' })
-      : tierRowHtml({ cls: 'tier-head', name: g.tier, pad: tierUnionRange(g.items, 'pad'), sc: tierUnionRange(g.items, 'sc'), icon: '▼' });
-    const subs = solo ? '' :
-      `<div class="tier-subs">` +
-        g.items.map(it => tierRowHtml({ cls: 'tier-sub', idx: it.idx, name: g.tier + ' ' + it.x.div, pad: it.x.pad, sc: it.x.sc, icon: '📋' })).join('') +
-      `</div>`;
-    return `<div class="tier-group" data-tier="${escapeHtml(g.tier)}">${head}${subs}</div>`;
-  }).join('');
-
-  host.innerHTML = scale + groups;
-}
-
-function setTierGroupOpen(headRow, open) {
-  const subs = headRow.parentElement.querySelector('.tier-subs');
-  if (!subs) return;
-  subs.hidden = !open;
-  headRow.setAttribute('aria-expanded', open ? 'true' : 'false');
-  headRow.classList.toggle('open', open);
-  headRow.title = open ? '클릭하면 하위 등급이 접힙니다' : '클릭하면 하위 등급이 펼쳐집니다';
-  const icon = headRow.querySelector('.tier-icon');
-  if (icon) icon.textContent = open ? '▼' : '▶';
+  host.innerHTML = scale + TIER_DIFFICULTY.map(tierRowHtml).join('');
 }
 
 function initTierUI() {
   const host = document.getElementById('tier-chart');
   const msg = document.getElementById('tier-copy-msg');
-  const expandBtn = document.getElementById('tier-expand-btn');
   if (!host) return;
 
   renderTierChart();
 
   const activate = (row) => {
-    if (row.dataset.tierToggle) {
-      setTierGroupOpen(row, row.getAttribute('aria-expanded') !== 'true');
-      syncExpandBtn();
-      return;
-    }
     const x = TIER_DIFFICULTY[parseInt(row.dataset.tierIdx, 10)];
     if (!x) return;
     const text = formatTierCopyText(x);
@@ -1608,33 +1558,17 @@ function initTierUI() {
   };
 
   host.addEventListener('click', (e) => {
-    const row = e.target.closest('.tier-row');
+    const row = e.target.closest('.tier-row[data-tier-idx]');
     if (row) activate(row);
   });
   host.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
-    const row = e.target.closest('.tier-row');
+    const row = e.target.closest('.tier-row[data-tier-idx]');
     if (!row) return;
     e.preventDefault();
     activate(row);
   });
 
-  function syncExpandBtn() {
-    if (!expandBtn) return;
-    const heads = [...host.querySelectorAll('.tier-row[data-tier-toggle]')];
-    const allOpen = heads.length > 0 && heads.every(h => h.getAttribute('aria-expanded') === 'true');
-    expandBtn.setAttribute('aria-pressed', allOpen ? 'true' : 'false');
-    expandBtn.textContent = allOpen ? '－ 모두 접기' : '＋ 모두 펼치기';
-  }
-
-  if (expandBtn) {
-    expandBtn.addEventListener('click', () => {
-      const open = expandBtn.getAttribute('aria-pressed') !== 'true';
-      host.querySelectorAll('.tier-row[data-tier-toggle]').forEach(h => setTierGroupOpen(h, open));
-      syncExpandBtn();
-    });
-  }
-  syncExpandBtn();
 }
 
 (function initCopyButtons(){

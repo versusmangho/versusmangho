@@ -186,12 +186,11 @@ input:checked + .slider:before { transform: translateX(14px); }
 .tier-chart { contain: layout style; }
 .tier-chart { --tier-name-w: 152px; --tier-kind-w: 30px; margin-top: 4px; }
 .tier-row { display: grid; grid-template-columns: var(--tier-name-w) 1fr; gap: 12px; align-items: center; padding: 7px 10px; border-radius: var(--radius-sm); }
-.tier-row[data-tier-idx], .tier-row[data-tier-toggle] { cursor: pointer; transition: background .15s; }
-.tier-row[data-tier-idx]:hover, .tier-row[data-tier-toggle]:hover { background: rgba(255, 255, 255, 0.05); }
+.tier-row[data-tier-idx] { cursor: pointer; transition: background .15s; }
+.tier-row[data-tier-idx]:hover { background: rgba(255, 255, 255, 0.05); }
 .tier-row:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: -2px; }
 .tier-name { display: flex; align-items: center; gap: 5px; min-width: 0; font-family: var(--font-num); font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em; }
 .tier-name > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tier-icon { flex: none; width: 15px; font-size: 11px; line-height: 1; color: var(--text-dim); }
 .tier-bars { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .tier-bar { display: grid; grid-template-columns: var(--tier-kind-w) 1fr; gap: 8px; align-items: center; }
 .tier-bar-kind { font-size: 10px; color: var(--text-dim); white-space: nowrap; }
@@ -219,28 +218,20 @@ input:checked + .slider:before { transform: translateX(14px); }
 .tier-fill.sc  { background: linear-gradient(90deg, #7c3aed, #c084fc); box-shadow: 0 2px 10px rgba(168, 85, 247, 0.3); }
 .tier-none { position: absolute; left: 0; top: 0; bottom: 0; display: flex; align-items: center; padding-left: 8px; font-size: 9px; color: var(--text-dim); letter-spacing: 0.04em; }
 
-.tier-head { border-top: 1px solid var(--border-color); }
-.tier-group:first-child .tier-head { border-top: 0; }
-/* 하위 등급은 이름 칸에서만 들여쓴다 — 막대 칸을 밀면 위아래 줄의 눈금이 어긋난다 */
-.tier-subs { position: relative; margin: 0 0 8px; }
-.tier-subs::before { content: ''; position: absolute; left: 9px; top: 2px; bottom: 2px; width: 2px; border-radius: 2px; background: rgba(59, 130, 246, 0.25); }
-.tier-sub .tier-name { padding-left: 18px; }
-.tier-sub { padding-top: 4px; padding-bottom: 4px; }
-.tier-sub .tier-name { font-size: 11px; font-weight: 400; color: var(--text-secondary); }
-.tier-sub .tier-track { height: 13px; }
-.tier-head .tier-track { height: 17px; }
+.tier-entry { border-bottom: 1px solid var(--border-color); }
+.tier-entry:last-child { border-bottom: 0; }
 .tier-row.copied { animation: tierCopied .7s ease; }
 @keyframes tierCopied { 0% { background: rgba(59, 130, 246, 0.35); } 100% { background: transparent; } }
 
 /* 티어 이름 색 — 게임 안 티어 색을 흉내 낸다 */
-.tier-group[data-tier="GRAND MASTER"] .tier-head .tier-name { color: #f0abfc; }
-.tier-group[data-tier="MASTER"]       .tier-head .tier-name { color: #fca5a5; }
-.tier-group[data-tier="DIAMOND"]      .tier-head .tier-name { color: #7dd3fc; }
-.tier-group[data-tier="PLATINUM"]     .tier-head .tier-name { color: #5eead4; }
-.tier-group[data-tier="GOLD"]         .tier-head .tier-name { color: #fcd34d; }
-.tier-group[data-tier="SILVER"]       .tier-head .tier-name { color: #cbd5e1; }
-.tier-group[data-tier="BRONZE"]       .tier-head .tier-name { color: #d6a77a; }
-.tier-group[data-tier="IRON"]         .tier-head .tier-name { color: #94a3b8; }
+.tier-entry[data-tier="GRAND MASTER"] .tier-name { color: #f0abfc; }
+.tier-entry[data-tier="MASTER"]       .tier-name { color: #fca5a5; }
+.tier-entry[data-tier="DIAMOND"]      .tier-name { color: #7dd3fc; }
+.tier-entry[data-tier="PLATINUM"]     .tier-name { color: #5eead4; }
+.tier-entry[data-tier="GOLD"]         .tier-name { color: #fcd34d; }
+.tier-entry[data-tier="SILVER"]       .tier-name { color: #cbd5e1; }
+.tier-entry[data-tier="BRONZE"]       .tier-name { color: #d6a77a; }
+.tier-entry[data-tier="IRON"]         .tier-name { color: #94a3b8; }
 
 @media (max-width: 720px) {
   header { padding: 10px 12px; gap: 10px; }
@@ -251,7 +242,6 @@ input:checked + .slider:before { transform: translateX(14px); }
   .tier-chart { --tier-name-w: 104px; --tier-kind-w: 24px; }
   .tier-row { gap: 8px; padding: 6px; }
   .tier-name { font-size: 10px; }
-  .tier-sub .tier-name { padding-left: 12px; }
   .tier-tick { font-size: 8px; }
   .tier-ticks.sc .tier-tick.t-odd { display: none; }   /* 스시 눈금은 반 칸 간격이라 좁으면 겹친다 */
 }
@@ -498,6 +488,14 @@ body.sharing .top-grid { grid-template-columns: 1fr; }
 .scan-checks .ok { color: var(--good); }
 .scan-checks .no { color: var(--warn); }
 .scan-checks code { font-size: 12px; }
+#scan-checks > li { display: grid; grid-template-columns: 10px 64px minmax(0, 1fr); align-items: baseline; gap: 8px; padding: 4px 0; }
+.scan-check-name { color: var(--text-primary); font-weight: 600; }
+#scan-checks > li > div { min-width: 0; line-height: 1.7; }
+#scan-checks a { white-space: nowrap; }
+.scan-help-details { margin-top: 16px; border-top: 1px solid var(--border-color); }
+.scan-help-details > summary { padding: 12px 0; cursor: pointer; font-size: 13px; font-weight: 600; }
+#help-scan h4 { margin: 20px 0 8px; font-size: 14px; color: var(--text-primary); }
+#opt-scan { scroll-margin-top: calc(var(--header-height, 160px) + 16px); }
 .scan-actions { flex-wrap: wrap; margin: 0 0 12px; }
 .scan-actions button:disabled, #scan-upload-btn:disabled, #scan-clear-btn:disabled { opacity: 0.4; cursor: default; }
 .scan-spacer { flex: 1; }
@@ -660,13 +658,13 @@ body.sharing .top-grid { grid-template-columns: 1fr; }
 :root[data-theme="light"] .floor-scope .memo-chip { color: #854d0e; background: #fef3c7; }
 :root[data-theme="light"] .floor-scope .memo-suggest { color: var(--text-secondary); }
 :root[data-theme="light"] .floor-scope kbd { background: var(--bg-sunken); color: var(--text-primary); }
-:root[data-theme="light"] .tier-group .tier-head .tier-name { color: #334155; }
+:root[data-theme="light"] .tier-entry .tier-name { color: #334155; }
 :root[data-theme="light"] .tier-track { background-color: var(--bg-sunken); background-image: repeating-linear-gradient(to right, rgba(30,55,90,.1) 0 1px, transparent 1px calc(100% / 18.5)); }
-:root[data-theme="light"] .tier-group[data-tier="GRAND MASTER"] .tier-name { color: #86198f; }
-:root[data-theme="light"] .tier-group[data-tier="MASTER"] .tier-name { color: #9f1239; }
-:root[data-theme="light"] .tier-group[data-tier="DIAMOND"] .tier-name { color: #075985; }
-:root[data-theme="light"] .tier-group[data-tier="PLATINUM"] .tier-name { color: #115e59; }
-:root[data-theme="light"] .tier-group[data-tier="GOLD"] .tier-name { color: #854d0e; }
+:root[data-theme="light"] .tier-entry[data-tier="GRAND MASTER"] .tier-name { color: #86198f; }
+:root[data-theme="light"] .tier-entry[data-tier="MASTER"] .tier-name { color: #9f1239; }
+:root[data-theme="light"] .tier-entry[data-tier="DIAMOND"] .tier-name { color: #075985; }
+:root[data-theme="light"] .tier-entry[data-tier="PLATINUM"] .tier-name { color: #115e59; }
+:root[data-theme="light"] .tier-entry[data-tier="GOLD"] .tier-name { color: #854d0e; }
 .seg input:focus-visible + span { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
 @media (max-width: 480px) {
   header #theme-toggle { font-size: 11px; padding: 6px 8px; }
