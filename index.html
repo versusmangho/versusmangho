@@ -355,7 +355,7 @@
   </style>
 
   <!-- 층수 스타일보다 뒤에 둔다 — .floor-toolbar 같은 조정 규칙이 이겨야 하기 때문 -->
-  <link rel="stylesheet" href="style.css?v=20261103-scan-copy" />
+  <link rel="stylesheet" href="style.css?v=20261103-bot-cycle" />
 </head>
 
 <body>
@@ -638,12 +638,7 @@
       </div>
     </div>
     <p class="guide-text">
-      티어별 출현 난이도입니다.
-      <b>칸을 클릭하면</b> 난이도 정보가 클립보드에 복사됩니다.
-    </p>
-    <p class="guide-text">
-      가로축은 <b>패드 기준</b>이고, 스시는 <b>패드 12 = 스시 2 · 13 = 4 · 14 = 6 · 15 = 8</b>로 환산해 같은 자리에 맞춰 그렸습니다
-      (패드 한 칸 = 스시 두 칸).
+      티어별 출현 난이도입니다. <b>행을 클릭하면</b> 난이도가 클립보드에 복사됩니다.
     </p>
     <div class="tier-legend">
       <span><i class="sw pad"></i>패드 (NM·HD·MX)</span>
@@ -730,20 +725,16 @@
 <main>
   <section class="card options-card" id="opt-auto-host">
     <div class="card-head">
-      <h2>자동 방장 봇</h2>
+      <h2>자동 방장 봇 <button type="button" class="help-tip" data-tip="방장이 되면 1순위에게 방장을 넘기고 자동 레디합니다." aria-label="도움말">?</button></h2>
       <button class="secondary" data-goto-help="help-host">도움말</button>
     </div>
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="auto-host-toggle" /><span class="slider"></span></span>
       <span class="option-name">자동 방장 봇 쓰기</span>
+      <button type="button" class="help-tip" data-tip="활성화 시 방장 위임, 자동 레디, 방 자동 재생성을 수행합니다." aria-label="도움말">?</button>
     </label>
+    <div id="auto-host-note" class="bot-status-bar"></div>
     <ul class="scan-checks" id="auto-host-helper"></ul>
-    <p id="auto-host-note" class="scan-note"></p>
-    <p class="option-desc">이 계정을 <b>봇</b>으로 방에 앉혀 두면, 봇이 방장이 될 때마다 매칭 순서 <b>1순위</b>에게 방장을 넘깁니다.
-      방장이 남에게 있으면 판이 끝날 때 돌려 달라고 채팅하고, 3~8픽이면 레디, 2픽이면 다른 분을 골라 달라고 알리고, 방이 터지면 같은 방을 다시 만듭니다.
-      키를 누를 때는 게임 창을 잠깐 앞으로 불러옵니다.</p>
-    <p class="option-desc"><b>준비:</b> 위의 두 줄(게임 화면 연결 · 도우미 프로그램 v8 이상)과, 매칭 표에서 봇 자신의 줄에 <b>봇 지정</b>.
-      게임 창은 다른 창에 완전히 가려지지 않게 두세요. 화면이 기대와 다르면 멈추고 <b>인식 기록</b>에 이유를 남깁니다.</p>
   </section>
 
   <section class="card options-card" id="opt-auto-host-chat">
@@ -751,6 +742,7 @@
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="auto-host-chat" checked /><span class="slider"></span></span>
       <span class="option-name">방장을 넘긴 뒤 다음 순서 알리기</span>
+      <button type="button" class="help-tip" data-tip="{목록} 치환자로 다음 순서를 채팅에 안내합니다." aria-label="도움말">?</button>
     </label>
     <div class="option-row option-row-block bot-field">
       <span class="option-name">다음 순서 문구</span>
@@ -767,6 +759,7 @@
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="auto-host-song" checked /><span class="slider"></span></span>
       <span class="option-name">대결 중 이번 곡 난이도 알리기</span>
+      <button type="button" class="help-tip" data-tip="곡 제목과 층수 정보를 채팅에 안내합니다." aria-label="도움말">?</button>
     </label>
     <div class="option-row option-row-block bot-field">
       <span class="option-name">곡 안내 문구</span>
@@ -775,7 +768,7 @@
   </section>
 
   <section class="card options-card" id="opt-auto-host-room">
-    <h2>방 다시 만들기</h2>
+    <h2>방 다시 만들기 <button type="button" class="help-tip" data-tip="방 해체 시 설정된 이름과 비밀번호로 방을 다시 생성합니다." aria-label="도움말">?</button></h2>
     <div class="option-row option-row-block bot-field">
       <span class="option-name">방 이름</span>
       <input type="text" id="auto-host-room-name" class="scan-opt-text" placeholder="비우면 게임이 지어 주는 이름 그대로" autocomplete="off" />
@@ -793,64 +786,51 @@
 <div data-tab-panel="options" hidden>
 <main>
   <section class="card options-card">
-    <h2>화면 테마</h2>
+    <h2>화면 테마 <button type="button" class="help-tip" data-tip="헤더 버튼으로도 변경할 수 있습니다." aria-label="도움말">?</button></h2>
     <div class="seg" role="radiogroup" aria-label="화면 테마">
       <label><input type="radio" name="theme" value="dark" checked /><span>다크 모드</span></label>
       <label><input type="radio" name="theme" value="light" /><span>라이트 모드</span></label>
     </div>
-    <p class="option-desc">헤더에서도 바로 바꿀 수 있습니다. 선택한 테마는 이 브라우저에 저장됩니다.</p>
   </section>
   <section class="card options-card" id="opt-rules">
     <h2>매칭 규칙</h2>
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="newcomer-toggle" checked /><span class="slider"></span></span>
       <span class="option-name">신입 우선권</span>
+      <button type="button" class="help-tip" data-tip="신규 참가자에게 가산점을 주어 첫 매칭을 앞당깁니다." aria-label="도움말">?</button>
     </label>
-    <p class="option-desc">방에 새로 들어온 플레이어('신입' 태그)를 기존 경험자들보다 <b>위로</b> 올려 빠르게 첫 게임을 하게 합니다.
-      경험자 가운데 가장 높은 가중치에 <b>신입 가산점</b>(아래 가중치 편집기)을 더한 자리에 놓습니다.
-      세이프가드로 올라온 장기 대기자보다는 아래이고, 첫 판을 뛰면 신입 자격이 풀립니다.</p>
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="safeguard-toggle" checked /><span class="slider"></span></span>
       <span class="option-name">세이프가드</span>
+      <button type="button" class="help-tip" data-tip="장기 대기 플레이어를 최우선 순위로 배치합니다." aria-label="도움말">?</button>
     </label>
-    <p class="option-desc"><b><span class="safeguard-threshold">4</span>판 이상 기다린 플레이어</b>가 있으면 다른 모든 규칙을 무시하고 그 사람을 맨 위로 올립니다.
-      기준 판수는 아래 가중치 편집기에서 바꿀 수 있습니다.</p>
   </section>
 
   <section class="card options-card" id="opt-weights">
     <div class="card-head">
-      <h2>가중치 편집기</h2>
+      <h2>가중치 편집기 <button type="button" class="help-tip" data-tip="가중치 점수가 높을수록 매칭 우선순위를 얻습니다." aria-label="도움말">?</button></h2>
       <button id="weight-reset-btn" class="secondary">기본값으로</button>
     </div>
-    <p class="option-desc">매칭 순서는 <b>가중치가 높은 순</b>입니다. 각 항목에 얼마나 비중을 둘지 정하면 매칭 표와 팝업에 바로 반영됩니다.
-      <b>현재 대기</b>는 마지막 판 뒤로 지나간 라운드 수, <b>평균 대기</b>는 지금 대기까지 넣은 판당 평균 대기, <b>원디골 비율</b>은 매치 가운데 원디골(상대를 고른 쪽)이었던 비율입니다.</p>
     <div class="weight-formula" id="weight-formula"></div>
     <div id="weight-editor" class="weight-editor"></div>
-    <p class="option-desc">끝의 상수는 원디골 비중과 같은 값이라, 가장 낮은 가중치가 0이 되게 맞춰 줄 뿐 순서는 바꾸지 않습니다.
-      기본값(1 · 1 · 0.5 · 신입 1 · 세이프가드 4판)이 원래 쓰던 공식입니다.</p>
     <div id="weight-msg" class="success"></div>
   </section>
 
   <section class="card options-card" id="opt-capture">
     <h2>게임 화면 연결</h2>
     <div class="option-row option-row-block">
-      <span class="option-name">화면 공유를 줄 곳</span>
+      <span class="option-name">화면 공유를 줄 곳 <button type="button" class="help-tip" data-tip="공유된 게임 화면을 처리할 탭을 선택합니다." aria-label="도움말">?</button></span>
       <div class="seg" role="radiogroup" aria-label="화면 공유를 줄 곳">
         <label><input type="radio" name="capture-target" value="both" checked /><span>둘 다</span></label>
         <label><input type="radio" name="capture-target" value="room" /><span>매칭 도우미만</span></label>
         <label><input type="radio" name="capture-target" value="floor" /><span>층수 측정기만</span></label>
       </div>
     </div>
-    <p class="option-desc">화면 공유는 한 번만 연결하고, 그 화면을 어느 탭이 읽을지 고릅니다.
-      <b>매칭 도우미</b>는 로비·라운드·결과 화면으로 입·퇴장과 대진을, <b>층수 측정기</b>는 밴픽·라운드 화면으로 곡과 밴/플레이를 읽습니다.
-      매칭 도우미에 주지 않으면 '플레이어 관리'와 '수동 입장/퇴장 분석' 칸이 연결 중에도 그대로 보여 손으로 관리할 수 있습니다. 연결 중에 바꿔도 바로 적용됩니다.</p>
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="auto-tab-toggle" checked /><span class="slider"></span></span>
       <span class="option-name">화면 자동 전환</span>
+      <button type="button" class="help-tip" data-tip="게임 장면에 맞춰 탭을 자동으로 전환합니다." aria-label="도움말">?</button>
     </label>
-    <p class="option-desc">게임 화면을 따라 탭을 바꿔 줍니다. <b>로비</b>가 잡히면 <b>매칭 도우미</b>, <b>밴픽 화면</b>이 잡히면 <b>층수 측정기</b>(버망호 모드일 때)로 넘어갑니다.
-      화면이 <b>바뀔 때 한 번만</b> 넘기므로, 로비에 있는 동안 다른 탭으로 옮겨 가면 다음 밴픽 화면까지 그 탭에 그대로 있습니다. 라운드·결과 화면에서는 탭을 바꾸지 않고,
-      위에서 화면 공유를 주지 않은 탭으로도 넘어가지 않습니다.</p>
   </section>
 
   <section class="card options-card" id="opt-notify">
@@ -858,6 +838,7 @@
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="notify-lobby-toggle" /><span class="slider"></span></span>
       <span class="option-name">로비 복귀 알림</span>
+      <button type="button" class="help-tip" data-tip="대결 종료 후 로비로 복귀하면 알려줍니다." aria-label="도움말">?</button>
     </label>
     <div class="option-row option-row-block">
       <span class="option-name">알리는 방법</span>
@@ -869,22 +850,16 @@
       <button id="notify-test-btn" class="secondary">시험 삼아 울리기</button>
     </div>
     <p id="notify-note" class="scan-note"></p>
-    <p class="option-desc">대결이 끝나 게임 화면이 <b>로비로 돌아오면</b> 알려줍니다. 곡을 고르고 플레이하는 동안 다른 일을 보고 있다가도
-      다음 대진을 정할 때를 놓치지 않기 위한 것입니다. <b>게임 화면을 연결</b>해 두고 매칭 도우미가 그 화면을 받고 있을 때만 울립니다.
-      로비가 아닌 화면이 <b>10초 이상</b> 이어진 뒤에 로비가 잡힐 때 한 번만 울리므로, 로비에 앉아 있는 동안에는 울리지 않습니다.
-      <b>알림창</b>은 브라우저에게 권한을 허용해야 뜨고(처음 켜면 물어봅니다), 누르면 이 페이지로 돌아옵니다.
-      게임을 <b>전체화면(독점) 모드</b>로 켜 둔 경우 윈도우가 알림창을 가릴 수 있으니 그때는 소리를 살려 두세요.</p>
   </section>
 
   <section class="card options-card" id="opt-scan">
     <h2>성과 스캔</h2>
     <div class="option-row option-row-block">
-      <span class="option-name">DJ 이름</span>
+      <span class="option-name">DJ 이름 <button type="button" class="help-tip" data-tip="기록 조회를 위한 V-ARCHIVE DJ 이름을 입력하세요." aria-label="도움말">?</button></span>
       <input type="text" id="scan-dj-input" class="scan-opt-text" placeholder="V-ARCHIVE 계정 이름" autocomplete="off" />
     </div>
-    <p class="option-desc">V-ARCHIVE에 올라가 있는 내 기록을 불러올 때 씁니다. V-ARCHIVE 사이트에서 보이는 계정 이름(DJ 이름)을 그대로 넣으세요.</p>
     <div class="option-row option-row-block">
-      <span class="option-name">계정 파일 (account.txt)</span>
+      <span class="option-name">계정 파일 <button type="button" class="help-tip" data-tip="V-ARCHIVE 클라이언트 폴더의 account.txt를 선택하세요." aria-label="도움말">?</button></span>
       <span class="scan-account-ctl">
         <label class="file-btn secondary">account.txt 고르기<input type="file" id="scan-account-file" accept=".txt,text/plain"></label>
         <button id="scan-account-clear" class="secondary" hidden>지우기</button>
@@ -896,25 +871,21 @@
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="scan-account-remember" /><span class="slider"></span></span>
       <span class="option-name">계정 파일 기억해 두기</span>
+      <button type="button" class="help-tip" data-tip="브라우저에 계정 정보를 저장합니다." aria-label="도움말">?</button>
     </label>
-    <p class="option-desc">업로드할 계정의 V-ARCHIVE 클라이언트 폴더에서 <code>account.txt</code>를 선택하세요.
-      <b>기억해 두기</b>를 끄면 페이지를 닫거나 새로고침할 때 계정 정보가 지워집니다. 공용 PC에서는 꺼 두세요.</p>
     <div class="option-row option-row-block">
-      <span class="option-name">곡 넘긴 뒤 기다리는 시간</span>
+      <span class="option-name">곡 넘긴 뒤 기다리는 시간 <button type="button" class="help-tip" data-tip="곡 넘김 후 인식 대기 시간입니다." aria-label="도움말">?</button></span>
       <span class="weight-num-wrap"><input type="number" id="scan-delay-input" class="weight-num" min="60" max="3000" step="1" /> ms</span>
     </div>
-    <p class="option-desc">기본 60ms입니다. 곡을 넘겼는데 이전 곡의 점수가 읽히면 이 값을 늘리세요.</p>
     <div class="option-row option-row-block">
-      <span class="option-name">키 누름 시간</span>
+      <span class="option-name">키 누름 시간 <button type="button" class="help-tip" data-tip="키 누름 유지 시간입니다." aria-label="도움말">?</button></span>
       <span class="weight-num-wrap"><input type="number" id="scan-hold-input" class="weight-num" min="10" max="500" step="5" /> ms</span>
     </div>
-    <p class="option-desc">기본 40ms입니다. 곡이 안 넘어가면 늘리고, 한 번에 두 곡씩 넘어가면 줄이세요.</p>
   </section>
 
-  <p class="guide-text options-foot">옵션은 이 브라우저에 저장되어 다음에 열 때도 그대로입니다. 전체 초기화를 해도 옵션은 남습니다.</p>
+  <p class="guide-text options-foot">모든 옵션은 브라우저에 자동 저장됩니다.</p>
 </main>
 </div>
-
 <!-- ── 도움말 탭 ─────────────────
      매칭·층수 측정기·티어 설명이 전부 여기 모여 있다 (예전에는 모달 두 개로 나뉘어 있었다) -->
 <div data-tab-panel="help" hidden>
@@ -940,136 +911,96 @@
   <section class="card help-section" id="help-tabs">
     <h3>탭 구성</h3>
     <ul class="help-list">
-      <li><b>매칭 도우미:</b> 방 인원과 대기 순서, 대진 기록.</li>
-      <li><b>층수 측정기:</b> 밴픽에 뜬 곡들의 층수.</li>
-      <li><b>티어별 난이도:</b> 방 공지에 붙여넣을 난이도 문구.</li>
-      <li><b>성과 스캔:</b> 컬렉션 화면을 한 곡씩 넘기며 내 기록을 읽어 V-ARCHIVE에 올립니다.</li>
-      <li><b>방장 봇:</b> 이 계정을 봇으로 앉혀 방장을 1순위에게 넘기게 합니다. 설명은 그 탭 안에 있습니다.</li>
-      <li><b>옵션:</b> 매칭 규칙(신입 우선권·세이프가드), 가중치 편집기, 화면 공유를 어느 탭에 줄지, 화면 자동 전환, 로비 복귀 알림, 성과 스캔(DJ 이름·기다리는 시간). 옵션에 대한 설명은 옵션 탭 안에 같이 있습니다.</li>
-      <li><b>도움말:</b> 지금 보고 있는 이 화면.</li>
-      <li><b>탭을 바꿔도 아무것도 꺼지지 않습니다.</b> 양쪽 기록이 그대로 남고, 게임 화면 자동 인식도 보이지 않는 탭에서 계속 돕니다.</li>
+      <li><b>매칭 도우미:</b> 참가자 명단, 우선순위 대기열, 대진 기록을 관리합니다.</li>
+      <li><b>층수 측정기:</b> 밴픽 및 선곡 화면을 인식하여 난이도별 층수 정보를 표시합니다.</li>
+      <li><b>티어별 난이도:</b> 세부 티어별 출현 난이도 차트를 확인하고 공지 문구를 복사합니다.</li>
+      <li><b>성과 스캔:</b> 인게임 컬렉션 점수를 스캔하여 V-ARCHIVE에 업로드합니다.</li>
+      <li><b>방장 봇:</b> 봇 계정이 방장이 되면 매칭 1순위에게 방장을 자동 위임합니다.</li>
+      <li><b>옵션:</b> 매칭 규칙, 가중치, 화면 공유 대상, 알림을 설정합니다.</li>
+      <li><b>상태 유지:</b> 탭을 전환해도 모든 데이터와 백그라운드 인식이 유지됩니다.</li>
     </ul>
   </section>
 
   <section class="card help-section" id="help-match">
     <h3>플레이어 &amp; 매칭</h3>
     <ul class="help-list">
-      <li><b>등록:</b> 닉네임을 입력하고 엔터를 누르세요. (최대 8명) — 화면을 연결해 두면 이름 없이 명패로 자동 등록되므로 쓸 일이 없습니다.</li>
-      <li><b>매칭 도우미:</b> 대기 목록에서 <b>두 명의 플레이어를 클릭</b>하면 매칭이 성사됩니다. 먼저 클릭한 사람이 선택자(원디골)가 됩니다.</li>
-      <li><b>다음 차례:</b> 위쪽 두 명과 표의 순서 번호는 팝업·방장 봇과 같은 우선순위입니다. 보류 중인 사람은 제외됩니다. 표를 다른 열로 정렬해도 순서 번호는 바뀌지 않습니다.</li>
-      <li><b>테이블 정렬:</b> '가중치', '닉네임' 등 테이블의 제목(헤더)을 클릭하면 해당 기준으로 목록을 오름차순/내림차순 정렬할 수 있습니다.</li>
-      <li><b>보류/복귀:</b> 플레이어 목록의 '보류' 버튼을 눌러 잠시 매칭에서 제외할 수 있습니다. '복귀'를 누르면 보류한 시간만큼 대기 시간이 보정되어 복귀됩니다.</li>
-      <li><b>로그:</b> '로그' 칸의 제목을 누르면 접거나 펼칠 수 있고, 접힘 상태는 다음에 열 때도 그대로 유지됩니다. 매치·입퇴장·보류를 버튼으로 걸러 볼 수 있습니다.</li>
+      <li><b>등록:</b> 닉네임을 입력하고 엔터를 누릅니다. 화면 자동 인식 사용 시 인게임 명패로 자동 등록됩니다.</li>
+      <li><b>매칭:</b> 대기 목록에서 두 명을 클릭하면 매칭이 기록됩니다. 먼저 클릭한 사람이 원디골로 기록됩니다.</li>
+      <li><b>순서:</b> 가중치 점수 순서로 매칭 순위가 부여되며, 보류 중인 인원은 제외됩니다.</li>
+      <li><b>정렬:</b> 표 헤더를 클릭하면 해당 열 기준으로 목록이 정렬됩니다.</li>
+      <li><b>보류/복귀:</b> 보류 시 매칭에서 제외되며, 복귀 시 보류된 기간만큼 대기 시간이 보정됩니다.</li>
+      <li><b>로그:</b> 매치, 입퇴장, 보류 이력을 필터링하여 확인할 수 있습니다.</li>
     </ul>
   </section>
 
   <section class="card help-section" id="help-auto">
     <h3>🎮 게임 화면 자동 인식</h3>
     <ul class="help-list">
-      <li><b>사용법:</b> 오른쪽 위 <b>게임 화면 연결</b>을 한 번 누르고 DJMAX 화면(또는 게임 창)을 고르면 끝입니다. 이후엔 손댈 게 없습니다.</li>
-      <li><b>헤더 상태:</b> 연결 여부와 화면을 받는 곳(매칭·층수)을 표시합니다. <b>화면 멈춤</b>이면 게임 창을 앞으로 가져오세요. <b>인식 확인 필요</b> 배지를 누르면 저장된 의심 장면의 기록과 내려받기 버튼으로 이동합니다.</li>
-      <li><b>연결은 한 번뿐입니다.</b> 같은 화면 공유를 <b>매칭 도우미 탭</b>과 <b>층수 측정기 탭</b>이 같이 씁니다. 로비·결과 화면은 매칭 쪽이, 밴픽·라운드 화면은 층수 쪽이 각각 알아서 가져갑니다. 한쪽에만 주고 싶으면 <b>옵션 탭</b>에서 고르세요.</li>
-      <li><b>16:9와 21:9(울트라와이드) 화면에서 작동합니다.</b> 21:9에서는 게임이 가운데에 16:9 화면을 그리고 양옆을 흐린 배경으로 채우는데, 그 양옆은 자동으로 잘라내고 가운데만 읽습니다. 그 밖의 비율(16:10 등)은 지원하지 않습니다.</li>
-      <li><b>매칭 도우미 탭에서 자동으로 되는 것:</b>
+      <li><b>연결 방법:</b> 오른쪽 위 <b>게임 화면 연결</b>을 누르고 DJMAX 게임 창을 선택합니다. 테두리 없는 창 모드를 권장합니다.</li>
+      <li><b>화면비:</b> 16:9 및 21:9 화면비를 지원합니다. 21:9는 양옆 여백을 자동 제외합니다.</li>
+      <li><b>자동 기록:</b>
         <ul>
-          <li>🟢 <b>입·퇴장:</b> 로비의 PLAYERS 칸을 읽어 방 인원을 계속 맞춥니다. 명패를 잠깐 잘못 읽어 같은 사람이 나갔다 들어온 것처럼 찍히지 않도록, <b>입장은 3초·퇴장은 5초</b> 동안 이어서 그렇게 보여야 반영합니다.</li>
-          <li>🔵 <b>대진 기록:</b> 곡 고르기 전 <b>라운드 화면</b>이 뜨면 대결이 성사된 것으로 보고 맞붙은 두 명을 한 판으로 기록합니다. 라운드 화면을 놓쳤으면 <b>결과 화면</b>에서 기록하고, 한 판은 로비로 돌아와야 끝나므로 같은 판이 두 번 기록되지는 않습니다.</li>
+          <li><b>입·퇴장:</b> 로비 인원 변동을 감지하여 명단을 실시간 반영합니다.</li>
+          <li><b>대진:</b> 라운드 화면 또는 결과 화면을 인식하여 두 플레이어의 매치를 자동 기록합니다.</li>
+          <li><b>선곡:</b> 밴픽 및 라운드 화면을 감지하여 밴/플레이 곡을 층수 측정기에 표시합니다.</li>
         </ul>
       </li>
-      <li><b>층수 측정기 탭에서 자동으로 되는 것:</b>
-        <ul>
-          <li><b>버망호 모드</b>: 밴픽 화면이 뜰 때마다 스크린샷 없이 자동으로 인식합니다. 같은 곡 구성은 다시 인식하지 않으므로 찍어둔 밴픽 표시가 유지됩니다.</li>
-          <li><b>일망호 모드</b>: 대기방에서 방장이 고른 곡이 <b>2초 이상</b> 그대로 있으면 그 곡의 층수 표를 자동으로 띄웁니다. 플레이·결과 화면과 멈춘 공유 화면에서는 새 곡을 인식하지 않고, 마지막 층수 표를 유지합니다.</li>
-          <li>밴픽 뒤 <b>라운드 화면</b>이 뜨면 밴된 곡은 빨간색, 플레이된 곡은 초록색과 라운드 번호(R1~R3)로 자동 표시됩니다.</li>
-        </ul>
-      </li>
-      <li><b>이름을 안 물어보는 이유:</b> 사람을 닉네임이 아니라 <b>게임 안 명패</b>로 구분합니다. 그래서 표와 로그에 명패가 그대로 보이고, 나갔다 들어와도 전적이 이어집니다.</li>
-      <li><b>프로필 그림이 같은 사람:</b> 명패 그림까지 똑같아도 <b>닉네임 글자 모양</b>과 <b>레벨</b>로 따로 구분합니다. 레벨은 오르기만 하므로 <b>레벨이 내려간 명패는 다른 사람</b>으로 봅니다. 레벨 숨김(LV. ---)이나 판독 실패는 같은 사람·다른 사람의 근거로 쓰지 않습니다. READY 때문에 이름을 견줄 수 없을 때는 같은 숫자 레벨과 자리로 보완하지만, <b>글자 획이 확실히 다르면 같은 자리·레벨이어도 잇지 않습니다</b>. 확인된 이름 모양은 READY·평소와 해상도별로 여러 개 기억하므로 흐린 한 장이 좋은 표본을 덮어쓰지 않습니다. 밝은 배경에 묻힌 이름은 가는 획도 함께 비교하며, 획이 많이 사라졌거나 해상도가 낮으면 새 거부 증거로 쓰지 않습니다.</li>
-      <li><b>그림이 움직이는 명패:</b> 애니메이션 명패는 그림이 계속 바뀌어서, 한 장씩 비교하면 같은 사람도 매번 남처럼 보입니다(예전엔 그래서 퇴장→입장이 반복됐습니다). 그래서 <b>최근 2초 동안 본 그림의 색을 평균내어</b> 비교합니다 — 그림은 움직여도 명패의 색감은 그대로라, 움직이는 명패끼리도 서로 다른 사람으로 가릴 수 있습니다. 들어온 지 2초가 안 된 사람은 아바타와 <b>앉은 자리</b>로만 이어집니다. 색까지 헷갈리는 명패라면 <b>방 전체의 자리 배치</b>가 마지막 단서입니다 — 다른 사람이 아무도 나가거나 자리를 옮기지 않았다면 그 사람도 제자리에 앉아 있는 것이므로, 명패가 어떻게 보이든 같은 사람으로 잇습니다.</li>
-      <li><b>원디골:</b> 게임 화면에 나오지 않으므로, 맞붙은 두 명 중 <b>가중치가 높은 쪽</b>을 원디골로 기록합니다.</li>
-      <li><b>연결 중에는 손으로 하는 칸이 사라집니다.</b> '플레이어 관리'와 '수동 입장/퇴장 분석' 칸이 화면에서 빠집니다 — 같은 명단을 두 경로로 건드리면 어긋나기 때문입니다. 연결을 해제하면 그대로 돌아옵니다.</li>
-      <li><b>인식 기록:</b> 자동 인식 칸의 '인식 기록'을 누르면 방금 무엇을 읽었는지 시간순으로 펼쳐 볼 수 있습니다.</li>
-      <li><b>둘로 갈린 사람은 저절로 합칩니다.</b> 나갔다가 READY인 채로 돌아왔는데 예전 명패의 닉네임이 그림에 묻혀 있으면, 돌아온 순간에는 같은 사람인지 알 수 없어 새 사람으로 올라갑니다. 그 사람이 READY를 풀거나 해서 <b>예전 명패와 확실히 맞는 모습이 3초 이어지면</b> 두 기록을 하나로 합칩니다 — 전적은 더하고, 로그의 이름도 예전 것으로 바꿉니다(퇴장·입장은 찍히지 않습니다). 한 번이라도 <b>같은 로비에 함께 앉아 있던</b> 두 사람은 절대 합치지 않습니다. 합치기도 되돌리기로 되돌릴 수 있습니다.</li>
-      <li><b>의심 장면:</b> 사람 판정이 틀렸을 수 있는 순간 — <b>처음 보는 사람으로 올렸는데 장부에 아바타가 같은 사람이 있을 때</b>(한 사람이 둘로 갈렸을 수 있다), <b>퇴장한 사람이 1분 안에 다시 들어왔을 때</b>(잘못 읽어 퇴장이 찍혔을 수 있다) — 그 순간과 몇 프레임 전의 로비 화면을 저절로 모아 둡니다. 자동 인식 칸에 '의심 장면'이 뜨면 <b>내려받기</b>로 zip 하나를 받아 만든 사람에게 보내 주세요. 그 화면으로 인식 규칙을 고칩니다. 새로고침하면 사라지고, 최근 5건까지만 둡니다.</li>
-      <li><b>*</b> 게임은 <b>테두리 없는 창 모드</b>를 권장합니다. 전체화면(독점) 모드에서는 화면이 검게 잡힐 수 있습니다. 일반 창 모드의 제목 표시줄·테두리는 자동으로 잘라냅니다.</li>
+      <li><b>식별 방식:</b> 닉네임, 명패 이미지, 레벨을 종합 분석하여 플레이어를 식별합니다.</li>
+      <li><b>의심 장면:</b> 판정 오류 가능성이 감지된 경우 최근 로비 장면을 수집하며, 의심 장면 버튼에서 zip 파일로 내려받을 수 있습니다.</li>
     </ul>
   </section>
 
   <section class="card help-section" id="help-host">
     <h3>🤖 방장 봇</h3>
     <ul class="help-list">
-      <li><b>채팅 문구:</b> <code>{목록}</code> → <code>2순위 3픽 · 3순위 5픽</code>, <code>{봇}</code> → 봇이 앉은 자리 번호입니다. 로비에서 <b>맨 위가 1픽, 맨 아래가 8픽</b>입니다.</li>
-      <li><b>곡 안내 문구:</b> <code>{라운드}</code> → <code>R1</code>, <code>{곡}</code> → 곡 제목, <code>{패턴}</code> → <code>6B SC</code>, <code>{층수}</code> → <code>⑫ 12.3</code>, <code>{태그}</code> → 층수 표의 태그.
-        곡은 층수 측정기가 라운드 화면에서 읽은 것을 쓰므로, 옵션 탭의 <b>화면 공유를 줄 곳</b>이 <b>둘 다</b>여야 합니다.</li>
-      <li><b>방 다시 만들기:</b> <i>방이 해체되었습니다</i> 알림이 뜨면 적어 둔 이름·비밀번호로 VERSUS 방을 다시 만듭니다.
-        <code>{날짜}</code>는 그날 날짜(<code>0923</code>)로 바뀌고, <code>{월}</code>·<code>{일}</code>도 따로 쓸 수 있습니다. 비워 두면 이름은 게임이 지어 주는 그대로, 비밀번호는 걸지 않습니다.</li>
+      <li><b>채팅 치환자:</b> <code>{목록}</code>은 대기 순위 및 픽 번호, <code>{봇}</code>은 봇 자리 번호로 치환됩니다.</li>
+      <li><b>곡 안내 치환자:</b> <code>{라운드}</code>, <code>{곡}</code>, <code>{패턴}</code>, <code>{층수}</code>, <code>{태그}</code>를 지원합니다. 화면 공유 대상을 둘 다로 설정해야 합니다.</li>
+      <li><b>방 다시 만들기:</b> 방 해체 감지 시 설정된 이름과 비밀번호로 방을 다시 생성합니다. <code>{날짜}</code> 치환자를 지원합니다.</li>
+      <li><b>작업 중단:</b> 봇을 끄거나 화면 공유 대상을 바꾸면 진행 중인 작업의 다음 입력부터 중단합니다. 다시 켜도 이전 작업을 이어서 누르지 않습니다.</li>
+      <li><b>재생성 실패:</b> 화면 확인에 실패하면 10초 간격으로 최대 3회 시도한 뒤 멈춥니다. 생성 키를 이미 보냈다면 다시 누르지 않고 로비가 나타나는지만 확인합니다. 연결과 게임 화면을 확인한 뒤 봇을 껐다 켜서 다시 시도할 수 있습니다.</li>
     </ul>
   </section>
 
   <section class="card help-section" id="help-popup">
     <h3>🪟 팝업</h3>
     <ul class="help-list">
-      <li><b>사용법:</b> 오른쪽 위 <b>팝업</b>을 누르면 작은 창이 뜨고, 게임을 하는 동안에도 항상 맨 위에 떠 있습니다. 창을 원하는 구석으로 옮기고 크기를 바꾸면 글자도 같이 커지고 작아집니다.</li>
-      <li><b>보여주는 것:</b>
+      <li><b>기능:</b> 항상 위에 표시되는 창으로 매칭 순서와 선곡 정보를 실시간 확인합니다.</li>
+      <li><b>표시 항목:</b>
         <ul>
-          <li><b>왼쪽 — 매칭 순서:</b> 대기 중인 사람을 우선순위 순으로(명패 · 가중치 · 현재 대기). 위의 두 명은 파랗게, 세이프가드 대상(<span class="safeguard-threshold">4</span>판 이상 대기)은 빨갛게 표시합니다. 표를 다른 열로 정렬해 둬도 여기는 늘 우선순위 순이고, 보류 중인 사람은 빠집니다.</li>
-          <li><b>오른쪽 — 이번 판 곡:</b> 층수 측정기(버망호 모드)가 가장 최근에 읽은 밴픽 5곡을 가로로 — 자켓, 인게임 난이도(예: 6B SC ⑫), 층수(예: 12.3). 밴된 곡은 흐리게 보입니다.</li>
-          <li><b>일망호 모드일 때:</b> 매칭 순서 없이 가장 최근에 읽은 곡의 <b>층수 표만</b>(4B~8B × NM~SC, 인게임 레벨 + 층수 + 태그) 크게 보여줍니다. 태그는 내 메모가 먼저 오고, 칸마다 두 줄을 넘으면 잘립니다.</li>
+          <li><b>매칭 순서:</b> 우선순위 대기열을 표시하며 상위 2명 및 <span class="safeguard-threshold">4</span>판 이상 대기자를 강조합니다.</li>
+          <li><b>선곡 정보:</b> 최근 인식된 밴픽 5곡의 난이도, 층수 및 밴/플레이 상태를 표시합니다.</li>
+          <li><b>일망호 모드:</b> 선택 곡의 난이도별 층수 표를 표시합니다.</li>
         </ul>
       </li>
-      <li><b>게임은 창 모드나 테두리 없는 창 모드로 켜 주세요.</b> 전체화면(독점) 모드에서는 팝업이 게임에 가려질 수 있습니다.</li>
-      <li><b>게임 화면 연결에서는 모니터 전체가 아니라 게임 창을 고르세요.</b> 모니터 전체를 공유하면 팝업도 같이 찍혀서, 명패나 곡 자켓 위에 놓였을 때 인식을 가릴 수 있습니다.</li>
+      <li><b>권장 설정:</b> 게임은 창 모드 또는 테두리 없는 창 모드를 사용하고, 화면 공유 시 게임 창을 선택하세요.</li>
     </ul>
   </section>
 
   <section class="card help-section" id="help-manual">
     <h3>📸 입장/퇴장 분석기 (수동)</h3>
     <ul class="help-list">
-      <li>화면 자동 인식을 쓸 수 없거나 연결하지 않았을 때를 위한 예전 방식입니다. <b>화면 연결 중에는 이 칸이 숨겨집니다.</b></li>
-      <li><b>사용법:</b> 매칭 도우미 탭에서 버망호 로비의 스크린샷을 <b>Ctrl+V</b>로 붙여넣으세요.</li>
-      <li><b>작동 원리:</b> 두 장의 스크린샷(이전/현재)을 비교하여 자동으로 분석합니다.</li>
-      <li><b>*</b> 이미지 유사도를 기반으로 판단하기에, 가끔 오류가 날 수 있습니다. (특히 레디↔레디해제 중 스크린샷이 찍히는 경우)</li>
-      <li><b>분석 결과:</b>
-        <ul>
-          <li>🔴 <b>퇴장:</b> 방을 나간 인원</li>
-          <li>🔵 <b>잔류:</b> 자리를 지킨 인원</li>
-          <li>🟢 <b>입장:</b> 새로 들어온 인원</li>
-        </ul>
-      </li>
+      <li><b>사용법:</b> 매칭 도우미 탭에서 로비 스크린샷을 <b>Ctrl+V</b>로 2장 연속 붙여넣어 인원 변동을 분석합니다.</li>
+      <li><b>결과:</b> 퇴장은 빨간색, 잔류는 파란색, 입장은 초록색으로 분류됩니다.</li>
+      <li><b>주의:</b> 화면 공유 연결 중에는 이 기능이 자동으로 숨겨집니다.</li>
     </ul>
   </section>
 
   <section class="card help-section" id="help-floor">
     <h3>층수 측정기</h3>
     <ul class="help-list">
-      <li><b>기본 사용법:</b> 게임에 밴픽창이 떠있는 상황에서 <code>PrintScreen</code>으로 스크린샷을 찍은 뒤, <b>층수 측정기 탭</b>에서 <code>Ctrl+V</code>로 붙여넣으세요.</li>
-      <li><b>버망호 모드:</b> 5개의 곡 슬롯을 자동으로 인식하여 각 곡의 '층수'를 표시합니다.
-        <ul>
-          <li>잘못 인식된 경우 <code>Recheck</code> 버튼을 눌러 다음 후보군으로 바꿀 수 있습니다.</li>
-          <li><code>Copy</code> 버튼을 누르면 '곡제목-버튼-난이도-층수-BPM-태그' 정보가 복사됩니다.</li>
-          <li>곡 카드를 <b>클릭</b>하면 초록색(플레이), <b>우클릭</b>하면 빨간색(밴)으로 표시됩니다.</li>
-        </ul>
-      </li>
-      <li><b>일망호 모드:</b> 선택된 한 곡의 전체 난이도별 층수 표를 보여줍니다.
-        <ul>
-          <li>검색창에 곡 제목이나 별명(태그)을 입력해 직접 곡을 찾아볼 수 있습니다.</li>
-          <li>표에서 난이도 칸을 <b>클릭</b>하면 버망호 모드의 <code>Copy</code>와 같은 형식으로 복사됩니다.</li>
-          <li>난이도 칸을 <b>우클릭</b>하면 그 패턴에 내 태그(패턴 메모)를 붙일 수 있습니다.</li>
-        </ul>
-      </li>
-      <li>붙여넣은 스크린샷은 클릭하면 확대해서 볼 수 있고, 좌우의 <b>&lsaquo; &rsaquo;</b> 버튼으로 이전 스샷을 다시 볼 수 있습니다. 그때 찍어둔 밴픽 표시와 버튼/난이도 수정값도 그대로 남습니다. (새로고침하면 초기화)</li>
-      <li>밴픽창을 놓쳤으면 라운드/결과 화면에서 <b>확인된 곡만으로</b> 카드를 만듭니다. 이때 밴된 곡은 자켓만 보여서 난이도 자리에 <code>NO DATA</code>가 표시됩니다.</li>
+      <li><b>수동 캡처:</b> 밴픽 화면에서 캡처 후 <b>Ctrl+V</b>로 붙여넣어 인식할 수 있습니다.</li>
+      <li><b>버망호 모드:</b> 5개 밴픽 슬롯의 곡과 층수를 인식합니다. 클릭 시 플레이, 우클릭 시 밴으로 표시됩니다.</li>
+      <li><b>일망호 모드:</b> 선택한 곡의 전체 난이도별 층수 표를 제공합니다. 곡 제목이나 별명으로 검색할 수 있습니다.</li>
+      <li><b>데이터 복사:</b> <code>Copy</code> 버튼 또는 난이도 칸 클릭 시 곡 및 층수 정보가 클립보드에 복사됩니다.</li>
     </ul>
   </section>
 
   <section class="card help-section" id="help-memo">
-    <h3>패턴 메모 (자작 태그)</h3>
+    <h3>패턴 메모</h3>
     <ul class="help-list">
-      <li>버망호 카드의 <code>✎</code> 버튼, 또는 일망호 표에서 난이도 칸을 <b>우클릭</b>(또는 마우스를 올리면 나오는 <code>✎</code> 버튼)해서 패턴마다 나만의 태그를 붙일 수 있습니다.</li>
-      <li>태그는 곡·버튼·난이도 조합별로 따로 저장되고 노란색으로 표시됩니다. 쉼표로 구분하면 여러 개를 한 번에 붙일 수 있습니다.</li>
-      <li>메모는 이 브라우저(LocalStorage)에만 저장되며, <code>Copy</code>나 칸 클릭 복사에는 포함되지 않습니다.</li>
-      <li>다른 브라우저로 옮기거나 백업하려면 메모 파일을 <b>내보내기/가져오기</b> 하세요. 가져오기는 기존 메모를 지우지 않고 합칩니다.</li>
-      <li><b>메모 초기화</b>는 이 브라우저에 저장된 메모를 전부 지웁니다. 되돌릴 수 없으니 필요하면 먼저 내보내기로 백업하세요.</li>
+      <li><b>메모 등록:</b> 곡 카드의 <code>✎</code> 버튼 또는 난이도 칸 우클릭으로 패턴별 태그를 입력할 수 있습니다.</li>
+      <li><b>저장:</b> 메모는 브라우저에 저장되며, 쉼표로 구분하여 여러 태그를 등록할 수 있습니다.</li>
+      <li><b>백업:</b> 아래 버튼을 통해 메모 데이터를 JSON 파일로 내보내거나 가져올 수 있습니다.</li>
     </ul>
     <div class="row" style="gap:8px;">
       <button class="secondary" onclick="exportPatternMemos()">메모 내보내기</button>
@@ -1081,62 +1012,45 @@
   <section class="card help-section" id="help-tier">
     <h3>티어별 난이도</h3>
     <ul class="help-list">
-      <li>버망호 방 공지에 쓰는 <b>세부 티어별 출현 난이도</b>를 한눈에 보고, 필요한 줄만 복사하는 탭입니다.</li>
-      <li><b>복사:</b> 원하는 티어 칸을 <b>클릭</b>하면 그 티어의 정보가 클립보드에 들어갑니다.</li>
-      <li><b>표 구성:</b> DIAMOND I·II·III·IV처럼 각 세부 티어를 한 줄씩 표시합니다. 세부 등급이 없는 GRAND MASTER와 MASTER도 각각 한 줄로 표시합니다.</li>
-      <li><b>막대 보는 법:</b> 파란 막대가 <b>패드(NM·HD·MX)</b>, 보라 막대가 <b>스시(SC)</b>입니다.
-        가로축은 <b>패드 기준</b> 한 칸이 단위이고, 스시는 <b>패드 12 = 스시 2 · 13 = 4 · 14 = 6 · 15 = 8</b>로 환산해 같은 축에 얹었습니다(패드 한 칸 = 스시 두 칸).
-        위아래 막대가 <b>같은 가로 위치면 같은 체감 난이도</b>입니다.</li>
-      <li><b>빗금 구간:</b> 그 난이도 체계에 자리가 없는 곳입니다. 패드는 15 위쪽이, 스시는 패드 11 아래쪽이 빗금입니다. 그 티어에 아예 없는 난이도는 <b>해당 없음</b>으로 적힙니다.</li>
+      <li><b>기능:</b> 세부 티어별 출현 난이도 범위를 시각화하고 공지용 문구를 복사합니다.</li>
+      <li><b>복사:</b> 원하는 티어 행을 클릭하면 해당 정보가 클립보드에 복사됩니다.</li>
+      <li><b>차트 구분:</b> 파란 막대는 패드, 보라 막대는 SC 난이도를 나타냅니다.</li>
     </ul>
   </section>
 
   <section class="card help-section" id="help-scan">
     <h3>성과 스캔</h3>
-    <p class="guide-text">게임의 최고 점수와 MAX 콤보를 읽고, V-ARCHIVE 기록보다 좋아진 것만 골라 올립니다.</p>
+    <p class="guide-text">인게임 최고 점수와 MAX 콤보를 스캔하여 V-ARCHIVE에 업로드합니다.</p>
 
-    <h4>처음 한 번 준비</h4>
+    <h4>사전 준비</h4>
     <ol class="help-list">
-      <li><b>도우미 실행:</b> 성과 스캔 탭의 <b>처음 사용: 다운로드</b>로 받은 파일을 실행하세요. 설치는 필요 없습니다. 다음부터는 <b>도우미 켜기</b>로 실행할 수 있습니다.</li>
-      <li><b>게임 화면 연결:</b> 헤더의 <b>게임 화면 연결</b>을 누르고 DJMAX 화면을 선택하세요. 게임은 테두리 없는 창 모드로 두세요.</li>
-      <li><b>업로드 설정:</b> V-ARCHIVE의 <b>DJ 이름</b>을 입력하고, 업로드할 계정의 클라이언트 폴더에서 <code>account.txt</code>를 선택하세요.</li>
+      <li><b>도우미 실행:</b> <code>vmh-helper.exe</code>를 실행합니다.</li>
+      <li><b>게임 화면 연결:</b> 게임 화면을 연결하고 테두리 없는 창 모드로 실행합니다.</li>
+      <li><b>계정 설정:</b> V-ARCHIVE DJ 이름을 입력하고 <code>account.txt</code>를 등록합니다.</li>
     </ol>
 
-    <h4>사용 순서</h4>
+    <h4>스캔 및 업로드 순서</h4>
     <ol class="help-list">
-      <li><b>스캔:</b> 게임에서 <b>컬렉션 → PLAY INFO → MUSIC DATA</b>를 열고 <b>ALL의 첫 곡</b>을 선택하세요.
-        <b>스캔 시작</b>을 누른 뒤 5초 안에 게임 창을 클릭하면 끝까지 자동으로 읽습니다. 스캔 중에는 게임을 조작하지 마세요.
-        멈추려면 브라우저를 클릭하고, 계속하려면 <b>이어서 스캔</b>을 누르세요.</li>
-      <li><b>검토:</b> <b>확인 필요</b>인 곡의 <b>자세히</b>를 열어 찍힌 화면과 비교하세요. 틀린 점수·MAX·곡을 고치고, 맞는 기록만 선택하세요.</li>
-      <li><b>서버 비교:</b> <b>서버 기록과 비교</b>를 누르세요. 정확도가 오르거나, 정확도가 같아도 MAX 콤보가 새로 붙은 기록만 업로드 목록에 나옵니다.</li>
-      <li><b>업로드:</b> DJ 이름과 계정 번호를 확인하고, 올릴 기록을 선택한 뒤 <b>선택한 기록 올리기</b>를 누르세요. 완료 후 성공·실패·아직 보내지 않은 기록 수를 확인할 수 있습니다.</li>
+      <li><b>스캔:</b> 인게임 컬렉션의 MUSIC DATA 첫 곡을 선택하고 <b>스캔 시작</b>을 누릅니다.</li>
+      <li><b>검토:</b> 인식된 점수와 기록을 확인하고 올바른 항목을 선택합니다.</li>
+      <li><b>서버 비교:</b> V-ARCHIVE 기존 기록과 비교하여 갱신된 내역을 확인합니다.</li>
+      <li><b>업로드:</b> 대상 기록을 선택하고 <b>선택한 기록 올리기</b>를 누릅니다.</li>
     </ol>
 
     <details class="scan-help-details">
-      <summary>도우미가 연결되지 않을 때</summary>
+      <summary>도우미 연결 문제 해결</summary>
       <ul class="help-list">
-        <li><b>처음 사용한다면:</b> 다운로드한 <code>vmh-helper.exe</code>를 한 번 직접 실행하세요. 실행되면 작업 표시줄의 시계 옆에 아이콘이 생깁니다. 종료하려면 아이콘 메뉴의 <b>끄기</b>를 누르세요.</li>
-        <li><b>브라우저가 연결 권한을 물으면:</b> <b>"이 기기의 다른 앱 및 서비스에 액세스"</b>를 허용하세요. 이미 차단했다면 주소창의 사이트 설정에서 로컬 네트워크 접근을 허용한 뒤 새로고침하세요.</li>
-        <li><b>연결됐는데 곡이 안 넘어가면:</b> DJMAX가 맨 앞에 있는지 확인하세요. 게임을 관리자 권한으로 실행했다면 도우미도 같은 권한으로 실행해야 합니다.</li>
-        <li><b>업데이트가 필요하면:</b> 기존 도우미를 종료한 뒤 새 버전을 실행하고 <b>다시 확인</b>을 누르세요.</li>
-        <li><b>start.bat로 실행 중이라면:</b> 도우미가 함께 실행되므로 별도로 다운로드하지 않아도 됩니다.</li>
+        <li><b>권한 요청:</b> 브라우저에서 로컬 네트워크 접근을 허용하세요.</li>
+        <li><b>입력 불가:</b> DJMAX 창이 활성화되어 있는지, 관리자 권한 여부가 일치하는지 확인하세요.</li>
+        <li><b>버전 업데이트:</b> 구버전 실행 중인 경우 종료 후 최신 버전을 실행하세요.</li>
       </ul>
     </details>
     <details class="scan-help-details">
-      <summary>검토·업로드에서 확인할 점</summary>
+      <summary>검토 및 업로드 주의사항</summary>
       <ul class="help-list">
-        <li><b>같은 곡의 기록이 서로 다르면:</b> 화면과 비교해 맞는 항목 하나만 선택하세요. 서로 다른 값을 둘 다 선택하면 해당 기록은 업로드에서 제외됩니다.</li>
-        <li><b>서버보다 낮게 읽힌 기록:</b> 업로드하지 않습니다. 찍힌 화면을 보고 잘못 읽힌 값이 없는지 확인하세요.</li>
-        <li><b>업로드가 중단되면:</b> 연결 상태와 계정 설정을 확인하세요. 전송 결과를 확인하지 못했다면 <b>서버 기록과 비교</b>를 다시 눌러 먼저 확인하세요.</li>
-        <li><b>실패한 기록을 다시 올리려면:</b> 해당 기록을 선택하고 <b>선택한 실패 기록 재시도</b>를 누르세요. 이 버튼은 성공한 기록이나 아직 보내지 않은 기록을 전송하지 않습니다.</li>
-      </ul>
-    </details>
-    <details class="scan-help-details">
-      <summary>스크린샷으로 읽기·저장 안내</summary>
-      <ul class="help-list">
-        <li><b>스크린샷으로 읽기:</b> 컬렉션 화면을 <b>스샷 파일로 읽기</b>로 선택하거나 이 탭에서 <b>Ctrl+V</b>로 붙여넣으세요. 여러 장도 가능합니다. 화면 공유 없이 읽을 수 있으며, 업로드할 때는 도우미가 필요합니다.</li>
-        <li><b>스캔 결과:</b> 이 페이지에만 남습니다. 새로고침하거나 페이지를 닫기 전에 업로드를 마치세요. 플레이 기록이 없는 곡은 컬렉션에 나타나지 않아 스캔되지 않습니다.</li>
-        <li><b>계정 정보:</b> 옵션의 <b>계정 파일 기억해 두기</b>를 켰을 때만 브라우저에 저장됩니다. 공용 PC에서는 꺼 두세요.</li>
+        <li><b>중복/상충 기록:</b> 화면과 대조하여 올바른 값 하나만 선택하세요.</li>
+        <li><b>서버 미달 기록:</b> 기존 서버 기록보다 낮은 점수는 업로드되지 않습니다.</li>
+        <li><b>실패 재시도:</b> 전송 실패 항목을 선택하고 재시도할 수 있습니다.</li>
       </ul>
     </details>
   </section>
@@ -1144,9 +1058,9 @@
   <section class="card help-section" id="help-etc">
     <h3>기타</h3>
     <ul class="help-list">
-      <li><b>자동 저장:</b> 모든 데이터는 브라우저에 자동 저장되어 새로고침해도 유지됩니다.</li>
-      <li><b>실행 취소/다시 실행:</b> 실수로 매칭을 하거나 플레이어를 잘못 삭제했을 때 이전/다음 상태로 되돌릴 수 있습니다.</li>
-      <li><b>초기화:</b> '전체 초기화' 버튼을 누르면 모든 데이터가 삭제됩니다.</li>
+      <li><b>자동 저장:</b> 모든 설정과 데이터는 브라우저에 자동 저장됩니다.</li>
+      <li><b>실행 취소:</b> <b>Ctrl+Z</b> 또는 되돌리기 버튼으로 이전 상태로 복구할 수 있습니다.</li>
+      <li><b>전체 초기화:</b> 브라우저에 저장된 방 데이터를 초기 상태로 리셋합니다.</li>
     </ul>
   </section>
 </main>
@@ -1164,7 +1078,7 @@
 <script src="lib/djmax-room.js?v=20261103-plates"></script>
 <script src="lib/incidents.js"></script>
 
-<script src="script.js?v=20261103-tier-flat"></script>
+<script src="script.js?v=20261103-bot-cycle"></script>
 <script src="auto-room.js?v=20261103-ui"></script>
 
 <script src="floor/core.js"></script>
@@ -1177,9 +1091,9 @@
 
 <!-- 성과 스캔 — 층수 측정기의 곡 DB(songDatabase)와 자켓 sig(sigTable)를 쓰므로 그 뒤에 -->
 <script src="scan/reader.js"></script>
-<script src="scan/app.js?v=20261103-scan-copy"></script>
+<script src="scan/app.js?v=20261103-bot-cycle"></script>
 
 <!-- 자동 방장 봇 — script.js(priorityOrder) · auto-room.js(장부) · scan/app.js(도우미 호출) 다음이어야 한다 -->
-<script src="auto-host.js"></script>
+<script src="auto-host.js?v=20261103-bot-cycle"></script>
 </body>
 </html>

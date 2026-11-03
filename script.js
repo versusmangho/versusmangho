@@ -888,6 +888,9 @@ function refreshUI() {
     renderLog();
     saveState();
     VMH.Popup.update();
+    if (window.VMH && window.VMH.AutoHost && typeof window.VMH.AutoHost.render === "function") {
+        window.VMH.AutoHost.render();
+    }
 }
 
 /* 보류 켜기/끄기. 끌 때는 보류한 라운드만큼 대기를 보정한다 (보류 버튼과 봇 지정이 같이 쓴다) */
@@ -1599,4 +1602,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // 토글 스위치 변경 시 UI 즉시 새로고침
     document.getElementById('newcomer-toggle')?.addEventListener('change', () => refreshUI());
     document.getElementById('safeguard-toggle')?.addEventListener('change', () => refreshUI());
+
+    // 툴팁 클릭 시 라벨 선택 등 부모 이벤트 방지
+    document.addEventListener('click', (e) => {
+        if (e.target.closest('.help-tip')) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    });
 });

@@ -368,32 +368,42 @@
     const filter = () => (document.querySelector('input[name="scan-filter"]:checked') || {}).value || 'check';
 
     // 도우미 상태 한 줄 (켜기·받기·다시 확인 단추 포함) — 방장 봇 탭도 같은 줄을 쓴다 (auto-host.js).
-    // 단추는 data-act="helper-open" | "helper-retry"라, 그 줄을 담은 곳이 onHelperClick으로 넘긴다
+    // 연결·다운로드·다시 확인은 모두 버튼으로 제공하고 onHelperClick으로 넘긴다.
     // need = 이 도우미가 어디에 필요한지 (탭마다 다르다)
     function helperHtml(need, compact = false) {
         const h = state.helper;
         const name = compact ? '' : '도우미 ';
-        if (h && !(h.version >= HELPER_MIN_VERSION)) return '도우미 업데이트 필요 '
-            + '<a class="scan-helper-dl" href="' + HELPER_DOWNLOAD + '" download>새 버전 받기</a> '
-            + '<button type="button" class="secondary scan-inline-btn" data-act="helper-retry">다시 확인</button>'
-            + '<br><small>기존 도우미를 종료하고 새 버전을 실행하세요.</small>';
+        if (h && !(h.version >= HELPER_MIN_VERSION)) return '<div>도우미 업데이트 필요'
+            + '<div class="scan-helper-actions"><button type="button" class="secondary" data-act="helper-download">새 버전 다운로드</button>'
+            + '<button type="button" class="secondary" data-act="helper-retry">다시 확인</button></div>'
+            + '<small>기존 도우미를 종료하고 새 버전을 실행하세요.</small></div>';
         return h
-            ? name + '준비됨' + (h.windows ? '' : ' · 자동 키 입력은 Windows에서만 지원')
+            ? '<button type="button" class="secondary" disabled>도우미 연결됨</button>' + (h.windows ? '' : ' · 자동 키 입력은 Windows에서만 지원')
             : state.lnaAsking ? '<span>연결 권한을 허용해 주세요.<br><small>브라우저의 <b>"이 기기의 다른 앱 및 서비스에 액세스"</b>에서 <b>허용</b>을 선택하세요.</small></span>'
             : !state.helperChecked ? name + '연결 확인 중…'
             : state.lnaDenied ? '<span>연결 권한이 차단되어 있습니다.<br><small>주소창의 <b>사이트 설정</b>에서 로컬 네트워크 접근을 허용한 뒤 새로고침하세요.</small></span>'
-            : state.launching ? '<span>도우미 실행 확인 중…<br><small>프로그램을 열지 묻는 창이 나타나면 <b>열기</b>를 누르세요.</small></span>'
-            : '<span>' + name + '실행 필요 ' +
-              (IS_WIN ? '<button type="button" class="secondary scan-inline-btn" data-act="helper-open">도우미 켜기</button> ' : '') +
-              '<a class="scan-helper-dl" href="' + HELPER_DOWNLOAD + '" download>처음 사용: 다운로드</a> ' +
-              '<button type="button" class="secondary scan-inline-btn" data-act="helper-retry">다시 확인</button>' +
-              '<br><small>' + (state.launchFailed
+            : state.launching ? '<div><button type="button" class="scan-helper-connect" disabled>연결 중…</button><br><small>프로그램을 열지 묻는 창이 나타나면 <b>열기</b>를 누르세요.</small></div>'
+            : '<div>' + name + '실행 필요<div class="scan-helper-actions">' +
+              (IS_WIN ? '<button type="button" class="scan-helper-connect" data-act="helper-open">도우미 연결</button>' : '') +
+              '<button type="button" class="secondary" data-act="helper-download">처음 사용: 다운로드</button>' +
+              '<button type="button" class="secondary" data-act="helper-retry">다시 확인</button></div>' +
+              '<small>' + (state.launchFailed
                 ? '실행을 확인하지 못했습니다. 받은 파일을 직접 실행한 뒤 <b>다시 확인</b>을 누르세요.'
-                : '처음에는 다운로드한 파일을 직접 실행하세요. ' + esc(need)) + '</small></span>';
+                : '처음에는 다운로드한 파일을 직접 실행하세요. ' + esc(need)) + '</small></div>';
     }
     function onHelperClick(e) {
-        if (e.target.dataset.act === 'helper-retry') checkHelper();
-        else if (e.target.dataset.act === 'helper-open') launchHelper();
+        const button = e.target.closest('button[data-act]');
+        if (!button || button.disabled) return;
+        if (button.dataset.act === 'helper-retry') checkHelper();
+        else if (button.dataset.act === 'helper-open') launchHelper();
+        else if (button.dataset.act === 'helper-download') {
+            const link = document.createElement('a');
+            link.href = HELPER_DOWNLOAD;
+            link.download = 'vmh-helper.exe';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        }
     }
     const helperListeners = [];
 

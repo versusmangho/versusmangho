@@ -81,7 +81,7 @@
                     vsStreak: 0, songDone: false,
                     unready: 0, readyRetryAt: 0, p2Streak: 0, p2Ready: 0, p2Told: false,
                     disbandStreak: 0, restartDone: false, handoffRetryAt: 0, lastFail: '',
-                    restartPending: false, restartTries: 0, restartRetryAt: 0,
+                    restartPending: false, restartTries: 0, restartRetryAt: 0, restartSubmitted: false, restartLabel: '',
                     askPending: false, askTries: 0, askRetryAt: 0,
                     focusLost: false, retryAt: 0, settleSince: 0 };
 
@@ -102,16 +102,40 @@
     const Scan = () => window.VMH.Scan;
     function stop(reason, focus) { const e = new Error(reason); e.quiet = true; e.focus = !!focus; throw e; }
 
-    async function helper(path, body) {
+    // 끄기·공유 변경 후 다시 켜져도, 이전 비동기 작업은 되살리지 않는다.
+    let workVersion = 0, activeVersion = null;
+    function cancelWork() {
+        workVersion++;
+        state.latched = false; state.settleSince = 0;
+        state.unready = 0; state.p2Streak = 0; state.p2Ready = 0; state.p2Told = false;
+        state.askPending = false; state.vsStreak = 0; state.songDone = false;
+        state.disbandStreak = 0;
+    }
+    function assertWork() {
+        if (!opts.on || !Hub.receiving('room') || (activeVersion !== null && activeVersion !== workVersion)) {
+            const e = new Error('봇이 꺼졌거나 화면 공유가 변경되어 작업을 취소했습니다');
+            e.cancelled = true;
+            throw e;
+        }
+    }
+
+    async function helper(path, body, onDispatch) {
+        assertWork();
+        if (Hub.isStale()) stop('공유 화면이 멈춰 입력을 중단했습니다');
         if (!(Scan()?.state.helper?.version >= 8)) stop('도우미 프로그램을 새로 받아 실행하세요 (v8 이상 필요)');
         if (Scan().state.running) stop('성과 스캔이 진행 중입니다');
         let r;
-        try { r = await Scan().helperCall(path, body); }
+        try {
+            if (onDispatch) onDispatch();
+            r = await Scan().helperCall(path, body);
+        }
         catch {
+            assertWork();
             // 도우미가 꺼졌다 — 찾은 것을 지워 두면 ensureHelper가 다시 켜질 때까지 찾아본다
             if (Scan()) Scan().state.helper = null;
             stop('도우미 프로그램에 연결하지 못했습니다');
         }
+        assertWork();
         if (!r || !r.ok) {
             // 게임 창이 앞에 없다 (불러오기를 껐거나, 윈도우가 불러오기를 막았거나, 게임이 꺼져 있다) —
             // 이것만은 멈추지 않고 run()이 잠시 뒤 같은 일을 다시 시킨다
@@ -123,7 +147,7 @@
         return r;
     }
     // activate — 게임 창이 뒤에 있으면 도우미(v7)가 앞으로 불러와서 누른다. 옛 도우미는 이 칸을 모르고 그냥 거절한다
-    const key = (name) => helper('/helper/key', { key: name, hold: HOLD_MS, activate: true });
+    const key = (name, onDispatch) => helper('/helper/key', { key: name, hold: HOLD_MS, activate: true }, onDispatch);
     const clip = (text) => helper('/helper/clipboard', { text, activate: true });
 
     /* ── 화면 ───────────────── */
@@ -131,7 +155,9 @@
        같은 그림이 계속 온다. 그 옛 화면을 보고 키를 누르면 엉뚱한 줄을 고르거나(자리 번호가 그새 바뀐다)
        이미 지나간 상태를 보고 판단한다. 멈춘 동안은 그냥 아무것도 안 하고, 다시 그려지면 이어서 한다 */
     async function frame() {
+        assertWork();
         const g = await Hub.grab();
+        assertWork();
         if (!g || g.stale) return null;
         return g;
     }
@@ -314,9 +340,7 @@
         if (isP2) {
             done += ' · 봇이 PLAYER 2라 레디는 건너뜀';
         } else if (rowReady(after.f, after.W, after.H, after.youRow) === false) {
-            await key('f5');
-            const ok = await waitFor((f, W, H) => rowReady(f, W, H, after.youRow) || null);
-            done += ok ? ' · 레디' : ' · 레디는 확인 못 함';
+            done += ' · ' + await pressReady(after.youRow, true);
         }
 
         // 7. 채팅 — 여기까지 온 것은 지켜야 하므로, 채팅이 어긋나도 넘긴 것까지는 남긴다.
@@ -384,8 +408,21 @@
 
     // want — 켜려는가(true) 끄려는가(false)
     async function pressReady(row, want) {
+        // onLobby/방장 이동 직후의 스냅샷은 이미 옛 자리일 수 있다. F5 바로 전에 다시 읽는다.
+        const g = await frame();
+        if (!g || !Room.isLobbyScreen(g.frame, g.W, g.H)) stop('레디 전 로비를 확인하지 못했습니다');
+        const marks = Room.lobbyMarks(g.frame, g.W, g.H);
+        if (!marks.hostBadge || marks.youRow !== row || row < 1 || (want && row < 2))
+            stop('봇의 자리나 방 상태가 바뀌어 레디 입력을 건너뜁니다');
+        const current = rowReady(g.frame, g.W, g.H, row);
+        if (current === null) stop('레디 상태를 읽지 못해 입력을 건너뜁니다');
+        if (current === want) return (row + 1) + '픽 — 이미 ' + (want ? '레디' : '비레디');
         await key('f5');
-        const ok = await waitFor((f, W, H) => rowReady(f, W, H, row) === want || null);
+        const ok = await waitFor((f, W, H) => {
+            if (!Room.isLobbyScreen(f, W, H)) return null;
+            const m = Room.lobbyMarks(f, W, H);
+            return m.youRow === row && m.hostBadge && rowReady(f, W, H, row) === want || null;
+        });
         return (row + 1) + '픽 — ' + (want ? '레디' : '레디 풀기') + (ok ? '' : ' (바뀌었는지 확인 못 함)');
     }
 
@@ -490,6 +527,8 @@
     /* 중간에 멈췄다가 이어서 하는 것도 이 함수 하나다 — 걸음마다 '이미 그 화면이면 건너뛴다'라서
        해체 알림·방 목록·CREATE ROOM 창 어디서 시작해도 된다 */
     async function recreate() {
+        // 생성 Enter는 이미 전송했다. 결과가 늦거나 불명확해도 방을 중복 생성하지 않는다.
+        if (state.restartSubmitted) return await observeCreatedRoom();
         // 1. 알림 닫기 — 단추가 '종료' 하나뿐이라 Enter가 곧 그것이다.
         //    막 뜬 동안은 Enter가 안 먹으므로 방 목록이 보일 때까지 다시 친다
         if (!await pressUntil('enter', Room.isDisbandBox, seenList))
@@ -535,16 +574,26 @@
             if (!await waitFor((f, W, H) => { const x = Room.createRoom(f, W, H); return x && x.focus === 'create' ? x : null; }))
                 stop('생성 칸이 안 잡혔습니다');
         }
-        await key('enter');
+        state.restartLabel = '방을 다시 만듦' + (roomName ? ' — ' + roomName : '') + (roomPw ? ' (비밀번호 ' + roomPw + ')' : '');
+        try { await key('enter', () => { state.restartSubmitted = true; }); }
+        catch (e) {
+            // focus 거절은 전송되지 않았음이 확실하다. 응답 불명/취소는 전송됐을 수 있어 표식을 유지한다.
+            if (e.focus) state.restartSubmitted = false;
+            throw e;
+        }
+        return await observeCreatedRoom();
+    }
+
+    async function observeCreatedRoom() {
         const ok = await waitFor((f, W, H) => Room.isLobbyScreen(f, W, H) || null, LIST_TRIES);
-        return '방을 다시 만듦' + (roomName ? ' — ' + roomName : '')
-             + (roomPw ? ' (비밀번호 ' + roomPw + ')' : '') + (ok ? '' : ' · 로비는 확인 못 함');
+        if (!ok) stop('방 생성 결과를 확인하지 못했습니다 — 생성 키를 다시 누르지 않고 로비를 기다립니다');
+        return state.restartLabel || '방을 다시 만듦 — 로비 확인';
     }
 
     /* ── 바깥 ───────────────── */
     function ready() {
         if (!opts.on) return false;
-        if (state.busy || !Hub.isRunning() || Hub.isStale()) return false;   // 멈춘 화면을 보고 시작하지 않는다
+        if (state.busy || !Hub.receiving('room') || Hub.isStale()) return false;   // 멈췄거나 매칭에 오지 않는 화면은 쓰지 않는다
         if (Date.now() < state.retryAt) return false;   // 게임 창이 앞에 없어 멈춘 직후 — 조금 쉬고 다시 해 본다
         const S = Scan();
         if (!S || !S.state.helper) { ensureHelper(); return false; }
@@ -573,6 +622,8 @@
         state.vsStreak = 0; state.songDone = false;
         state.disbandStreak = 0; state.restartDone = false;
         state.restartPending = false; state.restartTries = 0; state.restartRetryAt = 0;   // 방이 있다 — 다시 만들던 것은 끝났다
+        state.restartSubmitted = false;
+        state.restartLabel = '';
         if (back) state.readyRetryAt = 0;   // 새 판 — 레디를 곧바로 다시 볼 수 있게
         const marks = Room.lobbyMarks(frm, W, H);
         if (marks.youRow === 0 && marks.hostBadge) {
@@ -633,8 +684,8 @@
         // 방이 터졌다 — 해체 알림이 뜨면 같은 방을 다시 만든다. 한 판에 한 번만 (로비를 다시 보면 풀린다)
         if (!state.restartDone && Room.isDisbandBox(frm, W, H)) {
             state.vsStreak = 0;
-            if (++state.disbandStreak >= DISBAND_TICKS && ready()) {
-                state.disbandStreak = 0; state.restartTries = 0;
+            if (++state.disbandStreak >= DISBAND_TICKS && Date.now() >= state.restartRetryAt && ready()) {
+                state.disbandStreak = 0;
                 startRecreate();
             }
             return;
@@ -643,7 +694,7 @@
         // 다시 만들다 멈췄다 — 알림은 이미 닫혀 방 목록이나 CREATE ROOM 창에 있다. 잠시 뒤 거기서 이어서 한다.
         // restartPending일 때만이다: 사람이 봇 계정으로 방을 나와 목록에 있는 것까지 방을 만들면 안 된다
         if (state.restartPending && !state.restartDone && Date.now() >= state.restartRetryAt
-            && (Room.isRoomList(frm, W, H) || Room.createRoom(frm, W, H))) {
+            && (state.restartSubmitted || Room.isRoomList(frm, W, H) || Room.createRoom(frm, W, H))) {
             state.vsStreak = 0;
             if (ready()) startRecreate();
             return;
@@ -665,7 +716,7 @@
             () => { state.restartDone = false; },
             () => {
                 state.restartDone = false;
-                if (++state.restartTries >= RESTART_TRIES) { state.restartPending = false; return false; }
+                if (++state.restartTries >= RESTART_TRIES) { state.restartPending = false; state.restartDone = true; return false; }
                 state.restartRetryAt = Date.now() + RESTART_RETRY_MS;
             });
     }
@@ -676,17 +727,24 @@
     /* onFail — 그 밖의 이유로 멈췄을 때 (방장 넘기기·방장 요청·방 다시 만들기가 잠시 뒤 다시 해 보게 한다).
        false를 돌려주면 이제 그만한다는 뜻이다 */
     async function run(job, startNote, retry, onFail) {
+        if (state.busy) return;
+        activeVersion = workVersion;
         state.busy = true;
         state.note = startNote; state.at = new Date(); render();
         let note;
         try {
             await Hub.setFrameRate(BUSY_FPS);
+            assertWork();
             note = await job();
             if (state.focusLost) { state.focusLost = false; log('게임 창에 다시 입력할 수 있어 재개합니다', 'hit'); }
             log(note, 'hit');
             state.lastFail = '';
         } catch (e) {
-            if (e.focus && retry) {
+            if (e.cancelled) {
+                note = '작업 취소 — ' + e.message;
+                state.latched = false;
+                if (state.restartPending) state.restartDone = false;
+            } else if (e.focus && retry) {
                 retry();
                 state.retryAt = Date.now() + FOCUS_RETRY_MS;
                 note = '기다리는 중 — ' + e.message;
@@ -703,7 +761,8 @@
         } finally {
             // 게임을 불러왔으면 원래 쓰던 창으로 돌려놓는다 (그새 직접 다른 창으로 옮겼으면 도우미가 그대로 둔다)
             try { await Scan().helperCall('/helper/restore', {}); } catch { /* 옛 도우미 */ }
-            await Hub.setFrameRate(IDLE_FPS);
+            try { await Hub.setFrameRate(IDLE_FPS); } catch { /* 공유가 종료된 경우 */ }
+            activeVersion = null;
             state.busy = false; state.note = note; state.at = new Date(); render();
         }
     }
@@ -716,36 +775,72 @@
     /* ── 옵션 UI ───────────────── */
     const $ = (id) => document.getElementById(id);
 
-    // 준비 목록 — 성과 스캔 탭처럼 도우미(켜기·받기·다시 확인은 그 탭과 같은 줄)와 게임 화면 연결. 봇을 켜기 전에도 보인다
+    // 준비 목록 — 도우미·게임 화면·봇 지정 3단계를 깔끔한 목록으로 보여준다. 봇을 켜기 전에도 보인다
     function renderChecks() {
         const el = $('auto-host-helper'), S = Scan();
         if (!el || !S || !S.helperHtml) return;
         const ok = (b) => b ? '<span class="ok">●</span>' : '<span class="no">●</span>';
+        const check = (ready, name, html) =>
+            '<li>' + ok(ready) + '<span class="scan-check-name">' + name + '</span><div class="scan-check-desc">' + html + '</div></li>';
+
+        const helperReady = !!S.state.helper && S.state.helper.version >= 8 && S.state.helper.windows;
         const running = Hub.isRunning(), seen = Hub.receiving('room');
-        const screen = !running ? '게임 화면이 연결되지 않았습니다 — 오른쪽 위 <b>게임 화면 연결</b>'
-                     : !seen ? '게임 화면을 층수 측정기에만 주고 있어 봇이 로비를 못 봅니다 — 옵션 탭의 <b>화면 공유를 줄 곳</b>'
-                     : '게임 화면 연결됨' + (opts.song && Hub.target !== 'both'
-                         ? ' — 곡 안내는 옵션 탭의 <b>화면 공유를 줄 곳</b>이 <b>둘 다</b>여야 합니다' : '');
+
+        let screenHtml = '';
+        if (!running) {
+            screenHtml = '게임 화면이 연결되지 않았습니다 <button type="button" class="secondary scan-inline-btn" data-act="screen-connect">화면 연결</button>';
+        } else if (!seen) {
+            screenHtml = '게임 화면을 층수 측정기에만 주고 있어 봇이 로비를 못 봅니다 — 옵션 탭의 <b>화면 공유를 줄 곳</b>';
+        } else {
+            screenHtml = '게임 화면 연결됨' + (opts.song && Hub.target !== 'both'
+                ? ' — 곡 안내는 옵션 탭의 <b>화면 공유를 줄 곳</b>이 <b>둘 다</b>여야 합니다' : '');
+        }
+
+        const botNick = (typeof room !== 'undefined' && room.botId) ? room.botId : null;
+        const esc = (s) => (window.escapeHtml ? window.escapeHtml(s) : String(s));
+        let botHtml = '';
+        if (botNick) {
+            botHtml = '지정됨: <b>' + esc(botNick) + '</b> <button type="button" class="secondary scan-inline-btn" data-act="goto-match">매칭 표 보기</button>';
+        } else {
+            botHtml = '매칭 표에서 봇으로 쓸 계정에 <b>봇 지정</b>을 누르세요 <button type="button" class="secondary scan-inline-btn" data-act="goto-match">매칭 표로 이동</button>';
+        }
+
         el.innerHTML = [
-            ok(!!S.state.helper && S.state.helper.version >= 8) + S.helperHtml('봇이 게임에 키를 누르려면 필요합니다.'),
-            ok(seen) + screen
-        ].map(x => '<li>' + x + '</li>').join('');
+            check(helperReady, '도우미', S.helperHtml('봇이 게임에 키를 누르려면 필요합니다.', true)),
+            check(seen, '게임 화면', screenHtml),
+            check(!!botNick, '봇 지정', botHtml)
+        ].join('');
     }
 
     function render() {
         renderChecks();
         const el = $('auto-host-note');
         if (!el) return;
-        if (!opts.on) { el.textContent = ''; return; }
+        if (!opts.on) {
+            el.innerHTML = '<span class="bot-status-tag off">꺼짐</span><span class="bot-status-text">자동 방장 봇이 꺼져 있습니다</span>';
+            return;
+        }
         const S = Scan();
-        const why = !Hub.isRunning() ? '게임 화면이 연결되지 않았습니다'
-                  : !(S && S.state.helper) ? '도우미 프로그램이 켜져 있지 않습니다 — 위의 "도우미 켜기"로 켜세요'
-                  : !S.state.helper.windows ? '도우미가 Windows가 아니라 키를 보낼 수 없습니다'
-                  : !(S.state.helper.version >= 8) ? '도우미 프로그램을 새로 받아 실행하세요 (v8 이상 필요)'
-                  : null;
-        const last = state.note ? ' · 마지막: ' + state.note + (state.at ? ' (' + state.at.toLocaleTimeString() + ')' : '') : '';
+        const helperOk = !!S && !!S.state.helper && S.state.helper.version >= 8 && S.state.helper.windows;
+        const screenOk = Hub.receiving('room');
+        const botOk = typeof room !== 'undefined' && !!room.botId;
+
+        const missing = [];
+        if (!helperOk) missing.push('도우미');
+        if (!screenOk) missing.push('게임 화면');
+        if (!botOk) missing.push('봇 지정');
+
+        const esc = (s) => (window.escapeHtml ? window.escapeHtml(s) : String(s));
+        const last = state.note ? ' · ' + esc(state.note) : '';
         const what = '대기 중' + (opts.chat ? ' · 순서 안내' : '') + (opts.song ? ' · 곡 안내' : '');
-        el.textContent = (why ? '켜져 있지만 지금은 못 움직입니다 — ' + why : what) + last;
+
+        if (missing.length > 0) {
+            el.innerHTML = '<span class="bot-status-tag warn">준비 필요</span><span class="bot-status-text">필요: ' + missing.join(', ') + '</span>'
+                + (last ? '<span class="bot-status-last">' + last + '</span>' : '');
+        } else {
+            el.innerHTML = '<span class="bot-status-tag live">동작 중</span><span class="bot-status-text">' + what + '</span>'
+                + (last ? '<span class="bot-status-last">' + last + '</span>' : '');
+        }
     }
 
     function bind() {
@@ -757,6 +852,10 @@
             el.checked = !!opts[k];
             el.addEventListener('change', () => {
                 opts[k] = el.checked;
+                if (k === 'on') {
+                    cancelWork();
+                    state.restartDone = false; state.restartTries = 0; state.restartRetryAt = 0;
+                }
                 state.latched = false; state.retryAt = 0; state.handoffRetryAt = 0; state.readyRetryAt = 0;   // 껐다 켜면 곧바로 다시 해 본다 (멈춘 뒤 손으로 다시 시키는 길)
                 save(); render();
                 if (k === 'on' && el.checked) ensureHelper(true);   // 켠 그 클릭에서 도우미를 찾는다 (스캔 탭을 안 열어도)
@@ -778,12 +877,24 @@
             el.value = opts[k];
             el.addEventListener('change', () => { opts[k] = el.value.trim(); el.value = opts[k]; save(); });
         }
-        Hub.onChange(render);
+        Hub.onChange(() => { cancelWork(); render(); });
+        const box = $('auto-host-helper');
+        if (box) {
+            box.addEventListener('click', (e) => {
+                const act = e.target.dataset.act;
+                if (act === 'screen-connect') {
+                    Hub.toggle();
+                } else if (act === 'goto-match') {
+                    if (window.VMH && window.VMH.Tabs) window.VMH.Tabs.show('match');
+                } else {
+                    const S = Scan();
+                    if (S && S.onHelperClick) S.onHelperClick(e);
+                }
+            });
+        }
         const S = Scan();
         if (S && S.onHelper) {
             S.onHelper(render);
-            const box = $('auto-host-helper');
-            if (box) box.addEventListener('click', S.onHelperClick);
             // 성과 스캔 탭처럼 이 탭을 열 때·브라우저로 돌아올 때 찾는다 (웹에서 127.0.0.1을 부르면 권한을 물을 수 있어,
             // 봇을 안 쓰는 사람에게는 묻지 않는다)
             const look = () => { if (VMH.Tabs.active === 'bot' && !S.state.helper && !S.state.running && !S.state.launching) S.checkHelper(); };
@@ -791,13 +902,17 @@
             window.addEventListener('focus', look);
             look();
         }
+        if (window.VMH && window.VMH.Tabs) {
+            window.VMH.Tabs.onChange(() => { if (window.VMH.Tabs.active === 'bot') render(); });
+        }
+        window.addEventListener?.('focus', render);
         ensureHelper(true);   // 켜 둔 채로 페이지를 열었으면 곧바로 도우미를 찾는다
         render();
         if (typeof refreshUI === 'function') refreshUI();   // 표는 이 설정을 읽기 전에 한 번 그려졌다 (봇 보류도 여기서 맞춘다)
     }
 
     window.VMH = window.VMH || {};
-    window.VMH.AutoHost = { opts, state, onLobby, onScreen, busy: () => state.busy,
+    window.VMH.AutoHost = { opts, state, render, onLobby, onScreen, busy: () => state.busy,
                             _cycle: cycle, _askHost: askHost, _tellSong: tellSong,
                             _recreate: recreate, _roomText: roomText, _songText: songText, _chatText: chatText, _settledYouRow: settledYouRow };
     // 붙인 뒤에 bind — bind가 부르는 refreshUI(봇 보류 맞추기)가 VMH.AutoHost를 본다
