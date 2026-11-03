@@ -890,12 +890,40 @@
     function initIncidents() {
         const I = window.VMH.Incidents, bar = $('incident-bar');
         if (!I || !bar) return;
-        const render = () => { bar.hidden = !I.count(); const n = $('incident-count'); if (n) n.textContent = I.count(); };
+        const badge = $('incident-badge');
+        const render = () => {
+            const count = I.count();
+            bar.hidden = !count;
+            if (badge) badge.hidden = !count;
+            ['incident-count', 'incident-badge-count'].forEach(id => { const n = $(id); if (n) n.textContent = count; });
+            const list = $('incident-list');
+            if (list) list.innerHTML = I.list().slice().reverse().map(i => `<li><time>${i.at.toLocaleTimeString('ko-KR')}</time> ${escapeHtml(i.note)}</li>`).join('');
+        };
         I.onChange(render);
         const dl = $('incident-dl'), clr = $('incident-clear');
         if (dl) dl.addEventListener('click', () => I.download());
         if (clr) clr.addEventListener('click', () => I.clear());
+        if (badge) badge.addEventListener('click', () => {
+            window.VMH.Tabs.show('match');
+            const details = $('incident-details');
+            if (details) details.open = true;
+            bar.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            bar.focus({ preventScroll: true });
+        });
         render();
+    }
+
+    /* 연결 상태는 어느 탭에서도 보인다. 인식 상태와 달리 공유 자체의 신선도를 보여준다. */
+    function renderCaptureStatus() {
+        const el = $('capture-indicator');
+        if (!el) return;
+        const running = Hub.isRunning(), stale = running && Hub.isStale();
+        const target = { both: '매칭+층수', room: '매칭', floor: '층수' }[Hub.target];
+        const text = !Hub.available() ? '화면 공유 지원 안 됨' : !running ? '연결 안 됨'
+            : stale ? '화면 멈춤' : `연결됨 · ${target}`;
+        if (el.textContent !== text) el.textContent = text;
+        el.dataset.state = stale ? 'stale' : running ? 'live' : 'idle';
+        el.title = stale ? '게임 창을 앞으로 가져오면 다시 읽습니다.' : running ? `화면 공유 대상: ${target}` : '게임 화면 연결 버튼으로 시작하세요.';
     }
 
     /* 화면 공유를 켜면 손으로 하는 입력을 잠근다 —
@@ -909,6 +937,7 @@
        매칭 쪽이 프레임을 안 받으면(층수 측정기만 받음) 손 입력을 잠그지 않는다 — 명단을 건드리는 경로가 하나뿐이니까 */
     let wasReceiving = false;
     function onHubChange() {
+        renderCaptureStatus();
         const running = Hub.isRunning(), on = Hub.receiving('room');
         const btn = $('auto-capture-btn');
         if (btn) {
@@ -938,6 +967,8 @@
 
         initActivityToggle();
         initIncidents();
+        // 층수만 공유할 때도 상태를 갱신한다. 캡처를 추가로 잡거나 인식기를 돌리지는 않는다.
+        if ($('capture-indicator')) setInterval(renderCaptureStatus, 1000);
         Hub.subscribe('room', onFrame);
         Hub.onChange(onHubChange);
         Hub.onStatus((text, tone) => { if (tone === 'warn' && Hub.isTarget('room')) setStatus(text, 'warn'); });
@@ -953,6 +984,7 @@
         const btn = $('auto-capture-btn');
         if (btn) btn.onclick = () => Hub.toggle();
         if (!Hub.available() && btn) {
+            renderCaptureStatus();
             btn.disabled = true;
             setStatus('이 주소에서는 화면 공유를 쓸 수 없습니다 — localhost나 https로 열어주세요', 'warn');
             return;

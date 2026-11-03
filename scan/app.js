@@ -424,6 +424,7 @@
     }
 
     function renderList() {
+        renderProgress();
         const f = filter(), items = state.items;
         const checkN = items.filter(needsCheck).length, inc = items.filter(it => it.include).length;
         $('scan-count').textContent = items.length ? '— ' + items.length + '곡 · 확인 필요 ' + checkN + ' · 올릴 대상 ' + inc : '';
@@ -660,10 +661,47 @@
 
     function pickedRows(up) { return up.filter(r => !state.skip.has(r.key) && !(resultOf(r) || {}).ok); }
 
+    function renderProgress(up = diffRows().up) {
+        const checkN = state.items.filter(needsCheck).length;
+        const compared = !!state.server && state.serverDj === opts.dj;
+        const selected = up.filter(r => !state.skip.has(r.key));
+        const success = selected.filter(r => (resultOf(r) || {}).ok).length;
+        const failed = selected.filter(r => resultOf(r) && !resultOf(r).ok).length;
+        const remaining = selected.length - success - failed;
+        const current = state.running || state.readingImages ? 'scan' : state.uploading ? 'upload'
+            : state.comparing ? 'compare' : !state.items.length ? 'scan' : checkN ? 'review' : !compared ? 'compare' : 'upload';
+        const steps = ['scan', 'review', 'compare', 'upload'];
+        const flow = $('scan-flow');
+        if (flow) flow.querySelectorAll('[data-scan-step]').forEach(el => {
+            const step = el.dataset.scanStep;
+            el.dataset.state = step === current ? 'active' : steps.indexOf(step) < steps.indexOf(current) ? 'done' : 'pending';
+            if (step === current) el.setAttribute('aria-current', 'step'); else el.removeAttribute('aria-current');
+        });
+        const summary = $('scan-summary');
+        if (summary) summary.textContent = !state.items.length ? '스캔하거나 스크린샷을 불러오세요.'
+            : '읽은 곡 ' + state.items.length + ' · 확인 필요 ' + checkN
+                + (compared ? ' · 갱신 대상 ' + up.length + '칸' : ' · 서버 비교 전');
+        const context = $('scan-context');
+        if (context) context.textContent = 'DJ ' + (opts.dj || '미설정') + ' · 계정 번호 '
+            + (state.account ? state.account.userNo : '미선택') + ' · 선택 ' + selected.length + '칸';
+        const result = $('scan-upload-summary');
+        if (result) {
+            result.hidden = !success && !failed && !state.uploading;
+            result.textContent = '선택 기록 — 성공 ' + success + ' · 실패 ' + failed + ' · 남음 ' + remaining;
+        }
+        const retry = $('scan-retry-btn');
+        if (retry) {
+            retry.hidden = !failed;
+            retry.textContent = '실패한 선택 기록만 재시도 (' + failed + ')';
+            retry.disabled = state.uploading || state.running || state.readingImages || state.comparing || !state.account;
+        }
+    }
+
     function updateUploadBtn(up) {
         const n = pickedRows(up).length, btn = $('scan-upload-btn');
         btn.textContent = '선택한 기록 올리기' + (n ? ' (' + n + ')' : '');
         btn.disabled = state.uploading || state.running || state.readingImages || state.comparing || !n || !state.account;
+        renderProgress(up);
     }
 
     function onDiffChange(e) {
@@ -723,11 +761,11 @@
         renderAccount();
     }
 
-    async function upload() {
+    async function upload(failedOnly = false) {
         if (state.uploading || state.running || state.readingImages || state.comparing || !state.account) return;
         const account = Object.assign({}, state.account);
         // 계정·곡·수치는 첫 await 전에 고정한다. 화면을 다시 그리거나 도우미를 기다려도 바뀌지 않는다.
-        const rows = pickedRows(diffRows().up).map(r => {
+        const rows = pickedRows(diffRows().up).filter(r => !failedOnly || (resultOf(r) && !resultOf(r).ok)).map(r => {
             const s = songOf(r.item.id);
             const record = { name: s.name, button: r.cell.button, pattern: PAT_FULL[r.cell.pattern], score: r.rate, maxCombo: r.max ? 1 : 0 };
             if (isDupName(s.name)) record.composer = s.composer;
@@ -748,7 +786,7 @@
             st.className = 'auto-status live'; st.textContent = '계정 ' + account.userNo + '에 올리는 중 ' + (i + 1) + ' / ' + rows.length + ' — ' + record.name + ' ' + record.button + 'B ' + record.pattern;
             if (isDupName(record.name) && !record.composer) {
                 state.results.set(r.key, { ok: false, text: '실패: 같은 제목의 곡을 구분할 작곡가 정보가 없습니다' });
-                fail++; continue;
+                fail++; renderProgress(); continue;
             }
             let res;
             try { res = await helperCall('/helper/upload', { userNo: account.userNo, token: account.token, record }, base); }
@@ -762,6 +800,7 @@
                 state.results.set(r.key, { ok: false, text: '실패: ' + ((body && body.message) || res.body || res.error || res.status || '응답 형식 확인 필요') });
                 fail++;
             }
+            renderProgress();
             // 연결 끊김·계정 인증 실패 때 나머지 기록까지 계속 보내지 않는다. 자동 재전송은 하지 않는다.
             if (!res.status || res.status === 401 || res.status === 403 || res.status === 429) {
                 st.className = 'auto-status warn';
@@ -801,8 +840,9 @@
         $('scan-diff').addEventListener('change', onDiffChange);
         $('scan-compare-btn').addEventListener('click', async () => { if (await loadServer()) renderDiff(); });
         $('scan-checks').addEventListener('click', onHelperClick);
-        $('scan-upload-btn').addEventListener('click', upload);
-        $('scan-dj-input').addEventListener('change', () => { renderChecks(); if (state.server && state.serverDj !== opts.dj) { state.server = null; renderDiff(); $('scan-compare-note').textContent = 'DJ 이름이 바뀌었습니다 — 다시 비교하세요'; } });
+        $('scan-upload-btn').addEventListener('click', () => upload());
+        if ($('scan-retry-btn')) $('scan-retry-btn').addEventListener('click', () => upload(true));
+        $('scan-dj-input').addEventListener('change', () => { renderChecks(); renderProgress(); if (state.server && state.serverDj !== opts.dj) { state.server = null; renderDiff(); $('scan-compare-note').textContent = 'DJ 이름이 바뀌었습니다 — 다시 비교하세요'; } });
 
         // 이 탭에서 Ctrl+V로 컬렉션 스샷을 붙여넣으면 읽는다 (다른 탭의 붙여넣기는 각자 자기 탭만 본다)
         window.addEventListener('paste', (e) => {

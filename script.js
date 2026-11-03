@@ -838,6 +838,9 @@ function refreshUI() {
     if(document.getElementById("match-msg")) document.getElementById("match-msg").style.display = "none";
 
     const sorted = getSortedPlayers(currentSort);
+    const queue = priorityOrder();
+    const ranks = new Map(queue.map((p, i) => [p.nickname, i + 1]));
+    renderNextMatch(queue);
 
     // Update header visuals
     document.querySelector("#player-table-body")?.parentElement.querySelectorAll('thead th').forEach(th => {
@@ -863,6 +866,7 @@ function refreshUI() {
             : !botInRoom() ? '<button class="small-bot">봇 지정</button>' : '';
 
         tr.innerHTML = `
+            <td class="queue-rank">${ranks.has(p.nickname) ? `<span${ranks.get(p.nickname) <= 2 ? ' class="queue-rank-next"' : ''}>${ranks.get(p.nickname)}</span>` : '<span class="muted">—</span>'}</td>
             <td>${stats.score.toFixed(2)}</td>
             <td>${playerLabelHtml(p)} ${p.rejoined?'<span class="tag danger">재입장</span>':''} ${!hold && p.matchCount===0?'<span class="tag" style="border-color:#4ade80;color:#86efac">신입</span>':''} ${isBot?'<span class="tag" style="border-color:#a78bfa;color:#c4b5fd">봇</span>':hold?'<span class="tag danger">보류</span>':''}
                 ${holdBtn}<button class="small-delete">×</button>
@@ -928,6 +932,20 @@ function priorityOrder() {
     syncBotHold();
     updateAverageWaitersStat();
     return getSortedPlayers({ key: 'priority', order: 'desc' }).filter(p => !p.onHold);
+}
+
+/* 표의 정렬과 무관하게 팝업·방장 봇과 같은 순서를 보여준다. 표시만 하며 대진을 고르지 않는다. */
+function renderNextMatch(queue) {
+    const el = document.getElementById('next-match');
+    if (!el) return;
+    const count = document.getElementById('next-match-count');
+    if (count) count.textContent = queue.length ? `대기 ${queue.length}명` : '';
+    const html = queue.length ? queue.slice(0, 2).map((p, i) => {
+        const stats = calculateScore(p);
+        return `<li><span class="next-rank">${i + 1}순위</span><div class="next-player">${playerLabelHtml(p)}</div><span class="next-wait">${stats.W_curr}판 대기</span></li>`;
+    }).join('') + (queue.length === 1 ? '<li class="queue-empty">다음 플레이어를 기다리고 있습니다.</li>' : '')
+        : `<li class="queue-empty">${room.players.length ? '현재 모두 보류 중입니다.' : '플레이어를 추가하거나 게임 화면을 연결하세요.'}</li>`;
+    if (el.innerHTML !== html) el.innerHTML = html;
 }
 
 VMH.Popup.addSection('queue', () => {
@@ -1275,6 +1293,15 @@ function scrollToHelpSection(id) {
     void el.offsetWidth;   // 같은 곳을 다시 눌러도 반짝이도록 애니메이션을 되감는다
     el.classList.add('help-flash');
 }
+
+/* 헤더 줄 수가 바뀌어도 도움말/의심 장면의 제목이 헤더 뒤로 숨지 않게 한다. */
+(function syncHeaderOffset() {
+    const header = document.querySelector('body > header');
+    if (!header) return;
+    const update = () => document.documentElement.style.setProperty('--header-height', `${header.offsetHeight}px`);
+    update();
+    if (typeof ResizeObserver === 'function') new ResizeObserver(update).observe(header);
+})();
 
 document.addEventListener('click', (e) => {
     const inHelp = e.target.closest('[data-help-go]');

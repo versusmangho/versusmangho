@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <title>버망호 도우미</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="lib/theme.js?v=20261103-ui"></script>
 
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" />
@@ -354,7 +355,7 @@
   </style>
 
   <!-- 층수 스타일보다 뒤에 둔다 — .floor-toolbar 같은 조정 규칙이 이겨야 하기 때문 -->
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=20261103-ui" />
 </head>
 
 <body>
@@ -371,8 +372,13 @@
   </div>
   <div class="header-right">
     <span id="round-info">라운드: 0</span>
+    <button id="theme-toggle" class="secondary">☀ 라이트 모드</button>
+    <button id="incident-badge" class="incident-badge" hidden>인식 확인 필요 <span id="incident-badge-count">0</span>건</button>
     <button id="popup-btn" class="secondary">🪟 팝업</button>
-    <button id="auto-capture-btn" class="secondary">🎮 게임 화면 연결</button>
+    <div class="capture-controls">
+      <span id="capture-indicator" class="capture-indicator" role="status">연결 안 됨</span>
+      <button id="auto-capture-btn" class="secondary">🎮 게임 화면 연결</button>
+    </div>
   </div>
 </header>
 <div data-tab-panel="match">
@@ -392,15 +398,20 @@
     <div class="row match-header">
       <p id="chooser-status">테이블에서 두 명을 클릭하세요.</p>
     </div>
-    <div class="row buttons-right">
+    <div class="row match-actions">
       <button id="undo-btn" class="secondary">실행 취소</button>
       <button id="redo-btn" class="secondary">다시 실행</button>
-      <button id="reset-btn" class="danger">전체 초기화</button>
+      <div class="reset-action"><button id="reset-btn" class="quiet-danger">전체 초기화</button></div>
     </div>
     <div id="match-msg" class="error"></div>
     <div id="match-msg-success" class="success"></div>
   </section>
   </div>
+
+  <section class="card next-match-card" aria-labelledby="next-match-title">
+    <div class="card-head"><h2 id="next-match-title">다음 차례</h2><span id="next-match-count" class="muted"></span></div>
+    <ol id="next-match" class="next-match"><li class="queue-empty">플레이어를 추가하거나 게임 화면을 연결하세요.</li></ol>
+  </section>
 
   <section class="card" id="players-card">
     <div class="card-head">
@@ -410,6 +421,7 @@
     <table>
       <thead>
         <tr>
+          <th scope="col" class="queue-rank-head">순서</th>
           <th class="sortable" data-sort-key="priority">가중치</th>
           <th class="sortable" data-sort-key="nickname">닉네임</th>
           <th class="sortable extra-col" data-sort-key="chooserCount">원디골</th>
@@ -454,10 +466,11 @@
       <span class="toggle-icon" id="auto-log-icon">▼</span>
     </div>
     <div id="auto-activity" class="auto-activity" style="display:none;"></div>
-    <div id="incident-bar" class="incident-bar" hidden>
+    <div id="incident-bar" class="incident-bar" tabindex="-1" hidden>
       <span>⚠ 의심 장면 <b id="incident-count">0</b>건 — 사람 판정이 틀렸을 수 있는 순간의 화면을 모아 두었습니다</span>
       <button class="secondary" id="incident-dl">내려받기</button>
       <button class="secondary" id="incident-clear">지우기</button>
+      <details id="incident-details"><summary>저장된 장면 보기</summary><ul id="incident-list"></ul></details>
     </div>
   </section>
 
@@ -650,15 +663,21 @@
      웹에서는 사용자가 받은 vmh-helper.exe(= helper.py, download/)가 http://127.0.0.1:8777 에서 같은 일을 한다 -->
 <div data-tab-panel="scan" hidden>
 <main>
+  <section class="card scan-flow-card" aria-label="성과 스캔 진행 상황">
+    <ol id="scan-flow" class="scan-flow">
+      <li data-scan-step="scan" data-state="active" aria-current="step"><span>1</span>스캔</li>
+      <li data-scan-step="review" data-state="pending"><span>2</span>검토</li>
+      <li data-scan-step="compare" data-state="pending"><span>3</span>서버 비교</li>
+      <li data-scan-step="upload" data-state="pending"><span>4</span>업로드</li>
+    </ol>
+    <p id="scan-summary" class="scan-summary" role="status">스캔하거나 스크린샷을 불러오세요.</p>
+  </section>
   <section class="card" id="scan-card">
     <div class="card-head">
       <h2>성과 스캔</h2>
       <button class="secondary" data-goto-help="help-scan">도움말</button>
     </div>
-    <p class="guide-text">
-      게임에서 <b>컬렉션 → PLAY INFO</b>의 <b>MUSIC DATA</b>(→ 키)를 열고 <b>ALL</b>의 첫 곡에 둔 뒤 <b>스캔 시작</b>을 누르고,
-      <b>5초 안에 게임 창을 클릭</b>하세요. ↓로 한 곡씩 넘기며 끝까지 읽습니다. <b>멈추려면 브라우저를 클릭</b>하면 됩니다.
-    </p>
+    <p class="scan-task">MUSIC DATA의 ALL 첫 곡에서 시작하고, <b>5초 안에 게임 창을 클릭</b>하세요. 브라우저를 클릭하면 멈춥니다.</p>
     <ul class="scan-checks" id="scan-checks"></ul>
     <div class="row scan-actions">
       <button id="scan-start-btn">▶ 스캔 시작</button>
@@ -672,35 +691,32 @@
 
   <section class="card" id="scan-review-card">
     <div class="card-head">
-      <h2>1. 읽은 곡 검토 <span id="scan-count" class="scan-count"></span></h2>
+      <h2>읽은 곡 검토 <span id="scan-count" class="scan-count"></span></h2>
       <div class="seg" role="radiogroup" aria-label="보기">
         <label><input type="radio" name="scan-filter" value="check" checked /><span>확인 필요</span></label>
         <label><input type="radio" name="scan-filter" value="all" /><span>전체</span></label>
       </div>
     </div>
-    <p class="guide-text">
-      곡이나 숫자를 확실히 못 읽은 곡은 <b>확인 필요</b>로 모이고 올릴 목록에서 빠져 있습니다.
-      <b>자세히</b>를 눌러 찍힌 화면과 읽은 값을 비교하고, 맞으면 체크하세요. 틀린 숫자는 그 칸에서 바로 고칠 수 있고, 곡이 틀렸으면 <b>곡 바꾸기</b>로 고르세요.
-    </p>
+    <p class="scan-task">확인 필요한 곡의 <b>자세히</b>를 열어 검토한 뒤, 올릴 곡을 체크하세요.</p>
     <div id="scan-list" class="scan-list"></div>
   </section>
 
   <section class="card" id="scan-upload-card">
-    <div class="card-head"><h2>2. 올릴 기록</h2></div>
-    <p class="guide-text">
-      <b>서버 기록과 비교</b>를 누르면 V-ARCHIVE에 올라가 있는 내 기록(옵션 탭의 DJ 이름)을 받아, 체크된 곡 가운데 <b>정확도가 오르거나 MAX 콤보가 새로 붙은 칸</b>만 모읍니다.
-      올릴 것만 체크한 뒤 올리세요. 올리려면 <b>옵션 탭</b>에서 V-ARCHIVE 클라이언트 폴더의 <code>account.txt</code>를 골라 두어야 합니다.
-    </p>
+    <div class="card-head"><h2>서버 비교 · 업로드</h2><button class="secondary" data-goto-help="help-scan">도움말</button></div>
+    <p class="scan-task">서버 기록과 비교해 좋아진 기록만 올립니다.</p>
     <div class="row">
       <button id="scan-compare-btn">서버 기록과 비교</button>
       <span id="scan-compare-note" class="scan-note"></span>
     </div>
     <div id="scan-diff" class="scan-diff"></div>
+    <p id="scan-context" class="scan-context"></p>
     <div class="row scan-upload-row">
       <span id="scan-account-state" class="scan-note"></span>
       <span class="scan-spacer"></span>
+      <button id="scan-retry-btn" class="secondary" hidden>선택한 실패 기록만 재시도</button>
       <button id="scan-upload-btn" disabled>선택한 기록 올리기</button>
     </div>
+    <p id="scan-upload-summary" class="scan-upload-summary" role="status" hidden></p>
     <div id="scan-upload-status" class="auto-status" hidden></div>
   </section>
 </main>
@@ -776,6 +792,14 @@
      켜고 끄는 것은 전부 여기. 옵션 설명은 도움말 탭이 아니라 각 칸 안에 같이 둔다 -->
 <div data-tab-panel="options" hidden>
 <main>
+  <section class="card options-card">
+    <h2>화면 테마</h2>
+    <div class="seg" role="radiogroup" aria-label="화면 테마">
+      <label><input type="radio" name="theme" value="dark" checked /><span>다크 모드</span></label>
+      <label><input type="radio" name="theme" value="light" /><span>라이트 모드</span></label>
+    </div>
+    <p class="option-desc">헤더에서도 바로 바꿀 수 있습니다. 선택한 테마는 이 브라우저에 저장됩니다.</p>
+  </section>
   <section class="card options-card" id="opt-rules">
     <h2>매칭 규칙</h2>
     <label class="option-row">
@@ -934,6 +958,7 @@
     <ul class="help-list">
       <li><b>등록:</b> 닉네임을 입력하고 엔터를 누르세요. (최대 8명) — 화면을 연결해 두면 이름 없이 명패로 자동 등록되므로 쓸 일이 없습니다.</li>
       <li><b>매칭 도우미:</b> 대기 목록에서 <b>두 명의 플레이어를 클릭</b>하면 매칭이 성사됩니다. 먼저 클릭한 사람이 선택자(원디골)가 됩니다.</li>
+      <li><b>다음 차례:</b> 위쪽 두 명과 표의 순서 번호는 팝업·방장 봇과 같은 우선순위입니다. 보류 중인 사람은 제외됩니다. 표를 다른 열로 정렬해도 순서 번호는 바뀌지 않습니다.</li>
       <li><b>테이블 정렬:</b> '가중치', '닉네임' 등 테이블의 제목(헤더)을 클릭하면 해당 기준으로 목록을 오름차순/내림차순 정렬할 수 있습니다.</li>
       <li><b>보류/복귀:</b> 플레이어 목록의 '보류' 버튼을 눌러 잠시 매칭에서 제외할 수 있습니다. '복귀'를 누르면 보류한 시간만큼 대기 시간이 보정되어 복귀됩니다.</li>
       <li><b>로그:</b> '로그' 칸의 제목을 누르면 접거나 펼칠 수 있고, 접힘 상태는 다음에 열 때도 그대로 유지됩니다. 매치·입퇴장·보류를 버튼으로 걸러 볼 수 있습니다.</li>
@@ -944,6 +969,7 @@
     <h3>🎮 게임 화면 자동 인식</h3>
     <ul class="help-list">
       <li><b>사용법:</b> 오른쪽 위 <b>게임 화면 연결</b>을 한 번 누르고 DJMAX 화면(또는 게임 창)을 고르면 끝입니다. 이후엔 손댈 게 없습니다.</li>
+      <li><b>헤더 상태:</b> 연결 여부와 화면을 받는 곳(매칭·층수)을 표시합니다. <b>화면 멈춤</b>이면 게임 창을 앞으로 가져오세요. <b>인식 확인 필요</b> 배지를 누르면 저장된 의심 장면의 기록과 내려받기 버튼으로 이동합니다.</li>
       <li><b>연결은 한 번뿐입니다.</b> 같은 화면 공유를 <b>매칭 도우미 탭</b>과 <b>층수 측정기 탭</b>이 같이 씁니다. 로비·결과 화면은 매칭 쪽이, 밴픽·라운드 화면은 층수 쪽이 각각 알아서 가져갑니다. 한쪽에만 주고 싶으면 <b>옵션 탭</b>에서 고르세요.</li>
       <li><b>16:9와 21:9(울트라와이드) 화면에서 작동합니다.</b> 21:9에서는 게임이 가운데에 16:9 화면을 그리고 양옆을 흐린 배경으로 채우는데, 그 양옆은 자동으로 잘라내고 가운데만 읽습니다. 그 밖의 비율(16:10 등)은 지원하지 않습니다.</li>
       <li><b>매칭 도우미 탭에서 자동으로 되는 것:</b>
@@ -1070,6 +1096,7 @@
   <section class="card help-section" id="help-scan">
     <h3>성과 스캔</h3>
     <ul class="help-list">
+      <li><b>진행 상황:</b> 탭 위쪽에 스캔 → 검토 → 서버 비교 → 업로드 단계와 확인 필요한 곡 수가 표시됩니다. 업로드 버튼 위에서 비교할 DJ 이름, 전송할 계정 번호와 선택한 칸 수를 확인하세요.</li>
       <li><b>무엇을 하나:</b> 게임의 <b>컬렉션 → PLAY INFO → MUSIC DATA</b> 화면을 한 곡씩 넘기며 4버튼 × 4난이도의 <b>최고 점수</b>와 <b>MAX 콤보</b>를 읽고,
         V-ARCHIVE에 올라가 있는 기록보다 좋아진 것만 골라 올립니다. 전곡을 한 번에 갱신할 때 씁니다.</li>
       <li><b>준비:</b>
@@ -1100,6 +1127,7 @@
       <li><b>업로드:</b> 체크된 곡 가운데 <b>정확도가 오른 칸</b>, 또는 <b>정확도는 같은데 MAX 콤보가 새로 붙은 칸</b>만 목록에 오릅니다. 서버 기록보다 낮게 읽힌 칸은 따로 알려 줍니다(오인식일 수 있습니다).
         올린 결과는 계정과 기록값별로 표시됩니다. 업로드 중에는 계정과 기록을 바꿀 수 없습니다.
         연결이 끊기거나 인증·요청 제한 오류가 나면 전송을 중단합니다. 결과를 확인하지 못한 요청은 자동으로 다시 보내지 않으므로 <b>서버 기록과 비교</b>로 확인한 뒤 다시 올리세요.
+        실패한 기록은 선택한 상태에서 <b>실패한 선택 기록만 재시도</b>로 다시 보낼 수 있습니다. 성공한 기록과 아직 보내지 않은 기록은 이 버튼으로 보내지 않습니다.
         계정 파일은 옵션 탭에서 <b>기억해 두기</b>를 켰을 때만 이 브라우저에 남습니다.</li>
       <li><b>스샷으로도 됩니다:</b> 게임 화면 연결이나 도우미 프로그램 없이, 컬렉션 화면 스크린샷을 <b>스샷 파일로 읽기</b>로 여러 장 고르거나 이 탭에서 <b>Ctrl+V</b>로 붙여넣어도 같은 검토 목록에 들어갑니다. (업로드에는 도우미 프로그램이 필요합니다)</li>
       <li>읽은 결과는 이 페이지에만 있습니다. 새로고침하면 사라집니다.</li>
@@ -1125,12 +1153,12 @@
 <script src="lib/capture-hub.js"></script>
 <script src="lib/tabs.js"></script>
 <script src="lib/notify.js"></script>
-<script src="lib/popup.js"></script>
+<script src="lib/popup.js?v=20261103-ui"></script>
 <script src="lib/djmax-room.js?v=20261103-plates"></script>
 <script src="lib/incidents.js"></script>
 
-<script src="script.js"></script>
-<script src="auto-room.js?v=20261103-plates"></script>
+<script src="script.js?v=20261103-ui"></script>
+<script src="auto-room.js?v=20261103-ui"></script>
 
 <script src="floor/core.js"></script>
 <script src="floor/memo.js"></script>
@@ -1142,7 +1170,7 @@
 
 <!-- 성과 스캔 — 층수 측정기의 곡 DB(songDatabase)와 자켓 sig(sigTable)를 쓰므로 그 뒤에 -->
 <script src="scan/reader.js"></script>
-<script src="scan/app.js"></script>
+<script src="scan/app.js?v=20261103-ui"></script>
 
 <!-- 자동 방장 봇 — script.js(priorityOrder) · auto-room.js(장부) · scan/app.js(도우미 호출) 다음이어야 한다 -->
 <script src="auto-host.js"></script>
