@@ -222,6 +222,8 @@
        이건 화면에 드러내지 않는다 — 사용자가 보는 결과는 그냥 '아무 일도 없었다'가 된다. */
     function slotSame(cur, prev, ignoreArt) {
         if (!cur || !prev || !Room.fpCurrent(prev) || !Room.fpAvatarSame(cur, prev)) return false;
+        // 이름을 못 읽은 것은 반박이 아니다. 확실히 다른 획이 보인 경우에만 자리를 거부한다.
+        if (Room.fpNameDiffers(cur, prev)) return false;
         if (!ignoreArt && Room.fpArtDiffers(cur, prev)) return false;   // 둘 다 평소 명패인데 그림이 다르면 남
         const st = cur.nameState;
         // 같은 상태의 닉네임 모양이 양쪽에 있을 때만 닉네임을 따진다.
@@ -262,6 +264,8 @@
         const e = entry && Room.fpCurrent(entry.fp) ? entry.fp : null;
         const j = ctx.prevAt[id];
         const pfp = j !== undefined ? ctx.prev[j].fp : null;
+        // 같은 칸·후보 소거·같은 레벨은 '같을 수 있다'는 단서다. 확실한 이름 차이는 어떤 비용으로도 덮지 않는다.
+        if ((pfp && Room.fpNameDiffers(fp, pfp)) || (e && Room.fpNameDiffers(fp, e))) return Infinity;
         // 레벨이 어긋나면 어떤 단서로도 잇지 않는다 (직전 칸의 것 · 장부의 것 어느 쪽과든)
         if ((pfp && Room.fpLevelDiffers(fp, pfp)) || (e && Room.fpLevelDiffers(fp, e))) return Infinity;
         let c = Infinity;
@@ -414,6 +418,9 @@
         state.rosterCount++;
         if (state.rosterCount < ROSTER_STABLE_TICKS) return { pending: true };
 
+        // 명단이 그대로여도 확정된 칸의 새 상태·해상도 표본은 배운다. 입·퇴장 대기와는 무관하다.
+        for (const [row, hit] of knownHits) refreshName(row, hit);
+
         // 명단은 안정됐지만 딜레이가 덜 찬 입·퇴장이 있으면 다음 프레임에 다시 본다
         const first = state.rosterCount === ROSTER_STABLE_TICKS;
         const newDue = unknownPlates.length > 0 && state.newStreak >= JOIN_DELAY_TICKS;
@@ -422,9 +429,8 @@
             || Object.values(present).some(n => n >= JOIN_DELAY_TICKS);
         if (!first && !due) return { changed: false, unreadable, waiting: waitingCount(absent, present, unknownPlates.length) };
 
-        // 여기서부터 확정 — 아는 사람의 닉네임 지문을 채우고, 처음 보는 명패를 장부에 올린다.
+        // 여기서부터 입·퇴장 확정 — 처음 보는 명패를 장부에 올린다.
         // 처음 보는 명패는 입장 딜레이가 찬 뒤에만 장부에 올린다 (잘못 읽은 명패가 유령으로 남지 않게)
-        if (first) for (const [row, hit] of knownHits) refreshName(row, hit);
         const suspects = [];
         if (newDue) {
             // (READY를 바꾼 사람 잇기는 placeRows가 매 프레임 이미 했다 — 여기 남은 것은 정말 처음 보는 명패다)
@@ -500,6 +506,13 @@
 
     const seqOf = (id) => { const m = /(\d+)$/.exec(id); return m ? +m[1] : Infinity; };
 
+    // 같이 앉아 있던 두 id는 남이다. 옛 장부에 한쪽 기록만 남아 있어도 합치지 않는다.
+    // apart는 id 합치기의 거부권이며, 사람이 실제로 다른 사람의 옛 자리에 앉는 것을 금지하지는 않는다.
+    function idsApart(a, b) {
+        const entries = book();
+        return !!((entries[a]?.apart || []).includes(b) || (entries[b]?.apart || []).includes(a));
+    }
+
     /* 이번 로비에 같이 앉은, 아바타가 같은 사람들 — 서로를 '다른 사람'으로 적어 둔다 */
     function markApart(ids) {
         const b = book();
@@ -529,8 +542,7 @@
         for (const [row, pl] of placed) {
             const B = pl.id;
             if (!usableRow(row) || !inRoom.has(B) || !b[B]) continue;
-            const apart = b[B].apart || [];
-            const ids = Object.keys(b).filter(id => id !== B && !inRoom.has(id) && !seated.includes(id) && !apart.includes(id));
+            const ids = Object.keys(b).filter(id => id !== B && !inRoom.has(id) && !seated.includes(id) && !idsApart(B, id));
             if (!ids.length) continue;
             const hit = lookupRaw(row, ids);   // 엄격한 찾기 (loose 아님) — 새로 온 사람을 옛 사람으로 잇는 것과 같은 기준
             if (!hit || !hit.match) continue;
@@ -549,7 +561,8 @@
             let from = was && was.to === A ? was.from : (prevId && prevId !== A ? prevId : null);
             if (!from || !inRoom.has(from) || seated.includes(from) || !b[from]) continue;
             const f = b[from];
-            if ((f.apart || []).includes(A) || !Room.fpCurrent(f.fp) || !Room.fpAvatarSame(row.fp, f.fp) || Room.fpLevelDiffers(row.fp, f.fp)) continue;
+            if (idsApart(from, A) || !Room.fpCurrent(f.fp) || !Room.fpAvatarSame(row.fp, f.fp)
+                || Room.fpLevelDiffers(row.fp, f.fp) || Room.fpNameDiffers(row.fp, f.fp)) continue;
             const n = (was && was.to === A && was.from === from ? was.n : 0) + 1;
             takeover[i] = { from, to: A, n };
             if (n >= MERGE_TICKS) due.push([from, A]);
@@ -557,7 +570,7 @@
         state.takeover = takeover;
         const done = [];
         for (const [B, A] of due) {
-            if (!b[A] || !b[B]) continue;   // 같은 프레임에 앞의 합치기로 이미 없어졌다
+            if (!b[A] || !b[B] || idsApart(A, B)) continue;   // 앞의 합치기로 없어졌거나 타인 증거가 이어졌다
             const keep = seqOf(A) <= seqOf(B) ? A : B, drop = keep === A ? B : A;
             mergeIds(keep, drop, B);
             done.push([keep, drop]);
@@ -570,9 +583,11 @@
         pushUndo();
         const b = book();
         const K = b[keep], D = b[drop], L = live === keep ? K : D, O = live === keep ? D : K;
-        // 명패 장부 — 지금 방에 있는 쪽 모양을 앞세운다 (상태별 닉네임 모양·그림·움직이는 명패 평균·레벨)
+        // 명패 장부 — 좋은 닉네임 표본은 양쪽에서 모으고, 그림·평균·레벨은 지금 모양을 우선한다.
         const fp = Object.assign({}, O.fp, L.fp);
-        fp.names = Object.assign({}, O.fp.names, L.fp.names);
+        fp.names = {}; delete fp.nameSamples;
+        Room.mergeNameSamples(fp, O.fp);
+        Room.mergeNameSamples(fp, L.fp);
         if (!L.fp.art && O.fp.art) fp.art = O.fp.art;
         if (O.fp.animated || L.fp.animated) fp.animated = true;
         if (!fp.artAvg && O.fp.artAvg) { fp.artAvg = O.fp.artAvg; fp.artN = O.fp.artN; }
@@ -926,6 +941,8 @@
         Hub.subscribe('room', onFrame);
         Hub.onChange(onHubChange);
         Hub.onStatus((text, tone) => { if (tone === 'warn' && Hub.isTarget('room')) setStatus(text, 'warn'); });
+        // 명단 변화 없이 배운 대표 표본도 새로고침/닫기 때 남긴다. 프레임마다 LocalStorage를 쓰지는 않는다.
+        window.addEventListener?.('pagehide', () => saveState());
 
         // 옵션 탭: 화면 공유를 줄 곳 (둘 다 / 매칭 도우미만 / 층수 측정기만)
         document.querySelectorAll('input[name="capture-target"]').forEach(r => {
