@@ -440,7 +440,7 @@
                 // 새 id를 만들었는데 장부에 아바타가 같은 사람이 있다 — 한 사람이 둘로 갈렸을 수 있다 (의심 장면)
                 if (row.id && room.autoSeq !== seq) {
                     const like = lookalikes(row, row.id, knownIds);
-                    if (like.length) suspects.push({ kind: 'split', note: '새 ' + row.id + ' — 장부에 비슷한 명패 ' + like.join(', '), ids: like.concat(row.id) });
+                    if (like.length) suspects.push({ kind: 'split', note: '새 ' + row.id + ' — 장부에 비슷한 명패 ' + like.join(', '), ids: like.concat(row.id), diagnostic: identityDiagnostic(row, prevSlots) });
                 }
             }
             rememberSlots(steady);   // 새로 올린 사람도 다음 프레임부터 자리로 이어진다
@@ -653,6 +653,38 @@
         return out;
     }
 
+    /* JPEG 썸네일로는 당시 판정을 재현할 수 없다. 실제 지문과 비교 결과를
+       사건 생성 시 복사해 두어 다음 프레임의 학습·합치기가 증거를 바꾸지 않게 한다.
+       이름 거부도 오판일 수 있으므로 의심 수집에서 제외하지 않고 사유로 남긴다. */
+    function identityDiagnostic(row, previousSlots) {
+        const fp = row.fp, entries = book();
+        const candidates = [];
+        for (const [id, entry] of Object.entries(entries)) {
+            if (id === row.id || !entry.fp) continue;
+            const e = entry.fp;
+            if (!Room.fpAvatarSame(fp, e)) continue;
+            const name = Room.nameEvidence(fp, e);
+            const levelDiffers = Room.fpLevelDiffers(fp, e);
+            const artDiffers = Room.fpArtDiffers(fp, e);
+            const previous = (previousSlots || []).findIndex(slot => slot && slot.id === id);
+            candidates.push({ id, fp: e, current: Room.fpCurrent(e),
+                inRoom: room.players.some(p => p.nickname === id), previousSlot: previous,
+                nameEvidence: name, nameCompare: Room.nameCompare(fp, e),
+                nameClose: Room.nameClose(fp, e), levelSame: Room.fpLevelSame(fp, e),
+                levelDiffers, artDiffers, avatarDistance: Room.fpColorDist(fp, e),
+                lookup: Room.findMatch(fp, [{ id, fp: e }], item => item.fp),
+                vetoes: [!Room.fpCurrent(e) && 'oldFingerprint', name === 'different' && 'name',
+                         levelDiffers && 'level', artDiffers && 'art'].filter(Boolean) });
+        }
+        return JSON.parse(JSON.stringify({ schema: 1, at: new Date().toISOString(),
+            row: row.index, newId: row.id, fp, candidates,
+            slots: previousSlots, roomIds: room.players.map(p => p.nickname),
+            absent: state.absent, present: state.present, newStreak: state.newStreak,
+            rosterCount: state.rosterCount,
+            // Infinity가 JSON의 null로 바뀌지 않게 문자열로 구분한다.
+            }, (key, value) => typeof value === 'number' && !Number.isFinite(value) ? String(value) : value));
+    }
+
     // 딜레이가 걸려 아직 반영 안 된 입·퇴장 수 (상태 표시용)
     function waitingCount(absent, present, unknown) {
         return Object.keys(absent).length + Object.keys(present).length + unknown;
@@ -843,7 +875,7 @@
         for (const s of list) {
             log('의심 장면 저장 — ' + s.note, 'warn');
             I.record(s.kind, s.note, frame, W, H, (s.ids || []).filter(id => b[id]).map(id => ({ id, dataUrl: b[id].thumb })),
-                     s.kind === 'bounce' ? s.ids : []);
+                     s.kind === 'bounce' ? s.ids : [], s.diagnostic);
         }
     }
 
