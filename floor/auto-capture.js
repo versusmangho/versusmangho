@@ -110,48 +110,16 @@ function readGeneralJacket(src, W, H) {
     return { matches, confident };
 }
 
-/* OPEN MATCH 대기방의 좌상단 ONLINE / OPEN MATCH 글자 구조.
-   images/lobby_001~005.png의 같은 자리(2560x1440에서 x195 y28 w300 h78)를
-   공용 dHash로 줄여 가로 차분을 뜨고, 다섯 장에서 모두 같은 124비트만 남겼다.
-   배경의 노랑/회색과 움직임은 비교하지 않는다. 24비트 여유는 축소/압축용이며,
-   자켓이 우연히 닮았다는 이유만으로 플레이 화면(BGA)을 선곡 화면으로 받지 않는다.
-   실제 플레이 chat/20260922001531_1.jpg와 free_result의 결과 화면에는 이 헤더가 없다.
-   프리매치 대기방 양성 스샷은 아직 없어 해당 화면의 헤더 배치 확인은 후속 실측 대상이다. */
-const GENERAL_ROOM_HEADER = {
-    mask: [571538944, 4263575040, 4261478144, 4261453824, 4286118774, 3202547438, 4276282582, 4229431296],
-    bits: [571520000, 2483083264, 3623920896, 2751504384, 3613436720, 706767404, 1249944784, 3020947456]
-};
-function isGeneralRoomScreen(frame, W, H) {
-    if (!frame || !W || !H) return false;
-    // 버서스 로비를 일망호 모드로 보고 있을 때도 안전한 대기방이다.
-    // 글자 위를 펫 커서가 가린 실제 캡처는 독립적인 PLAYER 꼬리표로 확인한다.
-    if (VMH.Room && VMH.Room.isLobbyScreen(frame, W, H)) return true;
-    const region = cropToCanvas(frame, 195 * W / BASE_W, 28 * H / BASE_H, 300 * W / BASE_W, 78 * H / BASE_H);
-    const hash = dHashFromCanvas(region);
-    let distance = 0;
-    for (let i = 0; i < hash.length; i++) distance += popcnt32((hash[i] ^ GENERAL_ROOM_HEADER.bits[i]) & GENERAL_ROOM_HEADER.mask[i]);
-    return distance <= 24;
-}
-
-/* 일망호 자동 인식: 대기방에서 같은 곡이 GENERAL_HOLD_MS 이상 떠 있으면 그 곡의 층수 표를 띄운다.
+/* 일망호 자동 인식: 같은 곡이 GENERAL_HOLD_MS 이상 떠 있으면 그 곡의 층수 표를 띄운다.
    이미 띄운 곡은 다시 띄우지 않으므로, 그 사이 검색으로 다른 곡을 보고 있어도 방장이 곡을 바꿀 때까지 그대로 둔다 */
 async function generalAutoTick(frame, W, H) {
     const work = floorWorkContext();
-    // 부재 판정부터 한다. 인게임/결과/로딩에서는 자켓 후보를 만들지도 않고,
-    // 대기방에서 세던 2초도 끊는다. 이미 띄운 표는 그대로 보존한다.
-    if (!isGeneralRoomScreen(frame, W, H)) {
-        autoCap.genCandId = null; autoCap.genSince = 0; autoCap.statusHold = 0;
-        setAutoStatus(`● 자동 인식 중 — 대기방 선곡 화면 대기${autoAreaNote()}`, 'live');
-        return;
-    }
+    // 기존 일망호 경로: 자켓 일치와 2초 유지로 판단한다.
+    // 버서스 화면으로 만든 OPEN MATCH 헤더 검사를 프리매치에 적용하지 않는다.
     const now = Date.now(), g = readGeneralJacket(frame, W, H);
     const idle = () => { if (!autoCap.statusHold || now > autoCap.statusHold) setAutoStatus(`● 자동 인식 중 — 선곡 대기${autoAreaNote()}`, 'live'); };
-    // 일망호 자켓은 QHD에서도 80px이다. 240px 밴픽 자켓에서 잰 점수/차이로
-    // 거르면 스크린샷으로 읽히는 곡도 계속 '선곡 대기'가 된다. 대기방임을 위에서
-    // 확인했으므로 스크린샷과 같은 후보를 쓰고, 아래의 2초 유지로 선곡을 확정한다.
-    const best = g.matches[0];
-    if (!best || !Number.isFinite(best.score)) { autoCap.genCandId = null; autoCap.genSince = 0; idle(); return; }
-    const id = String(best.id);
+    if (!g.confident) { autoCap.genCandId = null; autoCap.genSince = 0; idle(); return; }
+    const id = String(g.matches[0].id);
     if (id !== autoCap.genCandId) { autoCap.genCandId = id; autoCap.genSince = now; }
     if (id === autoCap.genShownId) { idle(); return; }
 
