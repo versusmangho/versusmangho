@@ -11,7 +11,7 @@
    한 사이클
      로비 확정 · 0번 칸이 YOU · 0번 칸에 HOST 뱃지  (여기가 에지 트리거. 방장에서 내려올 때까지 한 번만)
        F9            → 방장 메뉴인지 확인 (방장이 아닐 때 뜨는 보기 전용 창에는 탭이 없다)
-       ↓ × (k-1)     → 노란 점이 한 칸씩 내려갔는지 매번 확인   (k = 1순위의 로비 칸 번호. 메뉴 목록은 나를 빼므로 k-1줄)
+       ↓ × 메뉴 줄   → 노란 점이 한 칸씩 내려갔는지 매번 확인   (나와 빈 슬롯을 뺀 실제 플레이어 순서)
        →  한 번      → 노란 칠이 PLAYER 1 (HOST)인지 확인       ★ 옆의 KICK 오발을 막는 유일한 방벽
        Enter         → 지정하면 창이 저절로 닫힌다 → 로비에서 내가 0번 칸을 벗어났는지 확인 (같은 칸을 두 번 봐야 믿는다)
        F5            → 봇이 PLAYER 1도 PLAYER 2도 아니고, 아직 비레디일 때만
@@ -83,7 +83,8 @@
                     disbandStreak: 0, restartDone: false, handoffRetryAt: 0, lastFail: '',
                     restartPending: false, restartTries: 0, restartRetryAt: 0, restartSubmitted: false, restartLabel: '',
                     askPending: false, askTries: 0, askRetryAt: 0,
-                    focusLost: false, retryAt: 0, settleSince: 0 };
+                    focusLost: false, retryAt: 0, settleSince: 0,
+                    problemPending: false, problemRetryAt: 0, problemSentAt: 0 };
 
     /* ── 설정 ───────────────── */
     function load() {
@@ -110,6 +111,7 @@
         state.unready = 0; state.p2Streak = 0; state.p2Ready = 0; state.p2Told = false;
         state.askPending = false; state.vsStreak = 0; state.songDone = false;
         state.disbandStreak = 0;
+        state.problemPending = false;
     }
     function assertWork() {
         if (!opts.on || !Hub.receiving('room') || (activeVersion !== null && activeVersion !== workVersion)) {
@@ -298,7 +300,14 @@
         const order = queueOf(seats, 0);
         const target = order.find(id => seats.some(s => s.id === id && s.row >= 1));
         if (!target) stop('넘길 사람을 못 찾았습니다');
-        const k = seats.find(s => s.id === target).row;
+        const targetRow = seats.find(s => s.id === target).row;
+        // PLAYER 메뉴는 봇과 빈 슬롯을 제외해 압축된다. 사람을 식별하지 못한
+        // 명패도 메뉴에는 있으므로 seats(식별된 사람) 대신 실제 슬롯의 빈 여부를 센다.
+        const menuRows = Room.readLobby(g0.frame, g0.W, g0.H).rows
+            .filter(row => row.index !== 0 && !row.empty)
+            .sort((a, b) => a.index - b.index);
+        const targetMenuRow = menuRows.findIndex(row => row.index === targetRow);
+        if (targetMenuRow < 0) stop('넘길 사람의 메뉴 위치를 찾지 못했습니다');
 
         // 2. F9 — 방장 메뉴가 맞는지. 방장이 아닐 때 뜨는 보기 전용 창에는 ROOM/PLAYER 탭이 없어 null이 나온다
         await key('f9');
@@ -311,8 +320,8 @@
         }
         if (menu.row !== 0) { await closeMenu(); stop('메뉴가 첫 줄에서 시작하지 않습니다 (' + menu.row + '번째 줄)'); }
 
-        // 3. ↓ — 메뉴 목록은 나를 빼고 로비 순서 그대로다. 로비 k번 칸 = 메뉴 k-1번 줄
-        for (let i = 1; i <= k - 1; i++) {
+        // 3. ↓ — 봇과 빈 슬롯을 제외한 메뉴 줄까지 이동한다.
+        for (let i = 1; i <= targetMenuRow; i++) {
             await key('down');
             menu = await waitFor((f, W, H) => { const m = Room.hostMenu(f, W, H); return m && m.row === i ? m : null; });
             if (!menu) { await closeMenu(); stop('메뉴 줄이 ' + (i + 1) + '번째로 내려가지 않았습니다'); }
@@ -322,7 +331,7 @@
         await key('right');
         menu = await waitFor((f, W, H) => {
             const m = Room.hostMenu(f, W, H);
-            return m && m.row === k - 1 && m.button === Room.BTN_HOST ? m : null;
+            return m && m.row === targetMenuRow && m.button === Room.BTN_HOST ? m : null;
         });
         if (!menu) { await closeMenu(); stop('PLAYER 1 (HOST) 칸이 안 잡혔습니다'); }
 
@@ -625,6 +634,20 @@
         state.restartSubmitted = false;
         state.restartLabel = '';
         if (back) state.readyRetryAt = 0;   // 새 판 — 레디를 곧바로 다시 볼 수 있게
+        // 오류 알림도 평소와 같은 도우미·공유·채팅 확인을 거친다.
+        // 메뉴/플레이 화면에서는 누르지 않고, 로비가 확인된 다음 기회에 보낸다.
+        if (state.problemPending && Date.now() >= state.problemRetryAt && ready()) {
+            state.problemRetryAt = Date.now() + 30000;
+            run(async () => {
+                const g = await frame();
+                if (!g || !LOBBY_CHAT.on(g.frame, g.W, g.H)) stop('오류 안내를 보낼 로비가 아닙니다');
+                await sendChat('문제가 발생했습니다. 선장을 호출해주세요.', LOBBY_CHAT);
+                state.problemPending = false;
+                state.problemSentAt = Date.now();
+                return '선장 호출 안내를 보냈습니다';
+            }, '선장 호출 안내 중…');
+            return;
+        }
         const marks = Room.lobbyMarks(frm, W, H);
         if (marks.youRow === 0 && marks.hostBadge) {
             // 봇이 방장이다 — 1순위에게 넘긴다. 한 번 시작하면 방장에서 내려올 때까지 다시 시작하지 않지만(latched),
@@ -757,6 +780,8 @@
                 const again = onFail ? onFail() !== false : false;
                 if (note !== state.lastFail) log('자동 방장 ' + note + (again ? ' — 잠시 뒤 다시 해 봅니다' : ''), 'warn');
                 state.lastFail = note;
+                // 취소·포커스 대기는 제외한다. 같은 문제의 자동 재시도는 1분 안에 재전송하지 않는다.
+                if (!state.problemSentAt || Date.now() - state.problemSentAt >= 60000) state.problemPending = true;
             }
         } finally {
             // 게임을 불러왔으면 원래 쓰던 창으로 돌려놓는다 (그새 직접 다른 창으로 옮겼으면 도우미가 그대로 둔다)
