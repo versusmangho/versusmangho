@@ -146,8 +146,12 @@ async function generalAutoTick(frame, W, H) {
     }
     const now = Date.now(), g = readGeneralJacket(frame, W, H);
     const idle = () => { if (!autoCap.statusHold || now > autoCap.statusHold) setAutoStatus(`● 자동 인식 중 — 선곡 대기${autoAreaNote()}`, 'live'); };
-    if (!g.confident) { autoCap.genCandId = null; idle(); return; }
-    const id = String(g.matches[0].id);
+    // 일망호 자켓은 QHD에서도 80px이다. 240px 밴픽 자켓에서 잰 점수/차이로
+    // 거르면 스크린샷으로 읽히는 곡도 계속 '선곡 대기'가 된다. 대기방임을 위에서
+    // 확인했으므로 스크린샷과 같은 후보를 쓰고, 아래의 2초 유지로 선곡을 확정한다.
+    const best = g.matches[0];
+    if (!best || !Number.isFinite(best.score)) { autoCap.genCandId = null; autoCap.genSince = 0; idle(); return; }
+    const id = String(best.id);
     if (id !== autoCap.genCandId) { autoCap.genCandId = id; autoCap.genSince = now; }
     if (id === autoCap.genShownId) { idle(); return; }
 
