@@ -11,51 +11,60 @@ function updateStatus(msg, isAppend = false) {
     renderStatus();
 }
 
+// 본문을 읽는 시간까지 제한한다. CORS·HTTP 오류·잘못된 JSON도 중계로 재시도한다.
+async function fetchFloorJson(url, proxy = true) {
+    const urls = proxy ? [url, 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url)] : [url];
+    let error;
+    for (const target of urls) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
+        try {
+            const res = await fetch(target, { mode: 'cors', signal: controller.signal });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.json();
+        } catch (e) { error = e; }
+        finally { clearTimeout(timer); }
+    }
+    throw error;
+}
+
 async function loadHashes() {
-    updateStatus("v-archive에서 정보를 가져오는 중..");
-    const songApiUrl = 'https://v-archive.net/db/v2/songs.json', proxyUrl = 'https://api.allorigins.win/raw?url=';
-    try {
-        let res; try { res = await fetch(songApiUrl, { mode: 'cors' }); } catch (err) { res = await fetch(proxyUrl + encodeURIComponent(songApiUrl)); }
-        if (res && res.ok) { 
-            const songs = await res.json();
-            songs.forEach(s => { songDatabase[s.title] = s; }); 
-            updateStatus("<span class='text-green-500 font-bold'>완료!</span>", true); 
-        } else throw new Error();
-    } catch (e) { updateStatus("<span class='text-red-500 font-bold'>실패!</span>", true); }
+    updateStatus("곡 정보와 자켓 해시를 가져오는 중..");
+    // 선택 정보인 태그 서버가 멈춰도 인식 준비를 막지 않는다.
+    fetchFloorJson('https://data.xn--2o2bk9ff9x.com/tags/new_tags.json').then(d => {
+        if (!Array.isArray(d.items)) throw new Error('잘못된 태그 데이터');
+        d.items.forEach(i => {
+            if (i.song_title !== undefined && i.song_title !== null) songTagsDatabase[String(i.song_title)] = i;
+        });
+    }).catch(e => console.warn('[Tags] 태그 없이 계속합니다:', e));
 
-    // 로페봇 곡 상세 태그(BPM/패턴 태그) — v-archive에 없는 정보라 항상 받는다.
-    // 곡 정보 자체는 v-archive로 충분하면 받지 않고,
-    // 없는 곡을 처음 만났을 때만 ensureLopeSongs()가 한 번 받아온다.
-    updateStatus("로페봇에서 정보를 가져오는 중..");
-    const tagApiUrl = 'https://data.xn--2o2bk9ff9x.com/tags/new_tags.json';
-    try {
-        let res; try { res = await fetch(tagApiUrl, { mode: 'cors' }); } catch (err) { res = await fetch(proxyUrl + encodeURIComponent(tagApiUrl)); }
-        if (!res || !res.ok) throw new Error();
-        const d = await res.json();
-        if (d.items && Array.isArray(d.items)) {
-            // 새 구조에서는 song_title이 숫자 ID임
-            d.items.forEach(i => { if (i.song_title !== undefined && i.song_title !== null) songTagsDatabase[String(i.song_title)] = i; });
-            console.log(`[Tags] Successfully loaded ${Object.keys(songTagsDatabase).length} tag entries by ID.`);
-        }
-        updateStatus("<span class='text-green-500 font-bold'>완료!</span>", true);
-    } catch (e) {
-        console.error("[Tags] Error loading tags:", e);
-        updateStatus("<span class='text-yellow-500 font-bold'>실패!</span>", true);
+    const [songs, hashes] = await Promise.allSettled([
+        fetchFloorJson('https://v-archive.net/db/v2/songs.json').then(songs => {
+            if (!Array.isArray(songs)) throw new Error('잘못된 곡 데이터');
+            songs.forEach(s => { songDatabase[s.title] = s; });
+        }),
+        fetchFloorJson('hashes.json', false).then(data => {
+            if (!data.trackinfo?.buttons || !data.trackinfo?.diffs || !Array.isArray(data.thumbnails) || !data.thumbnails.length) {
+                throw new Error('잘못된 자켓 해시 데이터');
+            }
+            return data;
+        })
+    ]);
+    if (songs.status === 'rejected') {
+        updateStatus("<span class='text-yellow-500 font-bold'>곡 정보를 받지 못했습니다. 곡 확인 시 보충 출처로 다시 조회합니다.</span>");
     }
-
-    updateStatus("자켓 해시를 가져오는 중..");
-    try {
-        const hRes = await fetch('hashes.json');
-        if (hRes.ok) {
-            const data = await hRes.json(); 
-            Object.assign(buttonRefs, data.trackinfo.buttons); Object.assign(diffRefs, data.trackinfo.diffs);
-            thumbRefs.length = 0; thumbRefs.push(...data.thumbnails); loadSigTable(data.thumbnails); document.getElementById('hashUploadContainer').classList.add('hidden');
-            updateStatus("<span class='text-green-500 font-bold'>완료!</span>", true);
-        } else throw new Error();
-    } catch (e) {
-        updateStatus("<span class='text-yellow-500 font-bold' id='hashStatusLabel'>중단!</span>", true);
-        document.getElementById('hashUploadContainer').classList.remove('hidden'); return false;
+    const hashInput = document.getElementById('hashUploadContainer');
+    hashInput.classList.toggle('hidden', hashes.status === 'fulfilled');
+    if (hashes.status === 'rejected') {
+        updateStatus("<span class='text-yellow-500 font-bold' id='hashStatusLabel'>자켓 해시를 받지 못했습니다. hashes.json 파일을 선택하거나 새로고침해 주세요.</span>");
+        return false;
     }
+    const data = hashes.value;
+    Object.assign(buttonRefs, data.trackinfo.buttons);
+    Object.assign(diffRefs, data.trackinfo.diffs);
+    thumbRefs.length = 0;
+    thumbRefs.push(...data.thumbnails);
+    loadSigTable(data.thumbnails);
     return true;
 }
 

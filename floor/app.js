@@ -335,11 +335,9 @@ let lopeSongsPromise = null;
 function ensureLopeSongs() {
     if (lopeSongsPromise) return lopeSongsPromise;
     lopeSongsPromise = (async () => {
-        const proxyUrl = 'https://api.allorigins.win/raw?url=';
         try {
-            let res; try { res = await fetch(LOPE_SONGS_URL, { mode: 'cors' }); } catch (err) { res = await fetch(proxyUrl + encodeURIComponent(LOPE_SONGS_URL)); }
-            if (!res || !res.ok) throw new Error();
-            const songs = await res.json();
+            const songs = await fetchFloorJson(LOPE_SONGS_URL);
+            if (!Array.isArray(songs)) throw new Error('잘못된 곡 데이터');
             let added = 0;
             // v-archive와 title/name/patterns 구조가 같아 그대로 꽂아 넣을 수 있고,
             // 이미 v-archive에 있는 곡은 덮어쓰지 않는다(v-archive 우선).
