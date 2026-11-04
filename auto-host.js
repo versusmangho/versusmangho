@@ -122,7 +122,7 @@
     async function helper(path, body, onDispatch) {
         assertWork();
         if (Hub.isStale()) stop('공유 화면이 멈춰 입력을 중단했습니다');
-        if (!(Scan()?.state.helper?.version >= 8)) stop('도우미 프로그램을 새로 받아 실행하세요 (v8 이상 필요)');
+        if (!(Scan()?.state.helper?.version >= 9)) stop('도우미 프로그램을 새로 받아 실행하세요 (v9 이상 필요)');
         if (Scan().state.running) stop('성과 스캔이 진행 중입니다');
         let r;
         try {
@@ -598,7 +598,7 @@
         const S = Scan();
         if (!S || !S.state.helper) { ensureHelper(); return false; }
         if (!S.state.helper.windows) return false;
-        if (!(S.state.helper.version >= 8)) return false;   // v8 이전은 게임 밖 키 입력 차단에 결함이 있다
+        if (!(S.state.helper.version >= 9)) return false;   // v9부터 Netlify 웹 연결을 허용한다
         return !S.state.running;   // 성과 스캔과 같이 돌지 않는다 — 둘 다 게임에 키를 보낸다
     }
 
@@ -783,7 +783,7 @@
         const check = (ready, name, html) =>
             '<li>' + ok(ready) + '<span class="scan-check-name">' + name + '</span><div class="scan-check-desc">' + html + '</div></li>';
 
-        const helperReady = !!S.state.helper && S.state.helper.version >= 8 && S.state.helper.windows;
+        const helperReady = !!S.state.helper && S.state.helper.version >= 9 && S.state.helper.windows;
         const running = Hub.isRunning(), seen = Hub.receiving('room');
 
         let screenHtml = '';
@@ -821,7 +821,7 @@
             return;
         }
         const S = Scan();
-        const helperOk = !!S && !!S.state.helper && S.state.helper.version >= 8 && S.state.helper.windows;
+        const helperOk = !!S && !!S.state.helper && S.state.helper.version >= 9 && S.state.helper.windows;
         const screenOk = Hub.receiving('room');
         const botOk = typeof room !== 'undefined' && !!room.botId;
 

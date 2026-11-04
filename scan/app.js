@@ -76,8 +76,8 @@
     // start.bat로 연 페이지면 같은 주소에 있다. 웹(GitHub Pages·onrender)·다른 개발 서버에서는 사용자가 켠 도우미 프로그램이
     // 127.0.0.1:8777에 있다 (helper.py가 이 사이트에 CORS를 열어 둔다). 먼저 같은 주소, 안 되면 127.0.0.1:8777
     const HELPER_URL = 'http://127.0.0.1:8777';
-    const HELPER_DOWNLOAD = 'download/vmh-helper.exe';
-    const HELPER_MIN_VERSION = 8;   // 게임 창 검증·포커스 거절을 바로잡은 버전
+    const HELPER_DOWNLOAD = 'download/vmh-helper.exe?v=9';
+    const HELPER_MIN_VERSION = 9;   // Netlify 웹 연결을 허용한 버전
     // 도우미를 한 번이라도 실행했으면 이 주소가 그 프로그램 앞으로 등록돼 있다 (helper.py register_scheme)
     const HELPER_SCHEME = 'vmh://start';
     const IS_WIN = /Windows/.test(navigator.userAgent);

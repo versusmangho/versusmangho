@@ -40,12 +40,12 @@ import urllib.request
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
-VERSION = 8                              # 8: 실제 게임 프로세스·포커스 확인, 입력 중단·키 해제, 업로드 검증
+VERSION = 9                              # 9: Netlify 웹 주소 연결 허용
 HOST = '127.0.0.1'
 DEFAULT_PORT = 8777                      # 웹 페이지가 http://127.0.0.1:8777 로 부른다 — 바꾸면 scan/app.js의 HELPER_URL도
 FROZEN = getattr(sys, 'frozen', False)   # PyInstaller로 만든 exe
 # /helper/*를 부를 수 있는 페이지 — 웹 버전 + 로컬(start.bat·개발 서버)
-ALLOWED_ORIGINS = re.compile(r'^(https://versusmangho\.(github\.io|onrender\.com)|http://(localhost|127\.0\.0\.1)(:\d+)?)$')
+ALLOWED_ORIGINS = re.compile(r'^(https://versusmangho\.(github\.io|onrender\.com|netlify\.app)|http://(localhost|127\.0\.0\.1)(:\d+)?)$')
 SITE_DEFAULT = 'https://versusmangho.github.io/versusmangho/'
 site_seen = {'url': None}                # 마지막으로 이 프로그램을 부른 웹 페이지 — 트레이의 '성과 스캔 열기'가 연다
 GAME_TITLE = 'DJMAX'                     # 맨 앞 창 제목에 이게 들어 있어야 키를 보낸다
