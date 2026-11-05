@@ -110,27 +110,12 @@ function readGeneralJacket(src, W, H) {
     return { matches, confident };
 }
 
-/* 실제 프리매치 대기방(images/normal/20261104202815~26)의 두 고정 표식.
-   네 장에서 모두 같은 dHash 비트만 비교하여 배경·곡·테마 변화는 제외한다.
-   ONLINE / OPEN MATCH와 FREE MATCH를 모두 확인한다. START/F5는 깜박이므로 쓰지 않는다.
-   자켓이 BGA/결과 화면에서 우연히 맞아도 대기방으로 처리하지 않는다. */
-const GENERAL_LOBBY_MARKS = [
-    { rect: [170, 28, 310, 78], maxDistance: 24,
-      mask: [838991618, 4278255361, 4278255361, 3070294528, 4227784654, 4286513023, 2145384415, 4225693712],
-      bits: [7168, 2415974400, 3623905280, 603979776, 3251667328, 1781025320, 1250468176, 2706374672] },
-    { rect: [860, 40, 170, 65], maxDistance: 32,
-      mask: [4294967295, 4294967295, 4294967295, 4294901759, 4294967295, 4294967295, 4294967294, 2147418094],
-      bits: [4286644096, 4014008128, 3844117856, 2501948896, 2445456003, 2789336849, 3875620128, 151031040] }
-];
+/* 기준 표식과 공유 화면은 같은 브라우저 캔버스 경로로 비교한다.
+   마지막 판독값은 콘솔에서 VMH.GeneralLobbyReading으로 확인할 수 있다. */
 function isGeneralRoomScreen(frame, W, H) {
-    if (!frame || !W || !H) return false;
-    return GENERAL_LOBBY_MARKS.every(mark => {
-        const [x, y, w, h] = mark.rect;
-        const hash = dHashFromCanvas(cropToCanvas(frame, x * W / BASE_W, y * H / BASE_H, w * W / BASE_W, h * H / BASE_H));
-        let distance = 0;
-        for (let i = 0; i < hash.length; i++) distance += popcnt32((hash[i] ^ mark.bits[i]) & mark.mask[i]);
-        return distance <= mark.maxDistance;
-    });
+    const reading = VMH.GeneralLobby.read(frame, W, H);
+    VMH.GeneralLobbyReading = reading;
+    return reading.match;
 }
 
 /* 일망호 자동 인식: 같은 곡이 GENERAL_HOLD_MS 이상 떠 있으면 그 곡의 층수 표를 띄운다.
@@ -143,7 +128,10 @@ async function generalAutoTick(frame, W, H) {
         autoCap.genCandId = null;
         autoCap.genSince = 0;
         autoCap.statusHold = 0;
-        setAutoStatus(`● 자동 인식 중 — 일망호 대기방 대기${autoAreaNote()}`, 'live');
+        const reading = VMH.GeneralLobbyReading;
+        if (reading.error) setAutoStatus('대기방 판별 자료를 읽지 못했습니다 — 페이지를 새로고침하세요', 'warn');
+        else if (!reading.ready) setAutoStatus('일망호 대기방 판별 준비 중…', 'idle');
+        else setAutoStatus(`● 자동 인식 중 — 일망호 대기방 대기${autoAreaNote()}`, 'live');
         return;
     }
     const now = Date.now(), g = readGeneralJacket(frame, W, H);
