@@ -118,15 +118,47 @@ function isGeneralRoomScreen(frame, W, H) {
     return reading.match;
 }
 
+// 한 번의 미검출은 보류한다. 실패 프레임에서는 절대 표를 새로 띄우지 않는다.
+function pauseGeneralCandidate() {
+    autoCap.genMisses = (autoCap.genMisses || 0) + 1;
+    autoCap.genPaused = true;
+    autoCap.genSwitchId = null;
+    autoCap.genSwitchTicks = 0;
+    if (autoCap.genMisses >= 2) {
+        autoCap.genCandId = null;
+        autoCap.genSince = 0;
+    }
+}
+function acceptGeneralCandidate(id, now) {
+    if (autoCap.genCandId && id !== autoCap.genCandId) {
+        autoCap.genSwitchTicks = id === autoCap.genSwitchId ? autoCap.genSwitchTicks + 1 : 1;
+        autoCap.genSwitchId = id;
+        autoCap.genPaused = true;
+        if (autoCap.genSwitchTicks < 2) return false;
+    }
+    if (id !== autoCap.genCandId) {
+        autoCap.genCandId = id;
+        autoCap.genSince = now;
+    } else if (autoCap.genPaused) {
+        // 판독을 못한 구간은 확인 시간에서 제외하되, 그 전에 모은 시간은 지킨다.
+        autoCap.genSince += Math.max(0, now - autoCap.genLastSeenAt - AUTO_INTERVAL_MS);
+    }
+    autoCap.genLastSeenAt = now;
+    autoCap.genMisses = 0;
+    autoCap.genPaused = false;
+    autoCap.genSwitchId = null;
+    autoCap.genSwitchTicks = 0;
+    return true;
+}
+
 /* 일망호 자동 인식: 같은 곡이 GENERAL_HOLD_MS 이상 떠 있으면 그 곡의 층수 표를 띄운다.
    이미 띄운 곡은 다시 띄우지 않으므로, 그 사이 검색으로 다른 곡을 보고 있어도 방장이 곡을 바꿀 때까지 그대로 둔다 */
 async function generalAutoTick(frame, W, H) {
     const work = floorWorkContext();
-    // 대기방이 아니면 자켓을 읽지 않고, 이전 대기방에서 세던 시간도 끊는다.
+    // 대기방 미검출이 연속 두 번이면 시간을 끊고, 한 번만 빠지면 보류한다.
     // 이미 표시한 층수 표와 genShownId는 보존하여 복귀 때 같은 곡을 중복 표시하지 않는다.
     if (!isGeneralRoomScreen(frame, W, H)) {
-        autoCap.genCandId = null;
-        autoCap.genSince = 0;
+        pauseGeneralCandidate();
         autoCap.statusHold = 0;
         const reading = VMH.GeneralLobbyReading;
         if (reading.error) setAutoStatus('대기방 판별 자료를 읽지 못했습니다 — 페이지를 새로고침하세요', 'warn');
@@ -136,9 +168,9 @@ async function generalAutoTick(frame, W, H) {
     }
     const now = Date.now(), g = readGeneralJacket(frame, W, H);
     const idle = () => { if (!autoCap.statusHold || now > autoCap.statusHold) setAutoStatus(`● 자동 인식 중 — 선곡 대기${autoAreaNote()}`, 'live'); };
-    if (!g.confident) { autoCap.genCandId = null; autoCap.genSince = 0; idle(); return; }
+    if (!g.confident) { pauseGeneralCandidate(); idle(); return; }
     const id = String(g.matches[0].id);
-    if (id !== autoCap.genCandId) { autoCap.genCandId = id; autoCap.genSince = now; }
+    if (!acceptGeneralCandidate(id, now)) { idle(); return; }
     if (id === autoCap.genShownId) { idle(); return; }
 
     const name = getSongDataSync(id).name || `ID ${id}`, held = now - autoCap.genSince;
