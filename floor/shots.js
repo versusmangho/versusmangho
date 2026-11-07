@@ -36,7 +36,12 @@ function showShot(i) {
     updateShotNav();
 }
 
-function navigateShot(delta) { showShot(shotIndex[currentMode] + delta); }
+function navigateShot(delta) {
+    const i = shotIndex[currentMode] + delta;
+    if (i < 0 || i >= shotHistory[currentMode].length) return;
+    floorWorkVersion++;
+    showShot(i);
+}
 
 function updateShotNav() {
     const list = shotHistory[currentMode], i = shotIndex[currentMode];
@@ -51,13 +56,30 @@ function updateShotNav() {
 window.addEventListener('paste', async (e) => {
     if (VMH.Tabs.active !== 'floor') return;   // 매칭 탭을 보고 있으면 그쪽이 받는다
     if (memoEditor.open) return; // 메모 입력칸에 글자를 붙여넣는 중
+    if (e.target && (e.target.closest('input, textarea, [contenteditable="true"]'))) return;
     const now = Date.now(); if (isProcessing) return;
     if (now - (window.lastProcessTime || 0) < COOLDOWN_MS) { showTemporaryMessage("쿨다운 중..."); return; }
     const items = e.clipboardData.items;
     for (let item of items) {
         if (item.type.indexOf('image') !== -1) {
-            const blob = item.getAsFile(), img = new Image(); img.src = URL.createObjectURL(blob);
-            img.onload = () => fitGameArea(img).then(g => analyzeScreenshot(g)).catch(err => console.error('[Paste]', err));
+            const blob = item.getAsFile();
+            if (!blob) continue;
+            e.preventDefault();
+            const context = floorWorkContext(), img = new Image();
+            img.onerror = () => URL.revokeObjectURL(img.src);
+            img.onload = async () => {
+                let fitted = img;
+                try {
+                    fitted = await fitGameArea(img);
+                    if (!floorWorkCurrent(context)) { URL.revokeObjectURL(fitted.src); return; }
+                    analyzeScreenshot(fitted);
+                } catch (err) {
+                    URL.revokeObjectURL(fitted.src);
+                    console.error('[Paste]', err);
+                }
+            };
+            img.src = URL.createObjectURL(blob);
+            break; // 한 번의 붙여넣기로 여러 분석이 동시에 시작되지 않게 한다.
         }
     }
 });
@@ -65,9 +87,10 @@ window.addEventListener('paste', async (e) => {
 /* 붙여넣기와 게임 화면 자동 인식이 함께 쓰는 진입점.
    force: 동일 이미지 검사를 건너뛴다 — 일망호 방 화면은 자켓이 작아서 곡이 달라도 전체 해시가 같게 나올 수 있다 */
 function analyzeScreenshot(img, force = false) {
+    if (isProcessing || !thumbRefs.length) { URL.revokeObjectURL(img.src); return; }
     const prev = document.getElementById('screenshotPreview'), cont = document.getElementById('screenshotContainer'), drop = document.getElementById('dropZone');
     const full = document.createElement('canvas'); full.width = img.width; full.height = img.height; full.getContext('2d').drawImage(img, 0, 0);
-    const hash = dHashFromCanvas(full); if (!force && lastImageHash && hamDist(lastImageHash, hash) === 0) { showTemporaryMessage("동일 이미지"); return; }
+    const hash = dHashFromCanvas(full); if (!force && lastImageHash && hamDist(lastImageHash, hash) === 0) { URL.revokeObjectURL(img.src); showTemporaryMessage("동일 이미지"); return; }
     // 라운드/결과 화면을 붙여넣은 경우: 새 밴픽으로 분석하지 않고 밴·플레이만 표시
     // (밴픽창이 없던 판이면 확인된 곡만으로 카드를 만든다)
     const info = currentMode === 'versus' ? readMatchScreen(img, img.width, img.height, currentMatchEntry()?.rows || []) : null;
@@ -85,6 +108,6 @@ function analyzeScreenshot(img, force = false) {
     // 분석이 터져도 isProcessing이 풀려야 다음 붙여넣기가 먹는다.
     // (아주 작은 그림처럼 게임 스샷이 아닌 것을 붙여넣으면 좌표 계산이 깨질 수 있다)
     processImage(img, hash)
-        .catch(err => { console.error('[Analyze]', err); showTemporaryMessage('이 이미지는 분석할 수 없습니다'); })
+        .catch(err => { URL.revokeObjectURL(img.src); lastImageHash = null; console.error('[Analyze]', err); showTemporaryMessage('이 이미지는 분석할 수 없습니다'); })
         .finally(() => { isProcessing = false; });
 }

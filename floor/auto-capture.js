@@ -64,7 +64,7 @@ async function autoCaptureFrame(frame, W, H, info) {
             } else {
                 const thumb = cropToCanvas(frame, r.x, r.y, r.w, r.h);
                 const m = getSortedMatches(aHashFromCanvas(thumb), dHashFromCanvas(thumb), getColorGridFromCanvas(thumb));
-                slots.push({ id: m[0].id, ok: m[0].score <= AUTO_MAX_SCORE && (m[1].score - m[0].score) >= AUTO_MIN_GAP });
+                slots.push({ id: m[0]?.id ?? null, ok: m.length > 1 && m[0].score <= AUTO_MAX_SCORE && (m[1].score - m[0].score) >= AUTO_MIN_GAP });
             }
         }
         const okCount = slots.filter(s => s.ok).length;

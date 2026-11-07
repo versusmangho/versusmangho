@@ -517,12 +517,13 @@ const STORAGE_KEY = "roomStateV3";
 // 평균 대기(매치 간 대기) 계산을 위한 필드/헬퍼
 function normalizePlayer(p) {
     if (!p) return p;
-    if (typeof p.matchCount !== "number") p.matchCount = p.matchCount || 0;
-    if (typeof p.chooserCount !== "number") p.chooserCount = p.chooserCount || 0;
-    if (typeof p.lastPlay !== "number") p.lastPlay = p.lastPlay || 0;
-    if (typeof p.joinedAt !== "number") p.joinedAt = p.joinedAt || 0;
-    if (typeof p.waitSum !== "number") p.waitSum = p.waitSum || 0; // 누적 대기 판수
-    if (typeof p.heldRounds !== "number") p.heldRounds = p.heldRounds || 0; // 누적 보류 라운드 수
+    for (const key of ['matchCount', 'chooserCount', 'lastPlay', 'joinedAt', 'waitSum', 'heldRounds']) {
+        const n = Number(p[key]);
+        p[key] = Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+    }
+    // 예전 저장값의 문자열 숫자가 더하기에서 이어 붙여지거나, 없는 보류 시작값이 NaN이 되지 않게 한다.
+    if (p.holdStart !== null && p.holdStart !== undefined && Number.isFinite(Number(p.holdStart))) p.holdStart = Math.max(0, Math.floor(Number(p.holdStart)));
+    else p.holdStart = null;
     return p;
 }
 function avgWaitValue(p) {
@@ -580,17 +581,31 @@ function loadState() {
     if (!r) return null;
     try {
         const parsed = JSON.parse(r);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
         if (parsed.room) {
-            room = parsed.room;
-            if (Array.isArray(room.players)) room.players.forEach(normalizePlayer);
-            if (!room.playerHistory) room.playerHistory = {};
+            const saved = parsed.room;
+            const object = v => v && typeof v === 'object' && !Array.isArray(v);
+            // 검사가 끝나기 전에 전역 room을 바꾸면 catch 뒤에도 깨진 상태가 남는다.
+            if (!object(saved) || !Array.isArray(saved.players) ||
+                !saved.players.every(p => object(p) && typeof p.nickname === 'string') ||
+                (saved.eventLog !== undefined && (!Array.isArray(saved.eventLog) || !saved.eventLog.every(object))) ||
+                (saved.matchLog !== undefined && !Array.isArray(saved.matchLog)) ||
+                (saved.seen !== undefined && (!Array.isArray(saved.seen) || !saved.seen.every(n => typeof n === 'string'))) ||
+                (saved.playerHistory !== undefined && (!object(saved.playerHistory) || !Object.values(saved.playerHistory).every(object))) ||
+                (saved.plateBook !== undefined && (!object(saved.plateBook) || !Object.values(saved.plateBook).every(object)))) return null;
+            const restored = Object.assign({}, room, saved);
+            restored.players.forEach(normalizePlayer);
+            restored.round = Number.isSafeInteger(Number(saved.round)) && Number(saved.round) >= 0 ? Number(saved.round) : 0;
+            restored.playerHistory = restored.playerHistory || {};
+            Object.values(restored.playerHistory).forEach(normalizePlayer);
             
             // 이전 버전 호환성: matchLog -> eventLog
-            if (room.matchLog && !room.eventLog) {
-                room.eventLog = room.matchLog.map(log => ({ type: 'match', ...log }));
-                delete room.matchLog;
+            if (saved.matchLog && !saved.eventLog) {
+                restored.eventLog = saved.matchLog.map(log => ({ type: 'match', ...log }));
+                delete restored.matchLog;
             }
-            if (!room.eventLog) room.eventLog = [];
+            if (!restored.eventLog) restored.eventLog = [];
+            room = restored;
         }
         // 참고: 스크린샷 분석 결과/이미지는 용량이 커서 saveState()에서 저장하지 않으므로
         // 복원하지 않는다(새로고침 시 분석 패널은 초기화됨). 플레이어/라운드 데이터는 정상 유지된다.

@@ -133,6 +133,6 @@ function generalCellTagsHtml(titleId, btn, diff) {
     const lopeTags = songTagsDatabase[String(titleId)]?.pattern_tags?.[btn]?.filter(pt => pt.diff === diff || !pt.diff) || [];
     if (!memoTags.length && !lopeTags.length) return '';
     return `<div class="cell-tags flex flex-wrap justify-center gap-1 mt-0.5 overflow-hidden max-h-[38px]">
-        ${memoTags.map(t => `<span class="memo-tag text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap">${escapeHtml(t)}</span>`).join('')}${lopeTags.map(mt => `<span class="text-[11px] px-1.5 py-0.5 bg-black/30 rounded-sm whitespace-nowrap">${mt.name}</span>`).join('')}
+        ${memoTags.map(t => `<span class="memo-tag text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap">${escapeHtml(t)}</span>`).join('')}${lopeTags.map(mt => `<span class="text-[11px] px-1.5 py-0.5 bg-black/30 rounded-sm whitespace-nowrap">${escapeHtml(mt.name)}</span>`).join('')}
     </div>`;
 }

@@ -148,7 +148,7 @@ function updateGeneralRow(row, data, titleId) {
             const memoBtn = hasPattern ? `<button class="memo-cell-btn" title="패턴 메모 (자작 태그)" onclick="event.stopPropagation(); openMemoFromCell(this)">✎</button>` : '';
             grid += `<div class="grid-cell${hasPattern ? ' copyable' : ''} relative flex flex-col items-center justify-center ${textColor} ${opacity} h-24" style="${bgColor}"${copyAttr}>
                 ${memoBtn}
-                <span class="grid-value${(displayChar === 'NO DATA' || displayChar === 'NO FLOOR') ? ' nodata' : ''}">${levelChar ? `<span class="align-middle opacity-80 ${diff === 'SC' ? 'font-normal' : 'font-light'}">${levelChar}</span> ` : ''}${displayChar}</span>
+                <span class="grid-value${(displayChar === 'NO DATA' || displayChar === 'NO FLOOR') ? ' nodata' : ''}">${levelChar ? `<span class="align-middle opacity-80 ${diff === 'SC' ? 'font-normal' : 'font-light'}">${levelChar}</span> ` : ''}${escapeHtml(displayChar)}</span>
                 ${pTagsHtml}
             </div>`;
         });
@@ -156,7 +156,7 @@ function updateGeneralRow(row, data, titleId) {
     grid += `</div>`;
     
     const tagData = songTagsDatabase[String(titleId)];
-    const bpmText = tagData?.bpm?.text ? `<span class="px-2 py-0.5 rounded text-xs font-bold border border-blue-700/50 bg-blue-900/40 text-blue-300 ml-3">BPM:${tagData.bpm.text}</span>` : '';
+    const bpmText = tagData?.bpm?.text ? `<span class="px-2 py-0.5 rounded text-xs font-bold border border-blue-700/50 bg-blue-900/40 text-blue-300 ml-3">BPM:${escapeHtml(tagData.bpm.text)}</span>` : '';
 
     row.innerHTML = `
         <div class="flex items-center justify-between mb-2">
@@ -164,11 +164,11 @@ function updateGeneralRow(row, data, titleId) {
                 ${jacketHtml({ titleId: titleId, fromLope: data.fromLope }, 'w-24 h-24 rounded-xl border-2 border-slate-800 shadow-lg', '2.5rem')}
                 <div>
                     <div class="flex items-center">
-                        <h3 class="font-bold text-white text-2xl mb-1">${data.name}</h3>
+                        <h3 class="font-bold text-white text-2xl mb-1">${escapeHtml(data.name)}</h3>
                         ${bpmText}
                     </div>
                     <div class="flex items-center space-x-3">
-                        <p class="text-slate-500 text-xs font-mono">ID: ${titleId}</p>
+                        <p class="text-slate-500 text-xs font-mono">ID: ${escapeHtml(titleId)}</p>
                         ${row.matches ? `<button class="recheck-btn bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button>` : ''}
                     </div>
                 </div>
@@ -206,7 +206,7 @@ function jacketPlaceholder(boxClass, qSize) {
 function handleJacketError(img) {
     if (!img.dataset.triedLope) {
         img.dataset.triedLope = '1';
-        img.src = LOPE_IMG_BASE + img.dataset.songId + '.webp';
+        img.src = LOPE_IMG_BASE + encodeURIComponent(img.dataset.songId) + '.webp';
         return;
     }
     img.outerHTML = jacketPlaceholder(img.dataset.boxClass, img.dataset.qSize);
@@ -215,10 +215,11 @@ function handleJacketError(img) {
 /* 곡 정보가 없으면 자켓을 아예 불러오지 않는다 (없는 이미지 요청 + 깨진 썸네일 방지) */
 function jacketHtml(info, boxClass, qSize) {
     if (info.noData) return jacketPlaceholder(boxClass, qSize);
+    const id = encodeURIComponent(info.titleId);
     // 로페봇에서 보충한 곡은 v-archive에 자켓이 없으므로 처음부터 로페봇 이미지를 쓴다
-    const src = info.fromLope ? `${LOPE_IMG_BASE}${info.titleId}.webp` : `${VA_IMG_BASE}${info.titleId}.jpg`;
+    const src = info.fromLope ? `${LOPE_IMG_BASE}${id}.webp` : `${VA_IMG_BASE}${id}.jpg`;
     const tried = info.fromLope ? ' data-tried-lope="1"' : '';
-    return `<img src="${src}" data-song-id="${info.titleId}" data-box-class="${boxClass}" data-q-size="${qSize}"${tried} onerror="handleJacketError(this)" class="${boxClass} object-cover cursor-pointer hover:opacity-80 transition-opacity" onclick="window.open('https://b300.vercel.app/?m=song&s=${info.titleId}', '_blank'); event.stopPropagation();">`;
+    return `<img src="${escapeHtml(src)}" data-song-id="${escapeHtml(info.titleId)}" data-box-class="${boxClass}" data-q-size="${qSize}"${tried} onerror="handleJacketError(this)" class="${boxClass} object-cover cursor-pointer hover:opacity-80 transition-opacity" onclick="window.open('https://b300.vercel.app/?m=song&s=' + encodeURIComponent(this.dataset.songId), '_blank', 'noopener'); event.stopPropagation();">`;
 }
 
 function updateRow(row, info) {
@@ -233,11 +234,11 @@ function updateRow(row, info) {
         row.className = 'track-row rounded-2xl opacity-100 shadow-xl relative glass flex flex-col items-center text-center p-4 space-y-3';
         row.classList.add(...marks);
         row.innerHTML = `
-            <h3 class="font-bold text-white text-sm leading-tight h-10 flex items-center justify-center overflow-hidden">${info.name}</h3>
+            <h3 class="font-bold text-white text-sm leading-tight h-10 flex items-center justify-center overflow-hidden">${escapeHtml(info.name)}</h3>
             <div class="relative group w-full aspect-square overflow-hidden rounded-xl border border-slate-800 shadow-md">
                 ${jacketHtml(info, 'w-full h-full', '3.5rem')}
                 <div class="absolute inset-x-0 bottom-0 bg-black/60 backdrop-blur-sm rounded-b-xl p-1 floor-area transition-all duration-300 flex items-center justify-center" style="background-color: ${getDifficultyBgColor(info.level, info.difficulty, info.floor)}">
-                    <p class="floor-value text-xl font-black text-white">${circledLevel(info.level)} ${info.floorName}</p>
+                    <p class="floor-value text-xl font-black text-white">${circledLevel(info.level)} ${escapeHtml(info.floorName)}</p>
                 </div>
             </div>
             <div class="flex items-center space-x-1 w-full">
@@ -257,7 +258,7 @@ function updateRow(row, info) {
         `;
     } else {
         row.className = 'track-row p-5 rounded-2xl flex items-center justify-between opacity-100 shadow-xl relative glass';
-        row.innerHTML = `<div class="flex items-center space-x-5">${jacketHtml(info, 'w-20 h-20 flex-none rounded-xl border border-slate-800 shadow-md', '1.75rem')}<div><h3 class="font-bold text-white text-xl leading-tight mb-1">${info.name}</h3><div class="tags-container">${getSongTagsHtml(info.titleId, info.button, info.difficulty)}</div><div class="flex items-center space-x-1.5 mt-2.5"><select class="btn-select px-2 py-1 rounded-md text-[11px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">${bL.map(b => `<option value="${b}" ${b===info.button?'selected':''}>${b}</option>`).join('')}</select><select class="diff-select px-2 py-1 rounded-md text-[11px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">${dL.map(d => `<option value="${d}" ${d===info.difficulty?'selected':''}>${d}</option>`).join('')}</select><button class="recheck-btn ml-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button></div></div></div><div class="text-right flex flex-col items-end"><p class="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Floor Intensity</p><div class="floor-area transition-all duration-300 flex items-center" style="border-radius: 12px; padding: 6px 12px; background-color: ${getDifficultyBgColor(info.level, info.difficulty, info.floor)}"><p class="floor-value text-3xl font-black text-white">${circledLevel(info.level)} ${info.floorName}</p></div></div>`;
+        row.innerHTML = `<div class="flex items-center space-x-5">${jacketHtml(info, 'w-20 h-20 flex-none rounded-xl border border-slate-800 shadow-md', '1.75rem')}<div><h3 class="font-bold text-white text-xl leading-tight mb-1">${escapeHtml(info.name)}</h3><div class="tags-container">${getSongTagsHtml(info.titleId, info.button, info.difficulty)}</div><div class="flex items-center space-x-1.5 mt-2.5"><select class="btn-select px-2 py-1 rounded-md text-[11px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">${bL.map(b => `<option value="${b}" ${b===info.button?'selected':''}>${b}</option>`).join('')}</select><select class="diff-select px-2 py-1 rounded-md text-[11px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">${dL.map(d => `<option value="${d}" ${d===info.difficulty?'selected':''}>${d}</option>`).join('')}</select><button class="recheck-btn ml-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button></div></div></div><div class="text-right flex flex-col items-end"><p class="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Floor Intensity</p><div class="floor-area transition-all duration-300 flex items-center" style="border-radius: 12px; padding: 6px 12px; background-color: ${getDifficultyBgColor(info.level, info.difficulty, info.floor)}"><p class="floor-value text-3xl font-black text-white">${circledLevel(info.level)} ${escapeHtml(info.floorName)}</p></div></div>`;
     }
     updateSelectColors(row.querySelector('.btn-select'), row.querySelector('.diff-select'));
     renderRoundBadge(row); // Recheck으로 카드를 다시 그려도 라운드 표시 유지
@@ -297,7 +298,7 @@ function copyGeneralCell(cell) {
 }
 
 function copyTextWithMessage(text) {
-    navigator.clipboard.writeText(text).then(() => {
+    Promise.resolve().then(() => navigator.clipboard.writeText(text)).then(() => {
         showTemporaryMessage("정보 복사됨!");
     }).catch(err => {
         showTemporaryMessage("복사 실패");
@@ -325,40 +326,6 @@ function updateSelectColors(bE, dE) {
     const all = ['bg-slate-800', 'bg-slate-700', 'bg-slate-600', ...Object.values(bC), ...Object.values(dC)];
     all.forEach(c => { bE.classList.remove(c); dE.classList.remove(c); });
     if (bC[bE.value]) bE.classList.add(bC[bE.value]); if (dC[dE.value]) dE.classList.add(dC[dE.value]);
-}
-
-function getSongDataSync(tId) { const s = songDatabase[parseInt(tId)]; return s ? { success: true, id: s.title, name: s.name, patterns: s.patterns, fromLope: !!s.fromLope } : { success: false }; }
-
-/* 로페봇 곡 정보는 v-archive에 없는 곡을 만났을 때만 한 번 받아온다.
-   v-archive로 다 커버되면 요청이 아예 나가지 않는다. */
-let lopeSongsPromise = null;
-function ensureLopeSongs() {
-    if (lopeSongsPromise) return lopeSongsPromise;
-    lopeSongsPromise = (async () => {
-        try {
-            const songs = await fetchFloorJson(LOPE_SONGS_URL);
-            if (!Array.isArray(songs)) throw new Error('잘못된 곡 데이터');
-            let added = 0;
-            // v-archive와 title/name/patterns 구조가 같아 그대로 꽂아 넣을 수 있고,
-            // 이미 v-archive에 있는 곡은 덮어쓰지 않는다(v-archive 우선).
-            songs.forEach(s => {
-                if (s && s.title !== undefined && songDatabase[s.title] === undefined) {
-                    songDatabase[s.title] = Object.assign({}, s, { fromLope: true });
-                    added++;
-                }
-            });
-            console.log(`[Lope] Supplemented ${added} songs missing from v-archive.`);
-        } catch (e) { console.error("[Lope] Error loading songs:", e); }
-    })();
-    return lopeSongsPromise;
-}
-
-/* v-archive에 없으면 로페봇을 보충한 뒤 다시 조회한다 */
-async function ensureSongData(tId) {
-    const d = getSongDataSync(tId);
-    if (d.success) return d;
-    await ensureLopeSongs();
-    return getSongDataSync(tId);
 }
 
 /* 속성값(data-tag="...")에도 넣으므로 따옴표까지 바꾼다 */
@@ -408,7 +375,7 @@ function renderSongSearchResults() {
     } else {
         box.innerHTML = songSearchMatches.map((m, i) => `
             <div class="song-search-item px-5 py-3 cursor-pointer flex items-center justify-between border-b border-slate-800/60 last:border-b-0 ${i === songSearchActiveIndex ? 'bg-slate-800/80' : 'hover:bg-slate-800/80'}"
-                onclick="selectSongFromSearch('${m.id}')">
+                data-song-id="${escapeHtml(m.id)}" onclick="selectSongFromSearch(this.dataset.songId)">
                 <span class="text-white text-sm font-medium">${escapeHtml(m.name)}</span>
                 ${m.matchedAka ? `<span class="text-[10px] text-slate-500 ml-3 whitespace-nowrap">${escapeHtml(String(m.matchedAka))}</span>` : ''}
             </div>
@@ -444,6 +411,7 @@ function handleSongSearchKeydown(e) {
 function selectSongFromSearch(id) {
     const data = getSongDataSync(id);
     if (!data.success) return;
+    floorWorkVersion++; // 앞서 시작한 화면 분석이 검색 결과를 나중에 덮지 않는다.
     document.getElementById('songSearchResults').classList.add('hidden');
     document.getElementById('songSearchInput').value = data.name;
 

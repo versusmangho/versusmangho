@@ -11,6 +11,7 @@
 !/auto-room.js
 !/auto-host.js
 !/generate-hashes.js
+!/maintenance-regression-test.js
 !/hash-tool.html
 !/helper.py
 !/start.bat

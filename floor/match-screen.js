@@ -41,7 +41,11 @@ const SIG_MAX_RATIO = 0.5;  // 1위가 2위보다 확실히 가까워야 인정
 let sigTable = [];          // [{ id, sig }] — hashes.json thumbnails[].sig
 
 function loadSigTable(thumbs) {
-    sigTable = thumbs.filter(t => t.sig).map(t => ({ id: t.id, sig: Uint8Array.from(atob(t.sig), c => c.charCodeAt(0)) }));
+    sigTable = thumbs.filter(t => t.sig).map(t => {
+        const sig = Uint8Array.from(atob(t.sig), c => c.charCodeAt(0));
+        if (sig.length !== SIG_W * SIG_H * 3) throw new Error('잘못된 자켓 시그니처');
+        return { id: t.id, sig };
+    });
 }
 
 function jacketSig(src, x, y, w, h) {
@@ -242,6 +246,7 @@ async function applyMatchScreen(info, src, getPreviewSrc) {
     const cancelled = () => ({ changes: [], created: 0, partial: false, cancelled: true });
     if (context.mode !== 'versus' || isProcessing) return cancelled();
     isProcessing = true;
+    let preview = null, previewStored = false;
     try {
         let entry = currentMatchEntry();
         const anchored = !!(entry && info.rounds[0].row);
@@ -253,8 +258,8 @@ async function applyMatchScreen(info, src, getPreviewSrc) {
             missing.filter(h => info.rounds.includes(h)).forEach(h => { h.bar = overlayBarFeatures(src, h.rect); });
             const r1 = info.rounds[0].bar || barFeatures(src, info.rounds[0].rect.x, info.rounds[0].rect.y + info.rounds[0].rect.h * 0.82, info.rounds[0].rect.w, info.rounds[0].rect.h * 0.18);
             const banButton = bestMatch(r1.btnPh, r1.btnColor, buttonRefs).key || '4B'; // 한 판의 곡은 버튼 모드가 같다
-            const preview = await getPreviewSrc();
-            if (!floorWorkCurrent(context)) { if (preview) URL.revokeObjectURL(preview); return cancelled(); }
+            preview = await getPreviewSrc();
+            if (!floorWorkCurrent(context)) return cancelled();
             const fresh = [];
             for (const h of missing) {
                 h.row = (entry?.rows || []).concat(fresh).find(r => r.getAttribute('data-title-id') === h.id) || null;
@@ -264,13 +269,14 @@ async function applyMatchScreen(info, src, getPreviewSrc) {
             }
             created = fresh.length;
             await Promise.all(fresh.map(r => r.ready));
-            if (!floorWorkCurrent(context)) { if (preview) URL.revokeObjectURL(preview); return cancelled(); }
+            if (!floorWorkCurrent(context)) return cancelled();
             // 미완성 로딩 칸을 히스토리에 먼저 넣지 않는다. 취소된 작업은 흔적 없이 버린다.
             if (!entry) { entry = addShot(preview, fresh, null, context.mode); entry.partial = true; }
             else {
                 entry.rows.push(...fresh);
                 if (preview) { if (entry.src && entry.src.startsWith('blob:') && entry.src !== preview) URL.revokeObjectURL(entry.src); entry.src = preview; }
             }
+            previewStored = true;
         }
         if (!floorWorkCurrent(context)) return cancelled();
         // 밴픽 5곡에 없는 곡(h.row 없음)은 오인식으로 보고 무시된다
@@ -282,6 +288,7 @@ async function applyMatchScreen(info, src, getPreviewSrc) {
         if (created || changes.length || shotIndex.versus !== shotHistory.versus.length - 1) showShot(shotHistory.versus.length - 1);
         return { changes, created, partial: !!entry.partial };
     } finally {
+        if (preview && !previewStored) URL.revokeObjectURL(preview);
         isProcessing = false;
     }
 }

@@ -28,6 +28,31 @@ async function fetchFloorJson(url, proxy = true) {
     throw error;
 }
 
+// 자동 다운로드와 파일 선택은 같은 형식을 검사하고, 전부 유효할 때만 교체한다.
+function applyHashData(data) {
+    const uint = n => Number.isInteger(n) && n >= 0 && n <= 0xFFFFFFFF;
+    const bits = v => Array.isArray(v) && v.length === 8 && v.every(uint);
+    const color = v => Array.isArray(v) && v.length === 48 && v.every(n => Number.isFinite(n) && n >= 0 && n <= 255);
+    const refs = (map, keys) => map && keys.every(key => {
+        const ref = map[key];
+        return ref && uint(ref.ph?.hi) && uint(ref.ph?.lo) && (!ref.color || color(ref.color));
+    });
+    if (!refs(data?.trackinfo?.buttons, ['4B', '5B', '6B', '8B']) ||
+        !refs(data?.trackinfo?.diffs, ['NM', 'HD', 'MX', 'SC']) ||
+        !Array.isArray(data?.thumbnails) || !data.thumbnails.length ||
+        !data.thumbnails.every(t => t && /^\d+$/.test(String(t.id)) && bits(t.ah) && bits(t.dh) && color(t.color))) {
+        throw new Error('잘못된 자켓 해시 데이터');
+    }
+    // base64 디코딩도 교체 전에 끝낸다. 실패하면 기존 인식 자료는 그대로 남는다.
+    loadSigTable(data.thumbnails);
+    for (const key of Object.keys(buttonRefs)) delete buttonRefs[key];
+    for (const key of Object.keys(diffRefs)) delete diffRefs[key];
+    for (const key of ['4B', '5B', '6B', '8B']) buttonRefs[key] = data.trackinfo.buttons[key];
+    for (const key of ['NM', 'HD', 'MX', 'SC']) diffRefs[key] = data.trackinfo.diffs[key];
+    thumbRefs.length = 0;
+    for (const t of data.thumbnails) thumbRefs.push(t);
+}
+
 async function loadHashes() {
     updateStatus("곡 정보와 자켓 해시를 가져오는 중..");
     // 선택 정보인 태그 서버가 멈춰도 인식 준비를 막지 않는다.
@@ -44,10 +69,7 @@ async function loadHashes() {
             songs.forEach(s => { songDatabase[s.title] = s; });
         }),
         fetchFloorJson('hashes.json', false).then(data => {
-            if (!data.trackinfo?.buttons || !data.trackinfo?.diffs || !Array.isArray(data.thumbnails) || !data.thumbnails.length) {
-                throw new Error('잘못된 자켓 해시 데이터');
-            }
-            return data;
+            applyHashData(data);
         })
     ]);
     if (songs.status === 'rejected') {
@@ -59,12 +81,6 @@ async function loadHashes() {
         updateStatus("<span class='text-yellow-500 font-bold' id='hashStatusLabel'>자켓 해시를 받지 못했습니다. hashes.json 파일을 선택하거나 새로고침해 주세요.</span>");
         return false;
     }
-    const data = hashes.value;
-    Object.assign(buttonRefs, data.trackinfo.buttons);
-    Object.assign(diffRefs, data.trackinfo.diffs);
-    thumbRefs.length = 0;
-    thumbRefs.push(...data.thumbnails);
-    loadSigTable(data.thumbnails);
     return true;
 }
 
@@ -74,18 +90,55 @@ function handleHashUpload(input) {
     reader.onload = function(e) {
         try {
             const d = JSON.parse(e.target.result);
-            if (d.trackinfo) {
-                Object.assign(buttonRefs, d.trackinfo.buttons); Object.assign(diffRefs, d.trackinfo.diffs);
-                thumbRefs.length = 0; thumbRefs.push(...d.thumbnails); loadSigTable(d.thumbnails); document.getElementById('hashUploadContainer').classList.add('hidden');
-                if (statusLogs.length > 0) statusLogs[statusLogs.length - 1] = statusLogs[statusLogs.length - 1].replace(/<span.*>.*<\/span>/, "<span class='text-green-500 font-bold'>완료!</span>");
-                renderStatus(); updateStatus("<div class='mt-6 text-blue-400 font-bold text-lg'>준비 완료!</div>");
-            }
-        } catch (err) { alert("오류 발생"); }
+            applyHashData(d);
+            document.getElementById('hashUploadContainer').classList.add('hidden');
+            if (statusLogs.length > 0) statusLogs[statusLogs.length - 1] = statusLogs[statusLogs.length - 1].replace(/<span.*>.*<\/span>/, "<span class='text-green-500 font-bold'>완료!</span>");
+            updateStatus("<div class='mt-6 text-blue-400 font-bold text-lg'>준비 완료!</div>");
+        } catch (err) { renderStatus(); alert('해시 파일을 읽을 수 없습니다: ' + err.message); }
     };
+    reader.onerror = () => { renderStatus(); alert('해시 파일을 읽을 수 없습니다'); };
+    reader.onloadend = () => { input.value = ''; };
     reader.readAsText(file);
 }
 
 async function init() { statusLogs = []; const s = await loadHashes(); if (s) updateStatus("<div class='mt-6 text-blue-400 font-bold text-lg'>준비 완료!</div>"); }
+
+function getSongDataSync(tId) { const s = songDatabase[parseInt(tId)]; return s ? { success: true, id: s.title, name: s.name, patterns: s.patterns, fromLope: !!s.fromLope } : { success: false }; }
+
+/* 로페봇 곡 정보는 v-archive에 없는 곡을 만났을 때만 한 번 받아온다.
+   v-archive로 다 커버되면 요청이 아예 나가지 않는다. */
+let lopeSongsPromise = null;
+function ensureLopeSongs() {
+    if (lopeSongsPromise) return lopeSongsPromise;
+    lopeSongsPromise = (async () => {
+        try {
+            const songs = await fetchFloorJson(LOPE_SONGS_URL);
+            if (!Array.isArray(songs)) throw new Error('잘못된 곡 데이터');
+            let added = 0;
+            // v-archive와 title/name/patterns 구조가 같아 그대로 꽂아 넣을 수 있고,
+            // 이미 v-archive에 있는 곡은 덮어쓰지 않는다(v-archive 우선).
+            songs.forEach(s => {
+                if (s && s.title !== undefined && songDatabase[s.title] === undefined) {
+                    songDatabase[s.title] = Object.assign({}, s, { fromLope: true });
+                    added++;
+                }
+            });
+            console.log(`[Lope] Supplemented ${added} songs missing from v-archive.`);
+        } catch (e) {
+            lopeSongsPromise = null; // 일시적인 네트워크 실패를 새로고침할 때까지 고정하지 않는다.
+            console.error("[Lope] Error loading songs:", e);
+        }
+    })();
+    return lopeSongsPromise;
+}
+
+/* v-archive에 없으면 로페봇을 보충한 뒤 다시 조회한다 */
+async function ensureSongData(tId) {
+    const d = getSongDataSync(tId);
+    if (d.success) return d;
+    await ensureLopeSongs();
+    return getSongDataSync(tId);
+}
 
 function getSortedMatches(hashA, hashD, colorGrid) {
     const W_COLOR = 2.0; // 색상 유사도 가중치

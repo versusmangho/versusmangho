@@ -243,8 +243,10 @@
     }
     // 한 장만 읽는다 — 읽힌 값은 그대로 믿고, 못 읽은 프레임일 때만 조금 뒤 다시 받아 본다
     async function readFrame() {
+        if (state.stopAsked) throw new Error('stop');
         let r = await readNow();
         for (let i = 1; i < READ_TRIES && !r.ok && !state.stopAsked; i++) { await sleep(RETRY_GAP_MS); r = await readNow(); }
+        if (state.stopAsked) throw new Error('stop');
         return r;
     }
 
@@ -258,6 +260,7 @@
     const setTitle = (t) => { document.title = t ? t + ' · ' + baseTitle : baseTitle; };
 
     async function pressDown() {
+        if (state.stopAsked) throw new Error('stop');
         try { return await helperCall('/helper/key', { key: 'down', hold: opts.hold }); }
         catch (e) { return { ok: false, error: 'no-helper' }; }
     }
@@ -301,7 +304,7 @@
             if (!r.ok) { endNote = readFailText(r); throw new Error('read'); }
             let prevId = r.id, same = 0;
             const scanFirst = r.id;   // 파일로 읽은 첫 곡은 이번 스캔 목록의 시작점이 아니다
-            if (await addReading(r) === 'added') added++;
+            if (addReading(r) === 'added') added++;
             read++;
             while (!state.stopAsked) {
                 setStatus('읽는 중 — ' + read + '곡 (새로 ' + added + ') · 멈추려면 브라우저를 클릭', 'live'); setTitle(read + '곡');
@@ -322,7 +325,7 @@
                 same = 0;
                 if (r.id === scanFirst && read > 1) { endNote = '목록 끝 (첫 곡으로 돌아옴)'; break; }
                 prevId = r.id;
-                if (await addReading(r) === 'added') added++;
+                if (addReading(r) === 'added') added++;
                 read++;
             }
             if (state.stopAsked && !endNote) endNote = '멈춤';
@@ -355,7 +358,7 @@
                 const src = r0 && !VMH.ScreenCapture.isFullRect(r0, bmp.width, bmp.height) ? VMH.ImgHash.cropToCanvas(bmp, r0.x, r0.y, r0.w, r0.h) : bmp;
                 const r = Reader.read(src, src.width, src.height, jackets());
                 if (!r.ok) { fail++; continue; }
-                (await addReading(r)) === 'added' ? added++ : same++;
+                addReading(r) === 'added' ? added++ : same++;
             } catch (e) { console.error('[Scan] image', e); fail++; }
             finally { if (bmp) bmp.close(); }
         }
