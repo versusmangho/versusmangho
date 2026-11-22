@@ -664,14 +664,19 @@ let maxScoreOfWaiters = null; // null = 경험자 없음
    방 상태(room)가 아니라 설정이므로 실행 취소·전체 초기화와 무관하게 따로 저장한다. */
 const SCORE_WEIGHTS_KEY = 'scoreWeightsV1';
 const SCORE_WEIGHT_DEFS = [
-    { key: 'cur',       name: '현재 대기',       unit: '×',  min: 0, max: 3,  step: 0.1,  def: 1 },
-    { key: 'avg',       name: '평균 대기',       unit: '×',  min: 0, max: 3,  step: 0.1,  def: 1 },
-    { key: 'sel',       name: '원디골 비율',     unit: '×',  min: 0, max: 2,  step: 0.05, def: 0.5 },
+    { key: 'cur',       name: '현재 대기',       unit: '×',  min: 0, max: 3,  step: 0.1,  def: 1,
+      tip: '마지막으로 플레이한 뒤 지금까지 몇 판을 쉬었는지(현재 대기 판수)에 곱하는 가중치입니다.\n• 높을수록 최근에 오래 쉰 사람이 빨리 올라옵니다.' },
+    { key: 'avg',       name: '평균 대기',       unit: '×',  min: 0, max: 3,  step: 0.1,  def: 1,
+      tip: '방에 들어온 뒤 한 판 칠 때까지 평균적으로 몇 판을 기다렸는지에 곱하는 가중치입니다.\n• 높을수록 전체적으로 덜 친 사람이 보정됩니다.' },
+    { key: 'sel',       name: '원디골 비율',     unit: '×',  min: 0, max: 2,  step: 0.05, def: 0.5,
+      tip: '전체 플레이 중 원디골(선곡·지목자)로 뛴 비율만큼 점수를 깎는 페널티 가중치입니다.\n• 높을수록 지목을 자주 한 사람의 우선순위가 내려갑니다.' },
     // 신입 우선권: 경험자 최고점보다 확실히 위로 올리는 여유분
-    { key: 'newcomer',  name: '신입 가산점',     unit: '+',  min: 0, max: 5,  step: 0.5,  def: 1 },
+    { key: 'newcomer',  name: '신입 가산점',     unit: '+',  min: 0, max: 5,  step: 0.5,  def: 1,
+      tip: '신입 우선권이 켜져 있을 때 첫 판(0판) 신입에게 "경험자 최고점 + 이 값"만큼 추가로 더해 주는 여유 점수입니다.' },
     // 세이프가드: 현재 대기가 이 값 이상이면 "장기 대기(긴급)"로 보고 최상위 강제.
     // 정렬·행 색상·팝업·문구가 모두 이 값을 쓴다
-    { key: 'safeguard', name: '세이프가드 기준', unit: '판', min: 2, max: 10, step: 1,    def: 4 }
+    { key: 'safeguard', name: '세이프가드 기준', unit: '판', min: 2, max: 10, step: 1,    def: 4,
+      tip: '세이프가드가 켜져 있을 때 현재 대기 판수가 이 값 이상이면 일반 점수와 무관하게 최우선(긴급)으로 끌어올립니다.' }
 ];
 const scoreWeights = {};
 
@@ -1239,8 +1244,9 @@ syncSafeguardText();
     host.innerHTML = SCORE_WEIGHT_DEFS.map(d => {
         const pre = d.unit === '판' ? '' : `<span class="weight-unit">${d.unit}</span>`;
         const post = d.unit === '판' ? '<span class="weight-unit">판</span>' : '';
+        const tip = d.tip ? `<button type="button" class="help-tip" data-tip="${escapeHtml(d.tip)}" aria-label="${d.name} 도움말">?</button>` : '';
         return `<div class="weight-row" data-key="${d.key}">
-          <label class="weight-name" for="w-num-${d.key}">${d.name}</label>
+          <label class="weight-name" for="w-num-${d.key}">${d.name}${tip}</label>
           <input type="range" class="weight-range" min="${d.min}" max="${d.max}" step="${d.step}" aria-label="${d.name}">
           <span class="weight-num-wrap">${pre}<input type="number" id="w-num-${d.key}" class="weight-num" min="${d.min}" max="${d.max}" step="${d.step}">${post}</span>
           <span class="weight-def">기본 ${fmt(d.def)}</span>

@@ -488,15 +488,16 @@ h2 .help-tip { font-size: 12px; width: 17px; height: 17px; font-weight: 700; }
   background: #0f172a;
   color: #f8fafc;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
-  padding: 6px 10px;
-  border-radius: var(--radius-xs, 4px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+  padding: 9px 12px;
+  border-radius: var(--radius-xs, 6px);
   font-size: 12px;
   font-weight: 400;
-  line-height: 1.4;
-  white-space: normal;
+  line-height: 1.55;
+  white-space: pre-line;
+  word-break: keep-all;
   width: max-content;
-  max-width: 250px;
+  max-width: min(360px, calc(100vw - 40px));
   text-align: left;
   pointer-events: none;
   opacity: 0;
@@ -529,7 +530,7 @@ h2 .help-tip { font-size: 12px; width: 17px; height: 17px; font-weight: 700; }
   visibility: visible;
   transform: translateX(-50%) translateY(0);
 }
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .help-tip::after { left: 0; transform: translateY(4px); }
   .help-tip::before { left: 4px; transform: translateY(4px); }
   .help-tip:hover::after, .help-tip:focus-visible::after { transform: translateY(0); }

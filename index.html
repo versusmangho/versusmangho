@@ -355,7 +355,7 @@
   </style>
 
   <!-- 층수 스타일보다 뒤에 둔다 — .floor-toolbar 같은 조정 규칙이 이겨야 하기 때문 -->
-  <link rel="stylesheet" href="style.css?v=20261122-scan-stats" />
+  <link rel="stylesheet" href="style.css?v=20261122-tips" />
 </head>
 
 <body>
@@ -725,13 +725,13 @@
 <main>
   <section class="card options-card" id="opt-auto-host">
     <div class="card-head">
-      <h2>자동 방장 봇 <button type="button" class="help-tip" data-tip="방장이 되면 1순위에게 방장을 넘기고 자동 레디합니다." aria-label="도움말">?</button></h2>
+      <h2>자동 방장 봇 <button type="button" class="help-tip" data-tip="로비에서 봇 계정이 방장(PLAYER 1)이 되면 매칭 우선순위 1순위 플레이어에게 방장을 자동으로 위임하고 레디(F5)를 누릅니다.&#10;• 화면 공유(매칭 도우미)와 로컬 도우미(helper.py)가 모두 연결돼 있어야 동작합니다.&#10;• 봇 계정은 대기열에서 자동 제외(보류)되며, 판이 끝난 뒤 방장을 다시 받으면 다음 차례에게 이어서 넘깁니다." aria-label="도움말">?</button></h2>
       <button class="secondary" data-goto-help="help-host">도움말</button>
     </div>
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="auto-host-toggle" /><span class="slider"></span></span>
       <span class="option-name">자동 방장 봇 쓰기</span>
-      <button type="button" class="help-tip" data-tip="활성화 시 방장 위임, 자동 레디, 방 자동 재생성을 수행합니다." aria-label="도움말">?</button>
+      <button type="button" class="help-tip" data-tip="켜면 로비 복귀나 방장 위임 시 아래 동작을 자동으로 수행합니다.&#10;• 방장 위임: 1순위(비어 있으면 다음 순위) 칸을 골라 방장 넘김&#10;• 자동 레디: 관전 상태일 때 자동으로 F5 레디&#10;• 방 자동 재생성: 방 해체 시 설정한 이름·비밀번호로 새 방 생성&#10;※ 끄면 키 입력·채팅을 즉시 중단합니다." aria-label="도움말">?</button>
     </label>
     <div id="auto-host-note" class="bot-status-bar"></div>
     <ul class="scan-checks" id="auto-host-helper"></ul>
@@ -742,7 +742,7 @@
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="auto-host-chat" checked /><span class="slider"></span></span>
       <span class="option-name">방장을 넘긴 뒤 다음 순서 알리기</span>
-      <button type="button" class="help-tip" data-tip="{목록} 치환자로 다음 순서를 채팅에 안내합니다." aria-label="도움말">?</button>
+      <button type="button" class="help-tip" data-tip="방장을 위임한 직후 대기 중인 다음 순서를 인게임 채팅으로 안내합니다.&#10;• 사용 가능한 치환자: {목록} (예: 2순위 5픽 · 3순위 2픽), {봇} (봇의 현재 자리 번호)&#10;• 봇이 PLAYER 2에 있으면 '봇이 2픽일 때' 문구로, 대결 후 방장을 못 받았으면 '방장 요청' 문구로 안내합니다." aria-label="도움말">?</button>
     </label>
     <div class="option-row option-row-block bot-field">
       <span class="option-name">다음 순서 문구</span>
@@ -759,7 +759,7 @@
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="auto-host-song" checked /><span class="slider"></span></span>
       <span class="option-name">대결 중 이번 곡 난이도 알리기</span>
-      <button type="button" class="help-tip" data-tip="곡 제목과 층수 정보를 채팅에 안내합니다." aria-label="도움말">?</button>
+      <button type="button" class="help-tip" data-tip="라운드·밴픽 화면에서 층수 측정기가 현재 플레이 곡을 인식하면, 그 곡의 난이도와 층수·태그를 인게임 채팅으로 안내합니다.&#10;• 사용 가능한 치환자: {라운드}, {곡}, {패턴}, {층수}, {태그}&#10;• 화면 공유 대상이 '둘 다'로 되어 있어야 층수 측정기에서 곡 정보를 받아올 수 있습니다." aria-label="도움말">?</button>
     </label>
     <div class="option-row option-row-block bot-field">
       <span class="option-name">곡 안내 문구</span>
@@ -768,7 +768,7 @@
   </section>
 
   <section class="card options-card" id="opt-auto-host-room">
-    <h2>방 다시 만들기 <button type="button" class="help-tip" data-tip="방 해체 시 설정된 이름과 비밀번호로 방을 다시 생성합니다." aria-label="도움말">?</button></h2>
+    <h2>방 다시 만들기 <button type="button" class="help-tip" data-tip="방장이 나가거나 오류로 방이 해체되어 방 목록 화면으로 나가면, 확인 창을 닫고 아래 방 이름·비밀번호로 버서스 방을 자동으로 다시 만듭니다.&#10;• 방 이름 치환자: {날짜} (예: 1122), {월}, {일}&#10;• 방 이름을 비우면 게임 기본 방 이름을 그대로 쓰고, 비밀번호를 비우면 공개 방으로 생성합니다." aria-label="도움말">?</button></h2>
     <div class="option-row option-row-block bot-field">
       <span class="option-name">방 이름</span>
       <input type="text" id="auto-host-room-name" class="scan-opt-text" placeholder="비우면 게임이 지어 주는 이름 그대로" autocomplete="off" />
@@ -786,7 +786,7 @@
 <div data-tab-panel="options" hidden>
 <main>
   <section class="card options-card">
-    <h2>화면 테마 <button type="button" class="help-tip" data-tip="헤더 버튼으로도 변경할 수 있습니다." aria-label="도움말">?</button></h2>
+    <h2>화면 테마 <button type="button" class="help-tip" data-tip="앱 전체 색상을 다크 모드와 라이트 모드 중 선택합니다.&#10;• 상단 헤더의 해/달 아이콘 버튼으로도 어느 탭에서나 바로 바꿀 수 있으며, 선택한 테마는 브라우저에 자동 저장됩니다." aria-label="도움말">?</button></h2>
     <div class="seg" role="radiogroup" aria-label="화면 테마">
       <label><input type="radio" name="theme" value="dark" checked /><span>다크 모드</span></label>
       <label><input type="radio" name="theme" value="light" /><span>라이트 모드</span></label>
@@ -797,18 +797,18 @@
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="newcomer-toggle" checked /><span class="slider"></span></span>
       <span class="option-name">신입 우선권</span>
-      <button type="button" class="help-tip" data-tip="신규 참가자에게 가산점을 주어 첫 매칭을 앞당깁니다." aria-label="도움말">?</button>
+      <button type="button" class="help-tip" data-tip="방에 새로 들어와 아직 한 판도 치지 않은 플레이어(0판)에게 '경험자 최고 가중치 + 신입 가산점'을 주어 첫 매칭을 우선 배정합니다.&#10;• 끄면 신입도 경험자 평균 대기 기준으로 계산되어 일반 순서에 섞입니다." aria-label="도움말">?</button>
     </label>
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="safeguard-toggle" checked /><span class="slider"></span></span>
       <span class="option-name">세이프가드</span>
-      <button type="button" class="help-tip" data-tip="장기 대기 플레이어를 최우선 순위로 배치합니다." aria-label="도움말">?</button>
+      <button type="button" class="help-tip" data-tip="현재 대기 판수가 세이프가드 기준(기본 4판) 이상 쌓인 장기 대기 플레이어를 가중치 점수와 무관하게 최우선 순위로 끌어올립니다.&#10;• 긴급 대기 대상이 여러 명이면 대기 판수가 더 큰 쪽이 먼저 올라가며, 표에서 강조 색상으로 표시됩니다." aria-label="도움말">?</button>
     </label>
   </section>
 
   <section class="card options-card" id="opt-weights">
     <div class="card-head">
-      <h2>가중치 편집기 <button type="button" class="help-tip" data-tip="가중치 점수가 높을수록 매칭 우선순위를 얻습니다." aria-label="도움말">?</button></h2>
+      <h2>가중치 편집기 <button type="button" class="help-tip" data-tip="매칭 우선순위 점수를 계산하는 공식의 각 항목 비중과 기준값을 조절합니다.&#10;• 점수가 높을수록 매칭 순서가 앞당겨집니다.&#10;• 변경 내용은 즉시 표와 팝업·방장 봇 순서에 반영되며, 방 초기화나 실행 취소(Ctrl+Z)를 해도 유지됩니다." aria-label="도움말">?</button></h2>
       <button id="weight-reset-btn" class="secondary">기본값으로</button>
     </div>
     <div class="weight-formula" id="weight-formula"></div>
@@ -819,7 +819,7 @@
   <section class="card options-card" id="opt-capture">
     <h2>게임 화면 연결</h2>
     <div class="option-row option-row-block">
-      <span class="option-name">화면 공유를 줄 곳 <button type="button" class="help-tip" data-tip="공유된 게임 화면을 처리할 탭을 선택합니다." aria-label="도움말">?</button></span>
+      <span class="option-name">화면 공유를 줄 곳 <button type="button" class="help-tip" data-tip="상단 '게임 화면 연결'로 공유한 게임 화면 1개를 어느 기능에 전달할지 정합니다.&#10;• 둘 다: 매칭 입·퇴장·대결 기록과 층수 측정기 곡 인식을 동시에 사용&#10;• 매칭 도우미만: 방 명단·대결 자동 기록만 사용&#10;• 층수 측정기만: 곡·층수 인식만 사용 (매칭 탭의 수동 입력 UI가 유지됨)" aria-label="도움말">?</button></span>
       <div class="seg" role="radiogroup" aria-label="화면 공유를 줄 곳">
         <label><input type="radio" name="capture-target" value="both" checked /><span>둘 다</span></label>
         <label><input type="radio" name="capture-target" value="room" /><span>매칭 도우미만</span></label>
@@ -829,7 +829,7 @@
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="auto-tab-toggle" checked /><span class="slider"></span></span>
       <span class="option-name">화면 자동 전환</span>
-      <button type="button" class="help-tip" data-tip="게임 장면에 맞춰 탭을 자동으로 전환합니다." aria-label="도움말">?</button>
+      <button type="button" class="help-tip" data-tip="게임 화면 상태가 바뀔 때 해당하는 탭으로 자동 이동합니다.&#10;• 버서스 로비로 돌아오면 '매칭' 탭으로, 밴픽 화면이 뜨면 '층수 측정기' 탭으로 전환됩니다.&#10;• 장면이 바뀔 때 한 번만 전환되므로, 중간에 다른 탭을 직접 눌러도 강제로 되돌아가지 않습니다." aria-label="도움말">?</button>
     </label>
   </section>
 
@@ -838,7 +838,7 @@
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="notify-lobby-toggle" /><span class="slider"></span></span>
       <span class="option-name">로비 복귀 알림</span>
-      <button type="button" class="help-tip" data-tip="대결 종료 후 로비로 복귀하면 알려줍니다." aria-label="도움말">?</button>
+      <button type="button" class="help-tip" data-tip="대결(10초 이상 비-로비 화면)이 끝나고 로비로 돌아왔을 때 소리나 데스크톱 알림창으로 알려줍니다.&#10;• 게임 창에 가려 브라우저가 보이지 않을 때 다음 차례 확인용으로 유용합니다.&#10;• 화면 공유가 '매칭 도우미'에 연결돼 있어야 동작하며, 알림창은 브라우저 알림 권한 허용이 필요합니다." aria-label="도움말">?</button>
     </label>
     <div class="option-row option-row-block">
       <span class="option-name">알리는 방법</span>
@@ -855,11 +855,11 @@
   <section class="card options-card" id="opt-scan">
     <h2>성과 스캔</h2>
     <div class="option-row option-row-block">
-      <span class="option-name">DJ 이름 <button type="button" class="help-tip" data-tip="기록 조회를 위한 V-ARCHIVE DJ 이름을 입력하세요." aria-label="도움말">?</button></span>
+      <span class="option-name">DJ 이름 <button type="button" class="help-tip" data-tip="성과 스캔 후 서버 비교 단계에서 기존 기록을 조회할 V-ARCHIVE 닉네임(DJ NAME)입니다.&#10;• 대소문자와 띄어쓰기를 V-ARCHIVE 프로필과 정확히 같게 입력해야 기존 기록이 정상 조회됩니다." aria-label="도움말">?</button></span>
       <input type="text" id="scan-dj-input" class="scan-opt-text" placeholder="V-ARCHIVE 계정 이름" autocomplete="off" />
     </div>
     <div class="option-row option-row-block">
-      <span class="option-name">계정 파일 <button type="button" class="help-tip" data-tip="V-ARCHIVE 클라이언트 폴더의 account.txt를 선택하세요." aria-label="도움말">?</button></span>
+      <span class="option-name">계정 파일 <button type="button" class="help-tip" data-tip="V-ARCHIVE 공식 클라이언트 폴더 안에 있는 account.txt 파일입니다.&#10;• 갱신된 성과를 V-ARCHIVE 서버로 직접 업로드할 때 인증 정보(userNo·token)로 사용됩니다.&#10;• 서버 비교만 할 때는 없어도 되며, 파일 내용은 업로드 중계 외 외부로 전송되지 않습니다." aria-label="도움말">?</button></span>
       <span class="scan-account-ctl">
         <label class="file-btn secondary">account.txt 고르기<input type="file" id="scan-account-file" accept=".txt,text/plain"></label>
         <button id="scan-account-clear" class="secondary" hidden>지우기</button>
@@ -871,19 +871,19 @@
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="scan-account-remember" /><span class="slider"></span></span>
       <span class="option-name">계정 파일 기억해 두기</span>
-      <button type="button" class="help-tip" data-tip="브라우저에 계정 정보를 저장합니다." aria-label="도움말">?</button>
+      <button type="button" class="help-tip" data-tip="켜면 선택한 account.txt의 인증 정보를 이 브라우저(LocalStorage)에 저장해 두고, 새로고침 후에도 다시 고르지 않고 바로 업로드할 수 있습니다.&#10;• 공용 PC에서는 끄고 사용하는 것을 권장하며, 끄거나 '지우기'를 누르면 저장된 정보가 즉시 삭제됩니다." aria-label="도움말">?</button>
     </label>
     <label class="option-row">
       <span class="switch"><input type="checkbox" id="scan-auto-upload" /><span class="slider"></span></span>
       <span class="option-name">스캔 끝나면 자동으로 서버 비교·업로드</span>
-      <button type="button" class="help-tip" data-tip="스캔이 목록 끝까지 완료되면 자동으로 서버 기록과 비교하고, 확인이 필요 없는 갱신 기록만 바로 업로드합니다." aria-label="도움말">?</button>
+      <button type="button" class="help-tip" data-tip="스캔이 목록 끝까지 정상 완료되면 자동으로 V-ARCHIVE 서버 기록을 불러와 비교한 뒤, 판독이 확실한 갱신 기록만 바로 업로드합니다.&#10;• 자켓·점수·중복 등 '확인 필요' 표시가 붙은 항목은 자동으로 제외되므로, 끝난 뒤 검토해서 직접 올리면 됩니다.&#10;• DJ 이름과 account.txt가 모두 설정돼 있어야 자동 업로드까지 진행됩니다." aria-label="도움말">?</button>
     </label>
     <div class="option-row option-row-block">
-      <span class="option-name">곡 넘긴 뒤 기다리는 시간 <button type="button" class="help-tip" data-tip="곡 넘김 후 인식 대기 시간입니다." aria-label="도움말">?</button></span>
+      <span class="option-name">곡 넘긴 뒤 기다리는 시간 <button type="button" class="help-tip" data-tip="스캔 중 아래 방향키로 다음 곡으로 넘긴 뒤, 게임 화면의 자켓·점수가 완전히 바뀔 때까지 기다리는 시간(ms)입니다.&#10;• 기본값은 60ms이며, PC 사양이나 프레임에 따라 이전 곡 화면이 덜 바뀌어 중복/오인식이 잦으면 100~200ms 정도로 늘려 주세요." aria-label="도움말">?</button></span>
       <span class="weight-num-wrap"><input type="number" id="scan-delay-input" class="weight-num" min="60" max="3000" step="1" /> ms</span>
     </div>
     <div class="option-row option-row-block">
-      <span class="option-name">키 누름 시간 <button type="button" class="help-tip" data-tip="키 누름 유지 시간입니다." aria-label="도움말">?</button></span>
+      <span class="option-name">키 누름 시간 <button type="button" class="help-tip" data-tip="도우미(helper.py)가 게임 창에 키를 보낼 때 키를 누르고 있는 유지 시간(ms)입니다.&#10;• 기본값은 40ms이며, 게임이 키 입력을 가끔 씹는다면 50~80ms로 조금 늘려 보세요." aria-label="도움말">?</button></span>
       <span class="weight-num-wrap"><input type="number" id="scan-hold-input" class="weight-num" min="10" max="500" step="5" /> ms</span>
     </div>
   </section>
@@ -1085,7 +1085,7 @@
 <script src="lib/djmax-room.js?v=20261122-playing-level"></script>
 <script src="lib/incidents.js?v=20261122-int-rect"></script>
 
-<script src="script.js?v=20261122-tier-axis"></script>
+<script src="script.js?v=20261122-tips"></script>
 <script src="auto-room.js?v=20261104-diagnostic"></script>
 
 <script src="floor/core.js"></script>
