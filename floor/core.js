@@ -80,6 +80,63 @@ const thumbRefs = [], buttonRefs = {}, diffRefs = {}, songTagsDatabase = {};
 let isProcessing = false, lastImageHash = null;
 const COOLDOWN_MS = 3000;
 
+// V-ARCHIVE songs.json의 패턴 태그(tags·standard) 표시 이름과 정렬 순서
+const VA_TAG_ORDER = [
+    'random:half', 'random:random', 'random:max',
+    'svam:accelFast', 'svam:accel', 'svam:variable', 'svam:decel', 'svam:decelFast',
+    'assist:max', 'assist:half',
+    'based:six',
+    'individual:individual',
+];
+const VA_TAG_LABELS = {
+    'random:half': '하랜 추천',
+    'random:random': '랜덤 추천',
+    'random:max': '맥랜 추천',
+    'svam:accelFast': '급가속',
+    'svam:accel': '가속',
+    'svam:variable': '변속',
+    'svam:decel': '감속',
+    'svam:decelFast': '급감속',
+    'assist:max': '보조키 자주',
+    'assist:half': '보조키 약간',
+    'based:six': '6B위주',
+    'individual:individual': '개인차',
+};
+
+function getVarchivePatternTags(titleId, button, difficulty) {
+    if (!button || !difficulty) return [];
+    const p = songDatabase[parseInt(titleId)]?.patterns?.[button]?.[difficulty];
+    if (!p) return [];
+    const raw = Array.isArray(p.tags) ? p.tags : [];
+    const keys = [];
+    raw.forEach(t => {
+        if (!t || !t.tagGroup || !t.tagCode) return;
+        const k = `${t.tagGroup}:${t.tagCode}`;
+        if (VA_TAG_LABELS[k] && !keys.includes(k)) keys.push(k);
+    });
+    keys.sort((a, b) => VA_TAG_ORDER.indexOf(a) - VA_TAG_ORDER.indexOf(b));
+    const out = keys.map(k => VA_TAG_LABELS[k]);
+    if (p.standard) out.push('기준곡');
+    return out;
+}
+
+/* 로페봇 패턴 태그 — V-ARCHIVE 태그와 이름이 겹치면 V-ARCHIVE 쪽을 우선한다 */
+function getLopePatternTags(titleId, button, difficulty, vaTags = null) {
+    if (!button || !difficulty) return [];
+    const pTags = songTagsDatabase[String(titleId)]?.pattern_tags?.[button];
+    if (!Array.isArray(pTags)) return [];
+    const seen = new Set(vaTags || getVarchivePatternTags(titleId, button, difficulty));
+    const out = [];
+    pTags.forEach(pt => {
+        if (!pt || !pt.name) return;
+        if (pt.diff !== difficulty && pt.diff) return;
+        if (seen.has(pt.name)) return;
+        seen.add(pt.name);
+        out.push(pt.name);
+    });
+    return out;
+}
+
 function getSongTagList(titleId, currentButton = null, currentDifficulty = null) {
     const tagData = songTagsDatabase[String(titleId)];
     const displayTags = [];
@@ -89,18 +146,20 @@ function getSongTagList(titleId, currentButton = null, currentDifficulty = null)
         displayTags.push({ text: `BPM:${tagData.bpm.text}`, type: 'bpm' });
     }
 
-    // 2. 패턴 전용 특징 태그 추가 (일반 태그는 제외)
-    if (currentButton && currentDifficulty && tagData?.pattern_tags?.[currentButton]) {
-        const pTags = tagData.pattern_tags[currentButton];
-        pTags.forEach(pt => {
-            // 난이도가 일치하거나(SC/MX/HD/NM), 태그에 난이도 정보가 없는 경우 포함
-            if (pt.diff === currentDifficulty || !pt.diff) {
-                displayTags.push({ text: pt.name, type: 'pattern' });
-            }
+    // 2. V-ARCHIVE 패턴 태그 (하랜 추천·변속·보조키·기준곡 등)
+    const vaTags = (currentButton && currentDifficulty)
+        ? getVarchivePatternTags(titleId, currentButton, currentDifficulty)
+        : [];
+    vaTags.forEach(t => displayTags.push({ text: t, type: 'varchive' }));
+
+    // 3. 로페봇 패턴 전용 특징 태그 추가 (V-ARCHIVE와 겹치는 이름은 제외)
+    if (currentButton && currentDifficulty) {
+        getLopePatternTags(titleId, currentButton, currentDifficulty, vaTags).forEach(name => {
+            displayTags.push({ text: name, type: 'pattern' });
         });
     }
 
-    // 3. 내가 붙인 패턴 메모(자작 태그) — 로페봇 태그가 없는 곡에도 붙는다
+    // 4. 내가 붙인 패턴 메모(자작 태그) — 외부 태그가 없는 곡에도 붙는다
     if (currentButton && currentDifficulty) {
         getPatternMemo(titleId, currentButton, currentDifficulty).forEach(t => displayTags.push({ text: t, type: 'custom' }));
     }
@@ -112,27 +171,30 @@ function getSongTagsHtml(titleId, currentButton = null, currentDifficulty = null
     if (displayTags.length === 0) return '';
 
     return `<div class="flex flex-wrap gap-1 ${justifyClass} mt-1.5">${displayTags.map(tag => {
-        let bgColor = 'bg-slate-800/60', textColor = 'text-slate-300', borderColor = 'border-slate-700/50';
+        let cls = 'bg-slate-800/60 text-slate-300 border-slate-700/50', titleAttr = '';
 
         if (tag.type === 'bpm') {
-            bgColor = 'bg-blue-900/40'; textColor = 'text-blue-300'; borderColor = 'border-blue-700/50';
+            cls = 'bg-blue-900/40 text-blue-300 border-blue-700/50';
+        } else if (tag.type === 'varchive') {
+            cls = 'tag-va'; titleAttr = ' title="V-ARCHIVE 태그"';
         } else if (tag.type === 'pattern') {
-            bgColor = 'bg-indigo-900/40'; textColor = 'text-indigo-300'; borderColor = 'border-indigo-700/50';
+            cls = 'tag-lope'; titleAttr = ' title="로페봇 태그"';
         } else if (tag.type === 'custom') {
-            bgColor = 'bg-amber-900/40'; textColor = 'text-amber-300'; borderColor = 'border-amber-600/50';
+            cls = 'bg-slate-900/70 text-amber-300 border-amber-500/60 memo-tag'; // memo-tag: Copy에서 빠지는 표시
+            titleAttr = ' title="내 메모 태그"';
         }
 
-        const memoAttr = tag.type === 'custom' ? ' memo-tag" title="내 메모 태그' : ''; // memo-tag: Copy에서 빠지는 표시
-        return `<span class="px-1.5 py-0.5 rounded text-xs font-bold border ${bgColor} ${textColor} ${borderColor}${memoAttr}">[${escapeHtml(tag.text)}]</span>`;
+        return `<span class="px-1.5 py-0.5 rounded text-xs font-bold border ${cls}"${titleAttr}>[${escapeHtml(tag.text)}]</span>`;
     }).join('')}</div>`;
 }
 
-/* 일망호 표 칸의 태그 줄. 칸 높이가 고정이라 넘치면 잘리므로 내 메모 태그를 먼저 둔다 */
+/* 일망호 표 칸의 태그 줄. 칸 높이가 고정이라 넘치면 잘리므로 내 메모 → V-ARCHIVE → 로페봇 순으로 둔다 */
 function generalCellTagsHtml(titleId, btn, diff) {
     const memoTags = getPatternMemo(titleId, btn, diff);
-    const lopeTags = songTagsDatabase[String(titleId)]?.pattern_tags?.[btn]?.filter(pt => pt.diff === diff || !pt.diff) || [];
-    if (!memoTags.length && !lopeTags.length) return '';
+    const vaTags = getVarchivePatternTags(titleId, btn, diff);
+    const lopeTags = getLopePatternTags(titleId, btn, diff, vaTags);
+    if (!memoTags.length && !vaTags.length && !lopeTags.length) return '';
     return `<div class="cell-tags flex flex-wrap justify-center gap-1 mt-0.5 overflow-hidden max-h-[38px]">
-        ${memoTags.map(t => `<span class="memo-tag text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap">${escapeHtml(t)}</span>`).join('')}${lopeTags.map(mt => `<span class="text-[11px] px-1.5 py-0.5 bg-black/30 rounded-sm whitespace-nowrap">${escapeHtml(mt.name)}</span>`).join('')}
+        ${memoTags.map(t => `<span class="memo-tag text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap">${escapeHtml(t)}</span>`).join('')}${vaTags.map(t => `<span class="tag-va text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap" title="V-ARCHIVE 태그">${escapeHtml(t)}</span>`).join('')}${lopeTags.map(name => `<span class="tag-lope text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap" title="로페봇 태그">${escapeHtml(name)}</span>`).join('')}
     </div>`;
 }

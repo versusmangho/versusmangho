@@ -91,9 +91,15 @@ function renderMemoEditor() {
     document.getElementById('memoPatternInfo').innerHTML = chip(BTN_COLORS[button] || 'bg-slate-700', button) + chip(DIFF_COLORS[difficulty] || 'bg-slate-700', difficulty)
         + (p ? chip('', escapeHtml(`${circledLevel(p.level)} ${patternFloorName(p)}`.trim()), `background-color: ${getDifficultyBgColor(p.level, difficulty, p.floor ?? '-')}`) : '');
 
-    // 참고용: 로페봇이 이미 붙여둔 태그
+    // 참고용: V-ARCHIVE·로페봇이 이미 붙여둔 태그
     const refTags = getSongTagList(titleId, button, difficulty).filter(t => t.type !== 'custom');
-    document.getElementById('memoRefTags').innerHTML = refTags.map(t => `<span class="px-1.5 py-0.5 rounded text-[11px] font-bold border bg-slate-800/60 text-slate-400 border-slate-700/50">[${escapeHtml(t.text)}]</span>`).join('');
+    document.getElementById('memoRefTags').innerHTML = refTags.map(t => {
+        const cls = t.type === 'varchive' ? 'tag-va'
+            : t.type === 'pattern' ? 'tag-lope'
+            : t.type === 'bpm' ? 'bg-blue-900/40 text-blue-300 border-blue-700/50'
+            : 'bg-slate-800/60 text-slate-400 border-slate-700/50';
+        return `<span class="px-1.5 py-0.5 rounded text-[11px] font-bold border ${cls}">[${escapeHtml(t.text)}]</span>`;
+    }).join('');
 
     const tags = getPatternMemo(titleId, button, difficulty);
     document.getElementById('memoTagList').innerHTML = tags.length

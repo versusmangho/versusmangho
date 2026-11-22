@@ -775,6 +775,7 @@
             snap.top50.forEach((v, k) => top50.set(k, v));
             Object.assign(summary, snap.summary);
             state.after = { records, top50, summary };
+            global.dispatchEvent(new CustomEvent('vmh:varchive-updated'));
             return true;
         } catch (e) {
             console.error('[Scan] after-upload fetch', e);

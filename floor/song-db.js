@@ -55,13 +55,14 @@ function applyHashData(data) {
 
 async function loadHashes() {
     updateStatus("곡 정보와 자켓 해시를 가져오는 중..");
-    // 선택 정보인 태그 서버가 멈춰도 인식 준비를 막지 않는다.
+    // 선택 정보인 태그 서버와 내 V-ARCHIVE 기록이 멈춰도 인식 준비를 막지 않는다.
     fetchFloorJson('https://data.xn--2o2bk9ff9x.com/tags/new_tags.json').then(d => {
         if (!Array.isArray(d.items)) throw new Error('잘못된 태그 데이터');
         d.items.forEach(i => {
             if (i.song_title !== undefined && i.song_title !== null) songTagsDatabase[String(i.song_title)] = i;
         });
     }).catch(e => console.warn('[Tags] 태그 없이 계속합니다:', e));
+    loadMyVarchiveRecords();
 
     const [songs, hashes] = await Promise.allSettled([
         fetchFloorJson('https://v-archive.net/db/v2/songs.json').then(songs => {
@@ -103,7 +104,110 @@ function handleHashUpload(input) {
 
 async function init() { statusLogs = []; const s = await loadHashes(); if (s) updateStatus("<div class='mt-6 text-blue-400 font-bold text-lg'>준비 완료!</div>"); }
 
-function getSongDataSync(tId) { const s = songDatabase[parseInt(tId)]; return s ? { success: true, id: s.title, name: s.name, patterns: s.patterns, fromLope: !!s.fromLope } : { success: false }; }
+function getSongDataSync(tId) {
+    const s = songDatabase[parseInt(tId)];
+    return s ? {
+        success: true, id: s.title, name: s.name,
+        composer: s.composer || '', dlcCode: s.dlcCode || '',
+        patterns: s.patterns, fromLope: !!s.fromLope
+    } : { success: false };
+}
+
+/* ── 내 V-ARCHIVE 최고 기록 ───────────────────
+   옵션 탭의 성과 스캔 DJ 이름(scanOptionsV1.dj)이 설정되어 있으면
+   V-ARCHIVE 공개 기록을 한 번 불러와 버망호 카드·일망호 표에 작게 표시한다. */
+const MY_REC_PAT_SHORT = { NORMAL: 'NM', HARD: 'HD', MAXIMUM: 'MX', SC: 'SC', NM: 'NM', HD: 'HD', MX: 'MX' };
+let myVarchiveRecords = new Map();
+let myVarchiveDj = '';
+let myVarchiveLoadGen = 0;
+
+function readConfiguredDj() {
+    try {
+        const raw = JSON.parse(localStorage.getItem('scanOptionsV1'));
+        return (raw && typeof raw.dj === 'string') ? raw.dj.trim() : '';
+    } catch { return ''; }
+}
+
+function getMyRecord(titleId, btn, diff) {
+    if (!btn || !diff || !myVarchiveRecords.size) return null;
+    return myVarchiveRecords.get(`${parseInt(titleId)}|${btn}|${diff}`) || null;
+}
+
+function formatMyRecordHtml(titleId, btn, diff, mode = 'card') {
+    const rec = getMyRecord(titleId, btn, diff);
+    if (!rec) return '';
+    const isPP = rec.score >= 100;
+    const scoreText = isPP ? 'PP' : `${rec.score.toFixed(2)}%`;
+    const maxMark = (!isPP && rec.maxCombo) ? ' ★' : '';
+    const cls = isPP ? 'is-pp' : (rec.maxCombo ? 'is-mc' : '');
+    const title = `내 V-ARCHIVE 최고 기록: ${rec.score.toFixed(2)}%${rec.maxCombo ? ' (MAX COMBO)' : ''}`;
+    if (mode === 'cell') {
+        return `<span class="cell-my-record ${cls}" title="${escapeHtml(title)}">${scoreText}${maxMark}</span>`;
+    }
+    return `<span class="my-record-badge ${cls}" title="${escapeHtml(title)}">MY ${scoreText}${maxMark}</span>`;
+}
+
+function refreshMyRecordViews() {
+    if (typeof shotHistory === 'undefined') return;
+    shotHistory.versus.forEach(entry => entry.rows.forEach(row => {
+        const slot = row.querySelector('.my-record-slot');
+        const bS = row.querySelector('.btn-select'), dS = row.querySelector('.diff-select');
+        if (slot && bS && dS) slot.innerHTML = formatMyRecordHtml(row.getAttribute('data-title-id'), bS.value, dS.value, 'card');
+    }));
+    shotHistory.general.forEach(entry => entry.rows.forEach(row => {
+        const tId = row.getAttribute('data-title-id');
+        row.querySelectorAll('.grid-cell[data-btn]').forEach(cell => {
+            cell.querySelector('.cell-my-record')?.remove();
+            const html = formatMyRecordHtml(tId, cell.dataset.btn, cell.dataset.diff, 'cell');
+            if (html) cell.insertAdjacentHTML('afterbegin', html);
+        });
+    }));
+    if (window.VMH?.Popup?.update) window.VMH.Popup.update();
+}
+
+async function loadMyVarchiveRecords(force = false) {
+    const dj = readConfiguredDj();
+    if (!dj) {
+        if (myVarchiveRecords.size || myVarchiveDj) {
+            myVarchiveRecords = new Map();
+            myVarchiveDj = '';
+            refreshMyRecordViews();
+        }
+        return;
+    }
+    if (!force && dj === myVarchiveDj && myVarchiveRecords.size > 0) return;
+    const gen = ++myVarchiveLoadGen;
+    const encDj = encodeURIComponent(dj);
+    const results = await Promise.allSettled([4, 5, 6, 8].map(async b => {
+        const d = await fetchFloorJson(`https://v-archive.net/api/v2/archive/${encDj}/button/${b}`, false);
+        return { b, d };
+    }));
+    if (gen !== myVarchiveLoadGen || readConfiguredDj() !== dj) return;
+    const next = new Map();
+    for (const r of results) {
+        if (r.status !== 'fulfilled' || !r.value?.d || r.value.d.success === false || !Array.isArray(r.value.d.records)) continue;
+        const { b, d } = r.value;
+        d.records.forEach(rec => {
+            const pat = MY_REC_PAT_SHORT[String(rec.pattern || '').toUpperCase()];
+            const score = Number(rec.score);
+            if (!pat || !Number.isFinite(score) || score < 0 || score > 100) return;
+            const maxCombo = rec.maxCombo === true || rec.maxCombo === 1 || rec.maxCombo === '1';
+            next.set(`${rec.title}|${b}B|${pat}`, { score, maxCombo });
+        });
+    }
+    myVarchiveRecords = next;
+    myVarchiveDj = dj;
+    refreshMyRecordViews();
+}
+
+window.addEventListener('storage', (e) => {
+    if (e.key === 'scanOptionsV1') loadMyVarchiveRecords(true);
+});
+window.addEventListener('vmh:varchive-updated', () => loadMyVarchiveRecords(true));
+document.addEventListener('DOMContentLoaded', () => {
+    const djInput = document.getElementById('scan-dj-input');
+    if (djInput) djInput.addEventListener('change', () => setTimeout(() => loadMyVarchiveRecords(true), 50));
+});
 
 /* 로페봇 곡 정보는 v-archive에 없는 곡을 만났을 때만 한 번 받아온다.
    v-archive로 다 커버되면 요청이 아예 나가지 않는다. */

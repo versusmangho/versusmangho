@@ -145,9 +145,10 @@ function updateGeneralRow(row, data, titleId) {
 
             // 데이터 셀 - 고정 높이 h-24(96px) 적용
             const copyAttr = hasPattern ? ` data-btn="${btn}" data-diff="${diff}" onclick="copyGeneralCell(this)" title="클릭: 복사 · 우클릭: 내 태그"` : '';
+            const myRecHtml = hasPattern ? formatMyRecordHtml(titleId, btn, diff, 'cell') : '';
             const memoBtn = hasPattern ? `<button class="memo-cell-btn" title="패턴 메모 (자작 태그)" onclick="event.stopPropagation(); openMemoFromCell(this)">✎</button>` : '';
             grid += `<div class="grid-cell${hasPattern ? ' copyable' : ''} relative flex flex-col items-center justify-center ${textColor} ${opacity} h-24" style="${bgColor}"${copyAttr}>
-                ${memoBtn}
+                ${myRecHtml}${memoBtn}
                 <span class="grid-value${(displayChar === 'NO DATA' || displayChar === 'NO FLOOR') ? ' nodata' : ''}">${levelChar ? `<span class="align-middle opacity-80 ${diff === 'SC' ? 'font-normal' : 'font-light'}">${levelChar}</span> ` : ''}${escapeHtml(displayChar)}</span>
                 ${pTagsHtml}
             </div>`;
@@ -157,17 +158,20 @@ function updateGeneralRow(row, data, titleId) {
     
     const tagData = songTagsDatabase[String(titleId)];
     const bpmText = tagData?.bpm?.text ? `<span class="px-2 py-0.5 rounded text-xs font-bold border border-blue-700/50 bg-blue-900/40 text-blue-300 ml-3">BPM:${escapeHtml(tagData.bpm.text)}</span>` : '';
+    const dlcBadge = data.dlcCode ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-800/80 text-slate-300 border border-slate-700/60 font-mono">${escapeHtml(data.dlcCode)}</span>` : '';
+    const composerText = data.composer ? `<span class="text-slate-400 text-xs font-medium">${escapeHtml(data.composer)}</span>` : '';
 
     row.innerHTML = `
         <div class="flex items-center justify-between mb-2">
             <div class="flex items-center space-x-6">
                 ${jacketHtml({ titleId: titleId, fromLope: data.fromLope }, 'w-24 h-24 rounded-xl border-2 border-slate-800 shadow-lg', '2.5rem')}
                 <div>
-                    <div class="flex items-center">
+                    <div class="flex items-center flex-wrap gap-y-1">
                         <h3 class="font-bold text-white text-2xl mb-1">${escapeHtml(data.name)}</h3>
                         ${bpmText}
                     </div>
-                    <div class="flex items-center space-x-3">
+                    <div class="flex items-center flex-wrap gap-x-2.5 gap-y-1">
+                        ${dlcBadge}${composerText}
                         <p class="text-slate-500 text-xs font-mono">ID: ${escapeHtml(titleId)}</p>
                         ${row.matches ? `<button class="recheck-btn bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button>` : ''}
                     </div>
@@ -249,6 +253,7 @@ function updateRow(row, info) {
                     ${dL.map(d => `<option value="${d}" ${d===info.difficulty?'selected':''}>${d}</option>`).join('')}
                 </select>
             </div>
+            <div class="my-record-slot w-full flex justify-center empty:hidden">${formatMyRecordHtml(info.titleId, info.button, info.difficulty, 'card')}</div>
             <div class="tags-container w-full min-h-[40px] flex-1">${getSongTagsHtml(info.titleId, info.button, info.difficulty)}</div>
             <div class="flex items-center space-x-1 w-full pt-1">
                 <button class="recheck-btn flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs py-1.5 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button>
@@ -308,6 +313,7 @@ function copyTextWithMessage(text) {
 function handleCorrection(el) {
     const row = el.closest('.track-row'), bS = row.querySelector('.btn-select'), dS = row.querySelector('.diff-select'), btn = bS.value, diff = dS.value;
     updateSelectColors(bS, dS); const tId = row.getAttribute('data-title-id'), d = getSongDataSync(tId);
+    const rS = row.querySelector('.my-record-slot'); if (rS) rS.innerHTML = formatMyRecordHtml(tId, btn, diff, 'card');
     const tC = row.querySelector('.tags-container'); if (tC) tC.innerHTML = getSongTagsHtml(tId, btn, diff);
     const p = d.patterns?.[btn]?.[diff], fE = row.querySelector('.floor-value'), fA = row.querySelector('.floor-area');
     if (fE) {
@@ -333,6 +339,15 @@ function updateSelectColors(bE, dE) {
 
 let songSearchMatches = [];
 let songSearchActiveIndex = -1;
+const QUICK_SEARCH_TAGS = ['하랜', '랜덤', '변속', '보조키', '6B위주', '기준곡', '폭타', '트릴', '동치', '연타', '롱잡'];
+
+function applyTagSearchChip(tag) {
+    const input = document.getElementById('songSearchInput');
+    if (!input) return;
+    input.value = '#' + tag;
+    input.focus();
+    handleSongSearchInput(input.value);
+}
 
 function handleSongSearchInput(value) {
     const box = document.getElementById('songSearchResults');
@@ -340,11 +355,69 @@ function handleSongSearchInput(value) {
     songSearchActiveIndex = -1;
     if (!q) { songSearchMatches = []; box.classList.add('hidden'); box.innerHTML = ''; return; }
 
+    // #태그 검색 모드: V-ARCHIVE·로페봇·내 메모 태그로 곡을 찾는다
+    if (q.startsWith('#')) {
+        const tagQ = q.slice(1).trim();
+        if (!tagQ) {
+            songSearchMatches = [];
+            box.innerHTML = `<div class="px-5 py-3.5 text-slate-400 text-xs">
+                <p class="mb-2 font-medium text-slate-300">태그로 곡 검색 (V-ARCHIVE · 로페봇 · 내 메모)</p>
+                <div class="flex flex-wrap gap-1.5">${QUICK_SEARCH_TAGS.map(t => `<button type="button" class="px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold" onclick="event.stopPropagation(); applyTagSearchChip('${t}')">#${t}</button>`).join('')}</div>
+            </div>`;
+            box.classList.remove('hidden');
+            return;
+        }
+        const btns = ['4B', '5B', '6B', '8B'], diffs = ['NM', 'HD', 'MX', 'SC'];
+        const matches = [];
+        for (const idStr of Object.keys(songDatabase)) {
+            const song = songDatabase[idStr];
+            if (!song || !song.name || !song.patterns) continue;
+            let bestRank = -1, bestTag = '', bestType = '';
+            const hitPatterns = [];
+            for (const btn of btns) {
+                const byBtn = song.patterns[btn];
+                if (!byBtn) continue;
+                for (const diff of diffs) {
+                    if (!byBtn[diff]) continue;
+                    const va = getVarchivePatternTags(idStr, btn, diff);
+                    const lope = getLopePatternTags(idStr, btn, diff, va);
+                    const memo = getPatternMemo(idStr, btn, diff);
+                    const all = [
+                        ...va.map(t => ({ text: t, type: 'va' })),
+                        ...lope.map(t => ({ text: t, type: 'lope' })),
+                        ...memo.map(t => ({ text: t, type: 'memo' }))
+                    ];
+                    let patMatched = false;
+                    for (const item of all) {
+                        const tl = item.text.toLowerCase();
+                        let r = -1;
+                        if (tl === tagQ) r = 0;
+                        else if (tl.startsWith(tagQ)) r = 1;
+                        else if (tl.includes(tagQ)) r = 2;
+                        if (r !== -1) {
+                            patMatched = true;
+                            if (bestRank === -1 || r < bestRank) { bestRank = r; bestTag = item.text; bestType = item.type; }
+                        }
+                    }
+                    if (patMatched) hitPatterns.push(`${btn} ${diff}`);
+                }
+            }
+            if (bestRank !== -1) {
+                matches.push({ id: idStr, name: song.name, dlcCode: song.dlcCode || '', rank: bestRank, matchedTag: bestTag, matchedType: bestType, hitPatterns });
+            }
+        }
+        matches.sort((a, b) => a.rank - b.rank || b.hitPatterns.length - a.hitPatterns.length || a.name.localeCompare(b.name, 'ko'));
+        songSearchMatches = matches.slice(0, 50);
+        renderSongSearchResults();
+        return;
+    }
+
     const matches = [];
     for (const idStr of Object.keys(songDatabase)) {
         const song = songDatabase[idStr];
         if (!song || !song.name) continue;
         const nameLower = song.name.toLowerCase();
+        const composerLower = (song.composer || '').toLowerCase();
         const akaList = songTagsDatabase[idStr]?.aka;
         const akas = Array.isArray(akaList) ? akaList : [];
 
@@ -359,8 +432,13 @@ function handleSongSearchInput(value) {
                 if (aLower.startsWith(q)) { rank = 1; matchedAka = a; break; }
                 if (aLower.includes(q)) { rank = 2; matchedAka = a; break; }
             }
+            if (rank === -1 && composerLower) {
+                if (composerLower === q) rank = 2;
+                else if (composerLower.startsWith(q)) rank = 3;
+                else if (composerLower.includes(q)) rank = 4;
+            }
         }
-        if (rank !== -1) matches.push({ id: idStr, name: song.name, matchedAka, rank });
+        if (rank !== -1) matches.push({ id: idStr, name: song.name, composer: song.composer || '', dlcCode: song.dlcCode || '', matchedAka, rank });
     }
 
     matches.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name, 'ko'));
@@ -373,13 +451,25 @@ function renderSongSearchResults() {
     if (songSearchMatches.length === 0) {
         box.innerHTML = `<div class="px-5 py-4 text-slate-500 text-xs">검색 결과가 없습니다.</div>`;
     } else {
-        box.innerHTML = songSearchMatches.map((m, i) => `
-            <div class="song-search-item px-5 py-3 cursor-pointer flex items-center justify-between border-b border-slate-800/60 last:border-b-0 ${i === songSearchActiveIndex ? 'bg-slate-800/80' : 'hover:bg-slate-800/80'}"
+        box.innerHTML = songSearchMatches.map((m, i) => {
+            let rightHtml = '';
+            if (m.matchedTag) {
+                const tagCls = m.matchedType === 'va' ? 'tag-va'
+                    : m.matchedType === 'lope' ? 'tag-lope'
+                    : 'bg-slate-900/70 text-amber-300 border-amber-500/60';
+                const pats = m.hitPatterns.slice(0, 3).join(' · ') + (m.hitPatterns.length > 3 ? ` +${m.hitPatterns.length - 3}` : '');
+                rightHtml = `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold border ${tagCls}">${escapeHtml(m.matchedTag)}</span><span class="text-[11px] font-mono text-slate-400 whitespace-nowrap">${escapeHtml(pats)}</span>`;
+            } else {
+                const sub = [m.composer, m.matchedAka ? String(m.matchedAka) : ''].filter(Boolean).join(' · ');
+                rightHtml = `${sub ? `<span class="text-[11px] text-slate-400 whitespace-nowrap">${escapeHtml(sub)}</span>` : ''}${m.dlcCode ? `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">${escapeHtml(m.dlcCode)}</span>` : ''}`;
+            }
+            return `
+            <div class="song-search-item px-5 py-3 cursor-pointer flex items-center justify-between gap-3 border-b border-slate-800/60 last:border-b-0 ${i === songSearchActiveIndex ? 'bg-slate-800/80' : 'hover:bg-slate-800/80'}"
                 data-song-id="${escapeHtml(m.id)}" onclick="selectSongFromSearch(this.dataset.songId)">
-                <span class="text-white text-sm font-medium">${escapeHtml(m.name)}</span>
-                ${m.matchedAka ? `<span class="text-[10px] text-slate-500 ml-3 whitespace-nowrap">${escapeHtml(String(m.matchedAka))}</span>` : ''}
-            </div>
-        `).join('');
+                <span class="text-white text-sm font-medium truncate">${escapeHtml(m.name)}</span>
+                <span class="flex items-center gap-2 flex-none">${rightHtml}</span>
+            </div>`;
+        }).join('');
         if (songSearchActiveIndex >= 0 && box.children[songSearchActiveIndex]) {
             box.children[songSearchActiveIndex].scrollIntoView({ block: 'nearest' });
         }
@@ -502,24 +592,38 @@ VMH.Floor = {
    카드 DOM이 곧 상태라(보고 있는 스샷이 달라 화면에서 떼어져 있어도) 거기서 그대로 읽는다.
    자켓 주소와 층수 칸 색도 카드에 있는 것을 그대로 쓴다(자켓은 로페봇으로 물러난 뒤의 주소).
    일망호 모드에서는 가장 최근에 읽은 곡의 층수 표만 혼자 띄운다(solo — 매칭 순서는 빠진다). */
+function popupMyRecordHtml(titleId, btn, diff, tag = 'div') {
+    const rec = getMyRecord(titleId, btn, diff);
+    if (!rec) return '';
+    const isPP = rec.score >= 100;
+    const text = isPP ? 'PP' : `${rec.score.toFixed(2)}%${rec.maxCombo ? ' ★' : ''}`;
+    const cls = isPP ? ' is-pp' : (rec.maxCombo ? ' is-mc' : '');
+    return `<${tag} class="myrec${cls}">${text}</${tag}>`;
+}
+
 VMH.Popup.addSection('songs', () => {
     if (currentMode === 'general') return popupGeneralChart();
     const entry = shotHistory.versus[shotHistory.versus.length - 1];
     const rows = entry ? entry.rows.filter(r => r.getAttribute('data-title-id')) : [];
     if (!rows.length) return '';
     return `<div class="sec songs"><h2>이번 판 곡</h2><div class="song-row">${rows.map(r => {
+        const tId = r.getAttribute('data-title-id');
         const btn = r.querySelector('.btn-select')?.value || '', diff = r.querySelector('.diff-select')?.value || '';
         const bg = r.querySelector('.floor-area')?.style.backgroundColor || 'rgba(71, 85, 105, 0.85)';
         const src = r.querySelector('.aspect-square img')?.src;
         const jacket = src ? `<img class="jacket" src="${escapeHtml(src)}" alt="">` : '<div class="jacket none">?</div>';
+        const myRec = popupMyRecordHtml(tId, btn, diff, 'div');
+        const vaTags = getVarchivePatternTags(tId, btn, diff);
+        const tagHtml = vaTags.length ? `<div class="song-tags">${vaTags.map(t => `<span class="t va">${escapeHtml(t)}</span>`).join('')}</div>` : '';
         return `<div class="song${r.classList.contains('banned') ? ' banned' : ''}">${jacket}`
              + `<div class="pat">${escapeHtml(`${btn} ${diff}`)}</div>`
-             + `<span class="floor" style="background:${bg}">${circledLevel(r.dataset.level)} ${escapeHtml(r.dataset.floorName || '')}</span></div>`;
+             + `<span class="floor" style="background:${bg}">${circledLevel(r.dataset.level)} ${escapeHtml(r.dataset.floorName || '')}</span>`
+             + myRec + tagHtml + `</div>`;
     }).join('')}</div></div>`;
 }, { solo: () => currentMode === 'general' });
 
 /* 일망호 표(4B~8B × NM~SC) — 칸마다 인게임 레벨 + 층수 + 태그, 색은 본 화면의 표와 같다. 자켓은 뺀다.
-   태그는 본 화면 칸과 같이 내 메모 → 로페봇 순이고, 칸이 작아 두 줄을 넘으면 잘린다 */
+   태그는 본 화면 칸과 같이 내 메모 → V-ARCHIVE → 로페봇 순이고, 칸이 작아 두 줄을 넘으면 잘린다 */
 function popupGeneralChart() {
     const entry = shotHistory.general[shotHistory.general.length - 1];
     const tId = entry?.rows.find(r => r.getAttribute('data-title-id'))?.getAttribute('data-title-id');
@@ -536,9 +640,10 @@ function popupGeneralChart() {
             const p = data.patterns?.[btn]?.[diff];
             if (!p) { grid += '<div class="cell none">—</div>'; return; }
             const fV = p.floor ?? '-';
+            const myRec = popupMyRecordHtml(tId, btn, diff, 'span');
             const tags = popupCellTagsHtml(tId, btn, diff);
-            if (fV === '-' || fV === null) { grid += `<div class="cell nofloor"><div><span class="lv">${circledLevel(p.level)}</span>NO FLOOR</div>${tags}</div>`; return; }
-            grid += `<div class="cell" style="background:${getDifficultyBgColor(p.level, diff, fV)}"><div><span class="lv">${circledLevel(p.level)}</span>${escapeHtml(patternFloorName(p))}</div>${tags}</div>`;
+            if (fV === '-' || fV === null) { grid += `<div class="cell nofloor">${myRec}<div><span class="lv">${circledLevel(p.level)}</span>NO FLOOR</div>${tags}</div>`; return; }
+            grid += `<div class="cell" style="background:${getDifficultyBgColor(p.level, diff, fV)}">${myRec}<div><span class="lv">${circledLevel(p.level)}</span>${escapeHtml(patternFloorName(p))}</div>${tags}</div>`;
         });
     });
     const bpm = songTagsDatabase[String(tId)]?.bpm?.text;
@@ -548,7 +653,8 @@ function popupGeneralChart() {
 /* generalCellTagsHtml(core.js)과 같은 태그를 팝업용 마크업으로 */
 function popupCellTagsHtml(titleId, btn, diff) {
     const memo = getPatternMemo(titleId, btn, diff);
-    const lope = songTagsDatabase[String(titleId)]?.pattern_tags?.[btn]?.filter(pt => pt.diff === diff || !pt.diff) || [];
-    if (!memo.length && !lope.length) return '';
-    return `<div class="tags">${memo.map(t => `<span class="t memo">${escapeHtml(t)}</span>`).join('')}${lope.map(t => `<span class="t">${escapeHtml(t.name)}</span>`).join('')}</div>`;
+    const va = getVarchivePatternTags(titleId, btn, diff);
+    const lope = getLopePatternTags(titleId, btn, diff, va);
+    if (!memo.length && !va.length && !lope.length) return '';
+    return `<div class="tags">${memo.map(t => `<span class="t memo">${escapeHtml(t)}</span>`).join('')}${va.map(t => `<span class="t va">${escapeHtml(t)}</span>`).join('')}${lope.map(name => `<span class="t lope">${escapeHtml(name)}</span>`).join('')}</div>`;
 }

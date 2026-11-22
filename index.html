@@ -316,9 +316,33 @@
   }
   .floor-scope .help-body code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #facc15;
   }
-  /* 패턴 메모(자작 태그) — 로페봇 태그와 구분되게 노란색 */
+  /* 태그 출처별 색 — 로페봇: 살짝 어두운 리빙코랄, V-ARCHIVE: 살짝 어두운 노랑, 내 메모: 어두운 바탕 + 금색 테두리 */
+  .floor-scope .tag-lope { background-color: rgba(166, 70, 61, 0.88); color: #fff5f4; border-color: rgba(255, 133, 120, 0.45);
+  }
+  .floor-scope .tag-va { background-color: rgba(148, 116, 20, 0.88); color: #fefce8; border-color: rgba(250, 204, 21, 0.45);
+  }
+  .floor-scope .grid-cell .tag-lope { background-color: rgba(158, 62, 54, 0.9); color: #fff5f4; box-shadow: inset 0 0 0 1px rgba(255, 150, 138, 0.45);
+  }
+  .floor-scope .grid-cell .tag-va { background-color: rgba(140, 108, 16, 0.9); color: #fefce8; box-shadow: inset 0 0 0 1px rgba(254, 240, 138, 0.45);
+  }
   .floor-scope .grid-cell .memo-tag { background: rgba(0, 0, 0, 0.5); color: #fcd34d; box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.55);
   }
+  /* 내 V-ARCHIVE 최고 기록 뱃지 */
+  .floor-scope .my-record-badge {
+            display: inline-block; font-family: 'Orbitron', sans-serif; font-size: 0.7rem; font-weight: 700;
+            padding: 2px 8px; border-radius: 6px; letter-spacing: 0.03em;
+            background: rgba(15, 23, 42, 0.72); color: #e2e8f0; border: 1px solid rgba(148, 163, 184, 0.35);
+  }
+  .floor-scope .my-record-badge.is-mc { color: #7dd3fc; border-color: rgba(56, 189, 248, 0.5); }
+  .floor-scope .my-record-badge.is-pp { color: #fde047; border-color: rgba(250, 204, 21, 0.6); }
+  .floor-scope .cell-my-record {
+            position: absolute; top: 4px; left: 5px; z-index: 2; pointer-events: none;
+            font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 700; line-height: 1.1;
+            padding: 2px 5px; border-radius: 4px;
+            background: rgba(0, 0, 0, 0.52); color: #f1f5f9;
+  }
+  .floor-scope .cell-my-record.is-mc { color: #7dd3fc; }
+  .floor-scope .cell-my-record.is-pp { color: #fde047; }
   .floor-scope .memo-cell-btn {
             position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
             display: flex; align-items: center; justify-content: center;
@@ -531,12 +555,18 @@
   </div>
 
     <div class="max-w-6xl mx-auto floor-body">
-        <div id="autoCaptureBar" class="mb-6 px-5 py-3 rounded-2xl glass text-center">
+        <div id="autoCaptureBar" class="mb-4 px-5 py-3 rounded-2xl glass text-center">
             <span id="autoCaptureStatus" class="text-xs font-bold tracking-wide text-slate-400">게임 화면을 연결하면 밴픽 화면을 자동으로 인식합니다</span>
         </div>
 
+        <div id="floorTagLegend" class="mb-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+            <span class="inline-flex items-center gap-1"><span class="px-1.5 py-0.5 rounded font-bold border tag-va">V-ARCHIVE</span> 옵션·변속·기준곡</span>
+            <span class="inline-flex items-center gap-1"><span class="px-1.5 py-0.5 rounded font-bold border tag-lope">로페봇</span> 패턴 특징</span>
+            <span class="inline-flex items-center gap-1"><span class="px-1.5 py-0.5 rounded font-bold border bg-slate-900/70 text-amber-300 border-amber-500/60">내 메모</span> 개인 태그</span>
+        </div>
+
         <div id="generalSearchContainer" class="hidden mb-8 relative">
-            <input type="text" id="songSearchInput" autocomplete="off" placeholder="곡 제목 또는 별명(태그)으로 검색..."
+            <input type="text" id="songSearchInput" autocomplete="off" placeholder="곡 제목, 작곡가, 별명 또는 #태그로 검색... (예: #하랜, #변속)"
                 class="w-full px-5 py-4 rounded-2xl bg-slate-900/80 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 glass"
                 oninput="handleSongSearchInput(this.value)" onfocus="handleSongSearchInput(this.value)" onkeydown="handleSongSearchKeydown(event)">
             <div id="songSearchResults" class="hidden absolute left-0 right-0 mt-2 max-h-80 overflow-y-auto rounded-2xl border border-slate-700 shadow-2xl glass" style="background: rgba(15, 23, 42, 0.97); z-index: 20;"></div>
@@ -996,8 +1026,10 @@
     <ul class="help-list">
       <li><b>수동 캡처:</b> 밴픽 화면에서 캡처 후 <b>Ctrl+V</b>로 붙여넣어 인식할 수 있습니다.</li>
       <li><b>버망호 모드:</b> 5개 밴픽 슬롯의 곡과 층수를 인식합니다. 클릭 시 플레이, 우클릭 시 밴으로 표시됩니다.</li>
-      <li><b>일망호 모드:</b> 선택한 곡의 전체 난이도별 층수 표를 제공합니다. 곡 제목이나 별명으로 검색할 수 있습니다.</li>
+      <li><b>일망호 모드:</b> 선택한 곡의 전체 난이도별 층수 표와 작곡가·DLC 정보를 제공합니다. 곡 제목·작곡가·별명 또는 <code>#태그</code>(예: <code>#하랜</code>, <code>#변속</code>)로 검색할 수 있습니다.</li>
       <li><b>데이터 복사:</b> <code>Copy</code> 버튼 또는 난이도 칸 클릭 시 곡 및 층수 정보가 클립보드에 복사됩니다.</li>
+      <li><b>패턴 태그:</b> 노란색은 V-ARCHIVE 태그(하랜·랜덤·맥랜 추천, 변속, 보조키, 6B위주, 개인차, 기준곡), 리빙코랄색은 로페봇 특징 태그입니다. 같은 이름의 태그는 V-ARCHIVE 기준으로 한 번만 표시됩니다.</li>
+      <li><b>내 최고 기록:</b> 옵션 탭의 성과 스캔 DJ 이름이 설정되어 있으면 버망호 카드·일망호 표·팝업에 내 V-ARCHIVE 최고 기록이 표시되며, 성과 스캔 업로드 완료 시 자동으로 갱신됩니다.</li>
     </ul>
   </section>
 
@@ -1081,26 +1113,26 @@
 <script src="lib/capture-hub.js"></script>
 <script src="lib/tabs.js"></script>
 <script src="lib/notify.js"></script>
-<script src="lib/popup.js?v=20261103-ui"></script>
+<script src="lib/popup.js?v=20261122-va-tags"></script>
 <script src="lib/djmax-room.js?v=20261122-playing-level"></script>
 <script src="lib/incidents.js?v=20261122-int-rect"></script>
 
 <script src="script.js?v=20261122-tips"></script>
 <script src="auto-room.js?v=20261104-diagnostic"></script>
 
-<script src="floor/core.js"></script>
-<script src="floor/memo.js"></script>
-<script src="floor/song-db.js?v=20261104-load"></script>
+<script src="floor/core.js?v=20261122-va-tags"></script>
+<script src="floor/memo.js?v=20261122-va-tags"></script>
+<script src="floor/song-db.js?v=20261122-va-tags"></script>
 <script src="floor/shots.js"></script>
 <script src="floor/match-screen.js"></script>
 <script src="floor/lobby-marks.js?v=20261107-text-mask"></script>
 <script src="floor/auto-capture.js?v=20261107-text-mask"></script>
-<script src="floor/app.js?v=20261104-load"></script>
+<script src="floor/app.js?v=20261122-va-tags"></script>
 
 <!-- 성과 스캔 — 층수 측정기의 곡 DB(songDatabase)와 자켓 sig(sigTable)를 쓰므로 그 뒤에 -->
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="scan/reader.js?v=20261122-digits"></script>
-<script src="scan/app.js?v=20261122-scan-stats"></script>
+<script src="scan/app.js?v=20261122-va-tags"></script>
 
 <!-- 자동 방장 봇 — script.js(priorityOrder) · auto-room.js(장부) · scan/app.js(도우미 호출) 다음이어야 한다 -->
 <script src="auto-host.js?v=20261104-empty-slot"></script>
