@@ -18,7 +18,7 @@
     const $ = (id) => document.getElementById(id);
 
     const OPT_KEY = 'scanOptionsV1';
-    const OPT_DEFAULT = { dj: '', delay: 60, hold: 40 };
+    const OPT_DEFAULT = { dj: '', delay: 60, hold: 40, autoUpload: false };
     const COUNTDOWN_S = 5;
     const SCAN_FPS = 60;              // 스캔하는 동안만 공유 프레임률을 올린다 (평소 5) — 기다림 뒤에 받는 프레임이 ↓ 뒤 화면이도록
     const IDLE_FPS = 5;
@@ -28,8 +28,26 @@
     const LAG_WAIT_MS = 1500;         // ↓ 뒤에도 같은 곡이면 이만큼 더 지켜본다
     const END_SAME = 2;               // 그러고도 같은 곡이 이만큼 이어지면 목록 끝
     const UPLOAD_GAP_MS = 150;        // 업로드 사이 간격 (한꺼번에 많이 보내면 V-ARCHIVE가 끊는다)
+    const SCAN_RETRY_MAX = 2;         // 스캔 중 일시적 화면 읽기·도우미 응답 실패 재시도 횟수
+    const SCAN_RETRY_WAIT_MS = 500;   // 스캔 재시도 전 기다림
+    const NET_RETRY_MAX = 3;          // 서버 비교·업로드 일시적 오류(연결 끊김·429·5xx) 재시도 횟수
     const PAT_FULL = { NM: 'NORMAL', HD: 'HARD', MX: 'MAXIMUM', SC: 'SC' };
     const PAT_SHORT = { NORMAL: 'NM', HARD: 'HD', MAXIMUM: 'MX', SC: 'SC', NM: 'NM', HD: 'HD', MX: 'MX' };
+    const PAT_RANK = { NM: 0, HD: 1, MX: 2, SC: 3 };
+    const DIFF_SORT_OPTIONS = [
+        { key: 'default', label: '스캔 순', dir: 'asc' },
+        { key: 'name', label: '곡 이름', dir: 'asc' },
+        { key: 'button', label: '버튼', dir: 'asc' },
+        { key: 'pattern', label: '난이도', dir: 'asc' },
+        { key: 'level', label: '레벨', dir: 'desc' },
+        { key: 'old', label: '서버 기록', dir: 'desc' },
+        { key: 'rate', label: '읽은 기록', dir: 'desc' },
+        { key: 'delta', label: '기록 갱신폭', dir: 'desc' },
+        { key: 'top', label: 'TOP 순위', dir: 'asc' },
+        { key: 'rating', label: '티어포인트', dir: 'desc' },
+        { key: 'djpower', label: 'DJ파워', dir: 'desc' },
+        { key: 'result', label: '결과', dir: 'desc' }
+    ];
 
     const opts = loadOpts();
     const state = {
@@ -40,12 +58,19 @@
         helperChecked: false, // 한 번이라도 확인했는지 (웹에서는 이 탭을 열 때 처음 확인한다)
         launching: false,     // vmh://로 도우미를 켜고 뜨기를 기다리는 중
         launchFailed: false,  // 켜 봤는데 안 떴다 (= 아직 한 번도 실행한 적이 없을 가능성)
-        server: null,         // 'id|button|pattern' → { rate, max } (서버 기록)
+        server: null,         // 'id|button|pattern' → { rate, max, rating, djpower } (업로드 전 서버 기록)
         serverDj: '',
+        before: null,         // { top50: Map, summary: { [btn]: { tier, djClass } } } (업로드 전 스냅샷)
+        after: null,          // { records: Map, top50: Map, summary: { [btn]: { tier, djClass } } } (업로드 후 스냅샷)
+        afterLoading: false,
         skip: new Set(),      // 올릴 목록에서 사용자가 체크를 뺀 칸
         results: new Map(),   // 계정·칸·정확도·MAX → 업로드 결과 { ok, text }
         account: null,        // { userNo, token } — 옵션 탭에서 고른다 (기억해 두기를 켰을 때만 LocalStorage)
-        uploading: false
+        uploading: false,
+        diffSort: { key: 'default', dir: 'asc' },
+        exporting: false,
+        exportMsg: '',
+        exportTone: ''
     };
 
     // ── 옵션 ─────────────────
@@ -57,6 +82,7 @@
             o.delay = Number.isFinite(delay) ? Math.min(3000, Math.max(DELAY_MIN, Math.round(delay))) : OPT_DEFAULT.delay;
             o.hold = Number.isFinite(hold) ? Math.min(500, Math.max(10, Math.round(hold))) : OPT_DEFAULT.hold;
             o.dj = typeof o.dj === 'string' ? o.dj.trim() : '';
+            o.autoUpload = !!o.autoUpload;
             return o;
         }
         catch { return Object.assign({}, OPT_DEFAULT); }
@@ -65,8 +91,12 @@
     const clampInt = (v, lo, hi, def) => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def; };
 
     function bindOptions() {
-        const dj = $('scan-dj-input'), delay = $('scan-delay-input'), hold = $('scan-hold-input');
+        const dj = $('scan-dj-input'), delay = $('scan-delay-input'), hold = $('scan-hold-input'), autoUpload = $('scan-auto-upload');
         dj.value = opts.dj; delay.value = opts.delay; hold.value = opts.hold;
+        if (autoUpload) {
+            autoUpload.checked = opts.autoUpload;
+            autoUpload.addEventListener('change', () => { opts.autoUpload = autoUpload.checked; saveOpts(); renderProgress(); });
+        }
         dj.addEventListener('change', () => { opts.dj = dj.value.trim(); dj.value = opts.dj; saveOpts(); });
         delay.addEventListener('change', () => { opts.delay = clampInt(delay.value, DELAY_MIN, 3000, OPT_DEFAULT.delay); delay.value = opts.delay; saveOpts(); });
         hold.addEventListener('change', () => { opts.hold = clampInt(hold.value, 10, 500, OPT_DEFAULT.hold); hold.value = opts.hold; saveOpts(); });
@@ -260,9 +290,16 @@
     const setTitle = (t) => { document.title = t ? t + ' · ' + baseTitle : baseTitle; };
 
     async function pressDown() {
-        if (state.stopAsked) throw new Error('stop');
-        try { return await helperCall('/helper/key', { key: 'down', hold: opts.hold }); }
-        catch (e) { return { ok: false, error: 'no-helper' }; }
+        for (let attempt = 0; attempt <= SCAN_RETRY_MAX; attempt++) {
+            if (state.stopAsked) throw new Error('stop');
+            let k;
+            try { k = await helperCall('/helper/key', { key: 'down', hold: opts.hold }); }
+            catch (e) { k = { ok: false, error: 'no-helper' }; }
+            // 포커스 이탈(브라우저 클릭 = 멈춤)·권한/환경 오류는 즉시 멈추고, 일시적 도우미 연결 오류만 재시도한다
+            if (k.ok || k.error !== 'no-helper' || attempt === SCAN_RETRY_MAX) return k;
+            setStatus('도우미 응답 대기 중… 재시도 (' + (attempt + 1) + '/' + SCAN_RETRY_MAX + ')', 'warn');
+            await sleep(SCAN_RETRY_WAIT_MS);
+        }
     }
 
     function stopReason(k) {
@@ -285,6 +322,7 @@
         state.running = true; state.stopAsked = false; renderButtons();
         let added = 0, read = 0, endNote = '';
         let prepared = false;
+        let done = false;
         try {
             await checkHelper();
             if (state.stopAsked) throw new Error('stop');
@@ -317,6 +355,11 @@
                     const until = performance.now() + LAG_WAIT_MS;
                     while (r.ok && r.id === prevId && performance.now() < until && !state.stopAsked) { await sleep(RETRY_GAP_MS); r = await readFrame(); }
                 }
+                for (let attempt = 0; !r.ok && attempt < SCAN_RETRY_MAX && !state.stopAsked; attempt++) {
+                    setStatus(readFailText(r) + ' — 재시도 (' + (attempt + 1) + '/' + SCAN_RETRY_MAX + ')', 'warn');
+                    await sleep(SCAN_RETRY_WAIT_MS);
+                    r = await readFrame();
+                }
                 if (!r.ok) { endNote = readFailText(r) + ' — 멈췄습니다'; break; }
                 if (r.id === prevId) {
                     if (++same >= END_SAME) { endNote = '목록 끝'; break; }
@@ -335,11 +378,45 @@
         } finally {
             if (prepared) await Hub.setFrameRate(IDLE_FPS);
             state.running = false; setTitle('');
-            const done = /^목록 끝/.test(endNote);
+            done = /^목록 끝/.test(endNote);
             setStatus(endNote + ' — 이번에 ' + read + '곡 읽음, 새로 ' + added + '곡. 모두 ' + state.items.length + '곡' +
                 (done ? '' : ' (다시 누르면 지금 곡부터 이어서 읽습니다)'), done ? 'hit' : 'warn');
             renderAll();
         }
+        if (done && opts.autoUpload && state.items.length) await autoFinish();
+    }
+
+    // 스캔이 목록 끝까지 정상 완료됐을 때 자동으로 서버 비교 → 업로드까지 이어서 실행한다.
+    // diffRows()가 확인 필요·상충·서버 미달 항목을 이미 걸러내므로 판독이 확실한 갱신 기록만 올라간다.
+    async function autoFinish() {
+        const st = $('scan-upload-status');
+        if (!opts.dj) {
+            $('scan-compare-note').innerHTML = '<b>옵션 탭</b>에서 DJ 이름을 먼저 넣으세요';
+            st.hidden = false; st.className = 'auto-status warn';
+            st.textContent = '자동 비교·업로드 건너뜀 — 옵션 탭에서 DJ 이름을 먼저 설정하세요';
+            return;
+        }
+        if (!await loadServer()) {
+            st.hidden = false; st.className = 'auto-status warn';
+            st.textContent = '자동 비교·업로드 중단 — 서버 기록을 받지 못했습니다';
+            return;
+        }
+        renderDiff();
+        if (!opts.autoUpload || state.running || state.readingImages || state.uploading || !state.items.length) return;
+        const { up } = diffRows();
+        const todo = pickedRows(up);
+        const checkN = state.items.filter(needsCheck).length;
+        if (!todo.length) {
+            st.hidden = false; st.className = 'auto-status hit';
+            st.textContent = '자동 비교 완료 — 새로 올릴 기록이 없습니다' + (checkN ? ' (확인 필요 ' + checkN + '곡은 검토 후 올려 주세요)' : '');
+            return;
+        }
+        if (!state.account) {
+            st.hidden = false; st.className = 'auto-status warn';
+            st.textContent = '자동 비교 완료 — 올릴 기록 ' + todo.length + '개가 있지만 옵션 탭에서 계정 파일(account.txt)을 설정해야 업로드됩니다';
+            return;
+        }
+        await upload();
     }
 
     // ── 스샷 파일 / 붙여넣기 ─────────────────
@@ -572,26 +649,95 @@
     }
 
     // ── 서버 기록 비교 ─────────────────
+    const numOrNull = (v) => {
+        if (v === null || v === undefined || v === '') return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+    };
+
+    async function fetchOptionalJson(url, timeoutMs = 15000) {
+        try {
+            const { res, data } = await fetchJson(url, { cache: 'no-store' }, timeoutMs);
+            if (!res.ok || !data || data.success === false) return null;
+            return data;
+        } catch { return null; }
+    }
+
+    async function fetchServerSnapshot(dj, buttons = Reader.BUTTONS, onRetry = null) {
+        const records = new Map();
+        const top50 = new Map();
+        const summary = {};
+        const encDj = encodeURIComponent(dj);
+        for (const b of buttons) {
+            let data = null, tierData = null, djData = null;
+            for (let attempt = 0; attempt <= NET_RETRY_MAX; attempt++) {
+                let err = null, retryable = false, is429 = false;
+                try {
+                    const [recRes, tData, dData] = await Promise.all([
+                        fetchJson('https://v-archive.net/api/v2/archive/' + encDj + '/button/' + b, { cache: 'no-store' }, 20000),
+                        fetchOptionalJson('https://v-archive.net/api/v2/archive/' + encDj + '/tier/' + b, 15000),
+                        fetchOptionalJson('https://v-archive.net/api/v2/archive/' + encDj + '/djClass/' + b, 15000)
+                    ]);
+                    const { res, data: recData } = recRes;
+                    if (res.ok && recData && recData.success !== false) {
+                        if (!Array.isArray(recData.records)) throw new Error('서버 기록 형식을 확인할 수 없습니다');
+                        data = recData; tierData = tData; djData = dData;
+                        break;
+                    }
+                    is429 = res.status === 429;
+                    retryable = is429 || res.status >= 500;
+                    err = new Error((recData && recData.message) || ('HTTP ' + res.status));
+                } catch (e) {
+                    err = e;
+                    retryable = e.message !== '서버 기록 형식을 확인할 수 없습니다';
+                }
+                if (!retryable || attempt === NET_RETRY_MAX || opts.dj !== dj) throw err;
+                const waitMs = (is429 ? 3000 : 2000) * Math.pow(2, attempt);
+                if (onRetry) onRetry(attempt + 1, waitMs);
+                await sleep(waitMs);
+            }
+            const rated = [];
+            data.records.forEach(r => {
+                const p = PAT_SHORT[String(r.pattern).toUpperCase()];
+                if (!p) return;
+                const rate = Number(r.score);
+                if (!Number.isFinite(rate) || rate < 0 || rate > 100) throw new Error('서버 정확도 형식이 올바르지 않습니다');
+                const max = r.maxCombo === true || r.maxCombo === 1 || r.maxCombo === '1';
+                const rating = numOrNull(r.rating);
+                const djpower = numOrNull(r.djpower);
+                const key = r.title + '|' + b + '|' + p;
+                records.set(key, { rate, max, rating, djpower, newTab: !!r.newTab });
+                if (rating !== null && rating > 0) rated.push({ key, rating, rate, max, title: Number(r.title) || 0 });
+            });
+            rated.sort((a, b2) => (b2.rating - a.rating) || (b2.rate - a.rate) || (Number(b2.max) - Number(a.max)) || (a.title - b2.title));
+            rated.slice(0, 50).forEach((item, idx) => { top50.set(item.key, idx + 1); });
+            summary[b] = {
+                tier: tierData ? {
+                    top50sum: numOrNull(tierData.top50sum),
+                    tierPoint: numOrNull(tierData.tierPoint),
+                    tierName: tierData.tier && tierData.tier.name ? String(tierData.tier.name) : ''
+                } : null,
+                djClass: djData ? {
+                    djPowerSum: numOrNull(djData.djPowerSum),
+                    djPowerConversion: numOrNull(djData.djPowerConversion),
+                    djClass: djData.djClass ? String(djData.djClass) : ''
+                } : null
+            };
+        }
+        return { records, top50, summary };
+    }
+
     async function loadServer() {
         if (state.comparing || state.uploading) return false;
         const dj = opts.dj;
         if (!dj) { $('scan-compare-note').innerHTML = '<b>옵션 탭</b>에서 DJ 이름을 먼저 넣으세요'; return false; }
         $('scan-compare-note').textContent = '서버 기록을 받는 중…';
-        const map = new Map();
         state.comparing = true; renderButtons();
+        let snap;
         try {
-            for (const b of Reader.BUTTONS) {
-                const { res, data } = await fetchJson('https://v-archive.net/api/v2/archive/' + encodeURIComponent(dj) + '/button/' + b, { cache: 'no-store' }, 20000);
-                if (!res.ok || !data || data.success === false) throw new Error((data && data.message) || ('HTTP ' + res.status));
-                if (!Array.isArray(data.records)) throw new Error('서버 기록 형식을 확인할 수 없습니다');
-                data.records.forEach(r => {
-                    const p = PAT_SHORT[String(r.pattern).toUpperCase()];
-                    if (!p) return;
-                    const rate = Number(r.score);
-                    if (!Number.isFinite(rate) || rate < 0 || rate > 100) throw new Error('서버 정확도 형식이 올바르지 않습니다');
-                    map.set(r.title + '|' + b + '|' + p, { rate, max: r.maxCombo === true || r.maxCombo === 1 || r.maxCombo === '1' });
-                });
-            }
+            snap = await fetchServerSnapshot(dj, Reader.BUTTONS, (n, waitMs) => {
+                $('scan-compare-note').textContent = '서버 기록 조회 오류 — ' + Math.round(waitMs / 1000) + '초 후 재시도 (' + n + '/' + NET_RETRY_MAX + ')…';
+            });
         } catch (e) {
             $('scan-compare-note').textContent = '서버 기록을 못 받았습니다: ' + e.message + ' (DJ 이름을 확인하세요)';
             return false;
@@ -600,8 +746,43 @@
         }
         // 요청을 기다리는 동안 DJ 이름이 바뀌었으면 옛 계정의 비교 결과로 덮지 않는다.
         if (opts.dj !== dj) return false;
-        state.server = map; state.serverDj = dj;
+        state.server = snap.records;
+        state.serverDj = dj;
+        state.before = { top50: snap.top50, summary: snap.summary };
+        state.after = null;
         return true;
+    }
+
+    async function loadAfter(buttons) {
+        const dj = state.serverDj;
+        if (!dj || !state.server || state.afterLoading) return false;
+        const targetButtons = (buttons && buttons.length ? buttons : Reader.BUTTONS)
+            .filter((b, i, a) => Reader.BUTTONS.includes(b) && a.indexOf(b) === i);
+        if (!targetButtons.length) return false;
+        state.afterLoading = true;
+        renderDiff();
+        try {
+            const snap = await fetchServerSnapshot(dj, targetButtons);
+            if (state.serverDj !== dj) return false;
+            const prev = state.after || { records: new Map(), top50: new Map(), summary: {} };
+            const records = new Map(prev.records);
+            const top50 = new Map(prev.top50);
+            const summary = Object.assign({}, prev.summary);
+            const btnSet = new Set(targetButtons.map(String));
+            for (const k of Array.from(records.keys())) { if (btnSet.has(k.split('|')[1])) records.delete(k); }
+            for (const k of Array.from(top50.keys())) { if (btnSet.has(k.split('|')[1])) top50.delete(k); }
+            snap.records.forEach((v, k) => records.set(k, v));
+            snap.top50.forEach((v, k) => top50.set(k, v));
+            Object.assign(summary, snap.summary);
+            state.after = { records, top50, summary };
+            return true;
+        } catch (e) {
+            console.error('[Scan] after-upload fetch', e);
+            return false;
+        } finally {
+            state.afterLoading = false;
+            renderDiff();
+        }
     }
 
     // 체크된 곡의 칸 가운데 서버보다 좋아진 것
@@ -634,6 +815,211 @@
     const resultKey = (row, account = state.account) => account ? account.userNo + '|' + row.key + '|' + row.rate + '|' + (row.max ? 1 : 0) : null;
     const resultOf = (row) => state.results.get(resultKey(row));
 
+    function afterRecOf(row) {
+        return state.after && state.after.records.get(row.key) || null;
+    }
+    function rowTopRank(row) {
+        const b = row.cell.button;
+        if (state.after && state.after.summary[b]) return state.after.top50.get(row.key) || null;
+        if (state.before) return state.before.top50.get(row.key) || null;
+        return null;
+    }
+    function rowMetric(row, field) {
+        const after = afterRecOf(row);
+        const av = after && after[field] !== null && after[field] !== undefined ? after[field] : null;
+        const bv = row.old && row.old[field] !== null && row.old[field] !== undefined ? row.old[field] : null;
+        const val = av !== null ? av : bv;
+        const delta = av !== null ? (bv !== null ? av - bv : (!row.old ? av : null)) : null;
+        return { val, before: bv, after: av, delta };
+    }
+    function fmtTopBadge(row) {
+        const rank = rowTopRank(row);
+        return rank ? ' <span class="scan-top-badge">TOP ' + rank + '</span>' : '';
+    }
+    function fmtPoint(val, delta) {
+        if (val === null) return '<span class="scan-dim">-</span>';
+        let out = '<span class="scan-pt-val">' + val.toFixed(2) + '</span>';
+        if (delta !== null && Math.abs(delta) >= 0.005) {
+            const cls = delta > 0 ? 'up' : 'down';
+            const sign = delta > 0 ? '+' : '';
+            out += ' <span class="scan-pt-delta ' + cls + '">' + sign + delta.toFixed(2) + '</span>';
+        }
+        return out;
+    }
+    function fmtSumDelta(beforeVal, afterVal) {
+        if (beforeVal === null && afterVal === null) return '<span class="scan-dim">-</span>';
+        const bText = beforeVal !== null ? beforeVal.toFixed(2) : '-';
+        if (afterVal === null) return '<span class="scan-sum-num">' + bText + '</span>';
+        const aText = afterVal.toFixed(2);
+        const d = beforeVal !== null ? afterVal - beforeVal : afterVal;
+        const dHtml = Math.abs(d) >= 0.005
+            ? ' <span class="scan-pt-delta ' + (d > 0 ? 'up' : 'down') + '">' + (d > 0 ? '+' : '') + d.toFixed(2) + '</span>'
+            : ' <span class="scan-dim">(변화 없음)</span>';
+        return '<span class="scan-sum-num">' + bText + '</span> <span class="scan-sum-arrow">→</span> <span class="scan-sum-num strong">' + aText + '</span>' + dHtml;
+    }
+    function summaryButtonsFor(rows) {
+        const fromRows = [];
+        rows.forEach(r => { if (!fromRows.includes(r.cell.button)) fromRows.push(r.cell.button); });
+        if (fromRows.length) return fromRows.sort((a, b) => a - b);
+        if (!state.before) return [];
+        return Reader.BUTTONS.filter(b => {
+            const s = state.before.summary[b];
+            return s && (s.tier || s.djClass);
+        });
+    }
+    function summaryCompareHtml(rows, forExport = false) {
+        if (!state.before) return '';
+        const btns = summaryButtonsFor(rows);
+        if (!btns.length) return '';
+        const hasAnyAfter = !!(state.after && btns.some(b => state.after.summary[b]));
+        const cards = btns.map(b => {
+            const bef = state.before.summary[b] || {};
+            const aft = (state.after && state.after.summary[b]) || null;
+            const bTier = bef.tier, aTier = aft && aft.tier;
+            const bDj = bef.djClass, aDj = aft && aft.djClass;
+            const tierName = (aTier && aTier.tierName) || (bTier && bTier.tierName) || '';
+            const tierChanged = bTier && aTier && bTier.tierName && aTier.tierName && bTier.tierName !== aTier.tierName;
+            const djName = (aDj && aDj.djClass) || (bDj && bDj.djClass) || '';
+            const djChanged = bDj && aDj && bDj.djClass && aDj.djClass && bDj.djClass !== aDj.djClass;
+            const tierBadge = tierChanged
+                ? '<span class="scan-sum-grade up">' + esc(bTier.tierName) + ' → ' + esc(aTier.tierName) + '</span>'
+                : (tierName ? '<span class="scan-sum-grade">' + esc(tierName) + '</span>' : '');
+            const djBadge = djChanged
+                ? '<span class="scan-sum-grade up">' + esc(bDj.djClass) + ' → ' + esc(aDj.djClass) + '</span>'
+                : (djName ? '<span class="scan-sum-grade">' + esc(djName) + '</span>' : '');
+            return '<div class="scan-sum-item">' +
+                '<div class="scan-sum-btn">' + b + 'B</div>' +
+                '<div class="scan-sum-metrics">' +
+                    '<div class="scan-sum-row"><span class="scan-sum-label">티어포인트 합</span>' +
+                        '<span class="scan-sum-val">' + fmtSumDelta(bTier ? bTier.top50sum : null, aTier ? aTier.top50sum : null) + '</span>' + tierBadge +
+                    '</div>' +
+                    '<div class="scan-sum-row"><span class="scan-sum-label">DJ파워 합</span>' +
+                        '<span class="scan-sum-val">' + fmtSumDelta(bDj ? bDj.djPowerSum : null, aDj ? aDj.djPowerSum : null) + '</span>' + djBadge +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        }).join('');
+        if (forExport) {
+            return '<div class="scan-exp-summary">' +
+                '<div class="scan-exp-sum-title">' + (hasAnyAfter ? '업로드 전 · 후 비교' : '현재 티어포인트 · DJ파워 합') + '</div>' +
+                '<div class="scan-sum-grid">' + cards + '</div></div>';
+        }
+        const statusText = state.afterLoading ? '업로드 후 수치 불러오는 중…'
+            : hasAnyAfter ? '업로드 전 · 후 비교'
+            : '업로드 전 기준 (업로드 완료 시 자동 비교)';
+        const refreshBtn = !state.uploading && !state.afterLoading
+            ? '<button type="button" class="secondary scan-sum-refresh" data-act="refresh-after">' + (hasAnyAfter ? '수치 다시 불러오기' : '현재 서버 수치와 비교') + '</button>'
+            : '';
+        return '<div class="scan-sum-box">' +
+            '<div class="scan-sum-head"><span class="scan-sum-title">' + statusText + '</span>' + refreshBtn + '</div>' +
+            '<div class="scan-sum-grid">' + cards + '</div></div>';
+    }
+
+    function patternMeta(row) {
+        const s = songOf(row.item.id);
+        const p = s && s.patterns && s.patterns[row.cell.button + 'B'] && s.patterns[row.cell.button + 'B'][row.cell.pattern];
+        const level = p && Number.isFinite(Number(p.level)) ? Number(p.level) : null;
+        const floor = p && Number.isFinite(Number(p.floor)) ? Number(p.floor) : null;
+        return { level, floor };
+    }
+    function fmtPattern(row) {
+        const { level } = patternMeta(row);
+        return '<span class="scan-pat scan-pat-' + row.cell.pattern + '">' + row.cell.pattern + '</span>'
+            + (level !== null ? ' <span class="scan-lv">' + level + '</span>' : '');
+    }
+    function rowDeltaValue(row) {
+        if (!row.old) return 1000 + row.rate;
+        return (row.rate - row.old.rate) + (row.max && !row.old.max ? 1e-4 : 0);
+    }
+    function fmtDelta(row) {
+        if (!row.old) return '<span class="scan-delta new">NEW</span>';
+        if (row.rate > row.old.rate + 1e-6) return '<span class="scan-delta up">+' + (row.rate - row.old.rate).toFixed(2) + '%</span>';
+        if (row.max && !row.old.max) return '<span class="scan-delta max">MAX</span>';
+        if (row.rate < row.old.rate - 1e-6) return '<span class="scan-delta down">' + (row.rate - row.old.rate).toFixed(2) + '%</span>';
+        return '<span class="scan-dim">-</span>';
+    }
+    function resultRank(row) {
+        const res = resultOf(row);
+        if (!res) return 0;
+        if (!res.ok) return 3;
+        return res.text === '갱신됨' ? 2 : 1;
+    }
+    function cmpSeq(a, b) {
+        return (a.item.seq - b.item.seq)
+            || (a.cell.button - b.cell.button)
+            || ((PAT_RANK[a.cell.pattern] ?? 9) - (PAT_RANK[b.cell.pattern] ?? 9));
+    }
+    function sortDiffRows(rows) {
+        const { key, dir } = state.diffSort;
+        const sign = dir === 'desc' ? -1 : 1;
+        return rows.slice().sort((a, b) => {
+            let d = 0;
+            if (key === 'name') {
+                const sa = songOf(a.item.id), sb = songOf(b.item.id);
+                const na = (sa?.name || ''), nb = (sb?.name || '');
+                d = na.localeCompare(nb, 'ko', { sensitivity: 'base' })
+                    || (sa?.composer || '').localeCompare(sb?.composer || '', 'ko', { sensitivity: 'base' });
+            } else if (key === 'button') {
+                d = a.cell.button - b.cell.button;
+            } else if (key === 'pattern') {
+                d = (PAT_RANK[a.cell.pattern] ?? 9) - (PAT_RANK[b.cell.pattern] ?? 9);
+                if (!d) {
+                    const la = patternMeta(a).level, lb = patternMeta(b).level;
+                    if (la !== null && lb !== null) d = la - lb;
+                }
+            } else if (key === 'level') {
+                const la = patternMeta(a).level, lb = patternMeta(b).level;
+                if (la === null && lb === null) d = 0;
+                else if (la === null) return 1;
+                else if (lb === null) return -1;
+                else d = (la - lb) || ((PAT_RANK[a.cell.pattern] ?? 9) - (PAT_RANK[b.cell.pattern] ?? 9));
+            } else if (key === 'old') {
+                const oa = a.old ? a.old.rate + (a.old.max ? 1e-4 : 0) : -1;
+                const ob = b.old ? b.old.rate + (b.old.max ? 1e-4 : 0) : -1;
+                d = oa - ob;
+            } else if (key === 'rate') {
+                d = (a.rate + (a.max ? 1e-4 : 0)) - (b.rate + (b.max ? 1e-4 : 0));
+            } else if (key === 'delta') {
+                d = rowDeltaValue(a) - rowDeltaValue(b);
+            } else if (key === 'top') {
+                const ta = rowTopRank(a), tb = rowTopRank(b);
+                if (ta === null && tb === null) d = 0;
+                else if (ta === null) return 1;
+                else if (tb === null) return -1;
+                else d = ta - tb;
+            } else if (key === 'rating' || key === 'djpower') {
+                const va = rowMetric(a, key).val, vb = rowMetric(b, key).val;
+                if (va === null && vb === null) d = 0;
+                else if (va === null) return 1;
+                else if (vb === null) return -1;
+                else d = va - vb;
+            } else if (key === 'result') {
+                d = resultRank(a) - resultRank(b);
+            } else {
+                d = cmpSeq(a, b);
+            }
+            return (d * sign) || cmpSeq(a, b);
+        });
+    }
+    function setDiffSort(key, toggleIfSame = false) {
+        const opt = DIFF_SORT_OPTIONS.find(o => o.key === key) || DIFF_SORT_OPTIONS[0];
+        if (toggleIfSame && state.diffSort.key === opt.key) {
+            state.diffSort.dir = state.diffSort.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            state.diffSort = { key: opt.key, dir: opt.dir };
+        }
+        renderDiff();
+    }
+    function setExportMsg(text, tone = '') {
+        state.exportMsg = text;
+        state.exportTone = tone;
+        const el = $('scan-export-msg');
+        if (!el) return;
+        el.textContent = text;
+        el.className = 'scan-export-msg' + (tone ? ' ' + tone : '');
+        el.hidden = !text;
+    }
+
     function hasUnsavedReadings() {
         if (state.running || state.readingImages || state.uploading || state.comparing) return true;
         if (!state.items.length) return false;
@@ -647,25 +1033,65 @@
         const box = $('scan-diff');
         if (!state.server) { box.innerHTML = ''; updateUploadBtn([]); return; }
         const { up, lower, conflicts } = diffRows();
+        const sortedUp = sortDiffRows(up);
+        const sortedLower = sortDiffRows(lower);
         $('scan-compare-note').textContent = state.serverDj + ' · 갱신 가능 ' + up.length + '개' + (lower.length ? ' · 낮게 읽힌 기록 ' + lower.length + '개 제외' : '')
             + (conflicts.size ? ' · 같은 곡의 기록이 다릅니다. 검토 목록에서 하나만 선택하세요 (' + conflicts.size + '개)' : '');
         const rowHtml = (r, selectable) => {
             const s = songOf(r.item.id), res = resultOf(r);
+            const dup = isDupName(s.name);
+            const topBadge = fmtTopBadge(r);
+            const songCell = dup
+                ? '<span class="scan-diff-song">' +
+                    (r.item.thumb ? '<img class="scan-diff-thumb" src="' + r.item.thumb + '" alt="" title="찍힌 자켓">' : '') +
+                    '<span>' + esc(s.name) + (s.composer ? ' <span class="scan-dim">(' + esc(s.composer) + ')</span>' : '') + topBadge + '</span></span>'
+                : esc(s.name) + topBadge;
+            const rt = rowMetric(r, 'rating'), dj = rowMetric(r, 'djpower');
             return '<tr data-key="' + esc(r.key) + '">' +
                 (selectable ? '<td><input type="checkbox" data-act="pick"' + (state.skip.has(r.key) ? '' : ' checked') + (state.uploading || (res && res.ok) ? ' disabled' : '') + '></td>' : '<td></td>') +
-                '<td>' + esc(s.name) + '</td><td>' + r.cell.button + 'B</td><td>' + r.cell.pattern + '</td>' +
+                '<td class="scan-song-cell">' + songCell + '</td><td>' + r.cell.button + 'B</td><td>' + fmtPattern(r) + '</td>' +
                 '<td>' + (r.old ? fmtRec(r.old.rate, r.old.max) : '<span class="scan-dim">없음</span>') + '</td>' +
                 '<td>' + fmtRec(r.rate, r.max) + '</td>' +
+                '<td>' + fmtDelta(r) + '</td>' +
+                '<td class="scan-pt-cell">' + fmtPoint(rt.val, rt.delta) + '</td>' +
+                '<td class="scan-pt-cell">' + fmtPoint(dj.val, dj.delta) + '</td>' +
                 '<td class="scan-res' + (res ? (res.ok ? ' ok' : ' fail') : '') + '">' + (res ? esc(res.text) : '') + '</td></tr>';
         };
-        const head = (selectable) => '<thead><tr><th>' + (selectable ? '<input type="checkbox" data-act="pick-all" title="모두 선택/해제"' + (state.uploading ? ' disabled' : '') + '>' : '') +
-            '</th><th>곡</th><th>버튼</th><th>난이도</th><th>서버</th><th>읽은 기록</th><th>결과</th></tr></thead>';
-        let html = up.length
-            ? '<table class="scan-diff-table">' + head(true) + '<tbody>' + up.map(r => rowHtml(r, true)).join('') + '</tbody></table>'
-            : '<p class="scan-empty">서버보다 좋아진 칸이 없습니다.</p>';
-        if (lower.length) {
-            html += '<details class="scan-lower"><summary>서버보다 낮은 기록 ' + lower.length + '개 · 업로드에서 제외</summary>' +
-                '<table class="scan-diff-table">' + head(false) + '<tbody>' + lower.map(r => rowHtml(r, false)).join('') + '</tbody></table></details>';
+        const thSort = (key, label) => {
+            const active = state.diffSort.key === key;
+            const cls = 'sortable' + (active ? (state.diffSort.dir === 'asc' ? ' sorted-asc' : ' sorted-desc') : '');
+            return '<th class="' + cls + '" data-sort="' + key + '">' + label + '</th>';
+        };
+        const selectableUp = sortedUp.filter(r => !(resultOf(r) || {}).ok);
+        const allChecked = selectableUp.length > 0 && selectableUp.every(r => !state.skip.has(r.key));
+        const head = (selectable) => '<thead><tr><th>' + (selectable ? '<input type="checkbox" data-act="pick-all" title="모두 선택/해제"' + (allChecked ? ' checked' : '') + (state.uploading ? ' disabled' : '') + '>' : '') +
+            '</th>' + thSort('name', '곡') + thSort('button', '버튼') + thSort('pattern', '난이도') +
+            thSort('old', '서버') + thSort('rate', '읽은 기록') + thSort('delta', '갱신폭') +
+            thSort('rating', '티어포인트') + thSort('djpower', 'DJ파워') + thSort('result', '결과') + '</tr></thead>';
+        let html = summaryCompareHtml(up, false);
+        if (sortedUp.length) {
+            const sortOptsHtml = DIFF_SORT_OPTIONS.map(o =>
+                '<option value="' + o.key + '"' + (state.diffSort.key === o.key ? ' selected' : '') + '>' + o.label + '</option>'
+            ).join('');
+            const dirText = state.diffSort.dir === 'asc' ? '▲ 오름차순' : '▼ 내림차순';
+            html += '<div class="scan-diff-toolbar">' +
+                '<div class="scan-sort-ctl">' +
+                '<label for="scan-diff-sort">정렬</label>' +
+                '<select id="scan-diff-sort" data-act="sort-key">' + sortOptsHtml + '</select>' +
+                '<button type="button" class="secondary scan-sort-dir" data-act="sort-dir" title="정렬 방향 바꾸기">' + dirText + '</button>' +
+                '</div>' +
+                '<div class="scan-export-ctl">' +
+                '<button type="button" class="secondary" data-act="export-png"' + (state.exporting ? ' disabled' : '') + '>🖼 이미지 저장</button>' +
+                '<button type="button" class="secondary" data-act="export-copy"' + (state.exporting ? ' disabled' : '') + '>📋 이미지 복사</button>' +
+                '</div></div>' +
+                '<div id="scan-export-msg" class="scan-export-msg' + (state.exportTone ? ' ' + state.exportTone : '') + '" role="status"' + (state.exportMsg ? '' : ' hidden') + '>' + esc(state.exportMsg) + '</div>' +
+                '<table class="scan-diff-table">' + head(true) + '<tbody>' + sortedUp.map(r => rowHtml(r, true)).join('') + '</tbody></table>';
+        } else {
+            html += '<p class="scan-empty">서버보다 좋아진 칸이 없습니다.</p>';
+        }
+        if (sortedLower.length) {
+            html += '<details class="scan-lower"><summary>서버보다 낮은 기록 ' + sortedLower.length + '개 · 업로드에서 제외</summary>' +
+                '<table class="scan-diff-table">' + head(false) + '<tbody>' + sortedLower.map(r => rowHtml(r, false)).join('') + '</tbody></table></details>';
         }
         box.innerHTML = html;
         updateUploadBtn(up);
@@ -695,7 +1121,8 @@
                 + (compared ? ' · 업로드 대상 ' + up.length + '개' : ' · 서버 비교 전');
         const context = $('scan-context');
         if (context) context.textContent = '비교할 DJ: ' + (opts.dj || '설정 필요') + ' · 업로드 계정: '
-            + (state.account ? state.account.userNo : '설정 필요') + ' · 선택 ' + selected.length + '개';
+            + (state.account ? state.account.userNo : '설정 필요') + ' · 선택 ' + selected.length + '개'
+            + (opts.autoUpload ? ' · 스캔 후 자동 업로드 켜짐' : '');
         const result = $('scan-upload-summary');
         if (result) {
             result.hidden = !success && !failed && !state.uploading;
@@ -717,16 +1144,167 @@
     }
 
     function onDiffChange(e) {
-        if (state.uploading) return;
         const act = e.target.dataset.act;
+        if (act === 'sort-key') {
+            setDiffSort(e.target.value, false);
+            return;
+        }
+        if (state.uploading) return;
         if (act === 'pick') {
             const key = e.target.closest('tr').dataset.key;
             if (e.target.checked) state.skip.delete(key); else state.skip.add(key);
-            updateUploadBtn(diffRows().up);
+            const { up } = diffRows();
+            const pickAll = $('scan-diff').querySelector('input[data-act="pick-all"]');
+            if (pickAll) {
+                const selectable = up.filter(r => !(resultOf(r) || {}).ok);
+                pickAll.checked = selectable.length > 0 && selectable.every(r => !state.skip.has(r.key));
+            }
+            updateUploadBtn(up);
         } else if (act === 'pick-all') {
             const { up } = diffRows();
             up.forEach(r => { if (e.target.checked) state.skip.delete(r.key); else state.skip.add(r.key); });
             renderDiff();
+        }
+    }
+
+    function onDiffClick(e) {
+        const th = e.target.closest('th[data-sort]');
+        if (th) { setDiffSort(th.dataset.sort, true); return; }
+        const btn = e.target.closest('button[data-act]');
+        if (!btn || btn.disabled) return;
+        const act = btn.dataset.act;
+        if (act === 'sort-dir') {
+            state.diffSort.dir = state.diffSort.dir === 'asc' ? 'desc' : 'asc';
+            renderDiff();
+        } else if (act === 'refresh-after') {
+            loadAfter(summaryButtonsFor(diffRows().up));
+        } else if (act === 'export-png') {
+            exportDiffImage('download');
+        } else if (act === 'export-copy') {
+            exportDiffImage('copy');
+        }
+    }
+
+    // ── 성과 목록 이미지화 (html2canvas) ─────────────────
+    function buildExportSheet(rows, isLight) {
+        const now = new Date();
+        const pad2 = (n) => String(n).padStart(2, '0');
+        const dateText = now.getFullYear() + '.' + pad2(now.getMonth() + 1) + '.' + pad2(now.getDate());
+        const maxCount = rows.filter(r => r.max).length;
+        const newCount = rows.filter(r => !r.old).length;
+        const topCount = rows.filter(r => rowTopRank(r) !== null).length;
+        const sortOpt = DIFF_SORT_OPTIONS.find(o => o.key === state.diffSort.key) || DIFF_SORT_OPTIONS[0];
+        const sortLabel = sortOpt.label + ' ' + (state.diffSort.dir === 'asc' ? '오름차순' : '내림차순');
+
+        const sheet = document.createElement('div');
+        sheet.className = 'scan-export-sheet' + (isLight ? ' light' : '');
+        const rowsHtml = rows.map((r, i) => {
+            const s = songOf(r.item.id);
+            const composer = s && s.composer ? '<div class="scan-exp-sub">' + esc(s.composer) + '</div>' : '';
+            const oldHtml = r.old ? fmtRec(r.old.rate, r.old.max) : '<span class="scan-dim">없음</span>';
+            const rt = rowMetric(r, 'rating'), dj = rowMetric(r, 'djpower');
+            return '<tr>' +
+                '<td class="scan-exp-idx">' + (i + 1) + '</td>' +
+                '<td class="scan-exp-song"><div class="scan-exp-song-wrap">' +
+                (r.item.thumb ? '<img class="scan-exp-thumb" src="' + r.item.thumb + '" alt="">' : '') +
+                '<div class="scan-exp-song-text"><div class="scan-exp-title">' + esc(s ? s.name : r.item.id) + fmtTopBadge(r) + '</div>' + composer + '</div>' +
+                '</div></td>' +
+                '<td class="scan-exp-btn">' + r.cell.button + 'B</td>' +
+                '<td class="scan-exp-pat">' + fmtPattern(r) + '</td>' +
+                '<td class="scan-exp-score">' + oldHtml + '</td>' +
+                '<td class="scan-exp-score strong">' + fmtRec(r.rate, r.max) + '</td>' +
+                '<td class="scan-exp-delta">' + fmtDelta(r) + '</td>' +
+                '<td class="scan-exp-pt">' + fmtPoint(rt.val, rt.delta) + '</td>' +
+                '<td class="scan-exp-pt">' + fmtPoint(dj.val, dj.delta) + '</td>' +
+                '</tr>';
+        }).join('');
+
+        sheet.innerHTML =
+            '<div class="scan-exp-head">' +
+                '<div>' +
+                    '<div class="scan-exp-kicker">DJMAX RESPECT V · 성과 목록</div>' +
+                    '<div class="scan-exp-dj">' + esc(state.serverDj || opts.dj || 'DJ') + '</div>' +
+                '</div>' +
+                '<div class="scan-exp-meta">' +
+                    '<div class="scan-exp-date">' + dateText + '</div>' +
+                    '<div class="scan-exp-stats">총 ' + rows.length + '건' +
+                        (topCount ? ' · TOP50 ' + topCount : '') +
+                        (maxCount ? ' · MAX ' + maxCount : '') +
+                        (newCount ? ' · NEW ' + newCount : '') +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+            summaryCompareHtml(rows, true) +
+            '<table class="scan-exp-table">' +
+                '<thead><tr><th>#</th><th>곡</th><th>버튼</th><th>난이도</th><th>이전</th><th>기록</th><th>갱신폭</th><th>티어포인트</th><th>DJ파워</th></tr></thead>' +
+                '<tbody>' + rowsHtml + '</tbody>' +
+            '</table>' +
+            '<div class="scan-exp-foot">' +
+                '<span>정렬: ' + esc(sortLabel) + '</span>' +
+                '<span>버망호 도우미</span>' +
+            '</div>';
+        return sheet;
+    }
+
+    async function exportDiffImage(mode) {
+        if (state.exporting) return;
+        if (typeof global.html2canvas !== 'function') {
+            setExportMsg('html2canvas를 불러오지 못했습니다. 네트워크 연결을 확인한 뒤 새로고침하세요.', 'warn');
+            return;
+        }
+        const rows = sortDiffRows(diffRows().up).filter(r => !state.skip.has(r.key));
+        if (!rows.length) {
+            setExportMsg('이미지화할 기록을 하나 이상 선택하세요.', 'warn');
+            return;
+        }
+        state.exporting = true;
+        document.querySelectorAll('#scan-diff [data-act="export-png"], #scan-diff [data-act="export-copy"]').forEach(b => { b.disabled = true; });
+        setExportMsg('이미지 만드는 중…', '');
+
+        const isLight = document.documentElement.dataset.theme === 'light';
+        const sheet = buildExportSheet(rows, isLight);
+        document.body.appendChild(sheet);
+        try {
+            const imgs = Array.from(sheet.querySelectorAll('img'));
+            await Promise.all(imgs.map(img => img.decode ? img.decode().catch(() => {}) : Promise.resolve()));
+            const scale = sheet.offsetHeight > 7000 ? 1 : 2;
+            const canvas = await global.html2canvas(sheet, {
+                backgroundColor: isLight ? '#f8fafc' : '#0f172a',
+                scale,
+                useCORS: true,
+                logging: false
+            });
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            if (!blob) throw new Error('이미지 생성에 실패했습니다');
+
+            if (mode === 'copy') {
+                if (!navigator.clipboard || !navigator.clipboard.write || typeof ClipboardItem === 'undefined') {
+                    throw new Error('이 브라우저에서는 이미지 복사를 지원하지 않습니다 — 이미지 저장을 이용하세요');
+                }
+                await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+                setExportMsg('이미지를 클립보드에 복사했습니다 (' + rows.length + '건)', 'ok');
+            } else {
+                const now = new Date();
+                const pad2 = (n) => String(n).padStart(2, '0');
+                const ymd = now.getFullYear() + pad2(now.getMonth() + 1) + pad2(now.getDate());
+                const safeDj = (state.serverDj || opts.dj || 'record').replace(/[\\/:*?"<>|\s]+/g, '_');
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = '성과_' + safeDj + '_' + ymd + '.png';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+                setExportMsg('이미지를 저장했습니다 (' + rows.length + '건)', 'ok');
+            }
+        } catch (e) {
+            console.error('[Scan] export', e);
+            setExportMsg('이미지화 실패: ' + (e && e.message ? e.message : e), 'warn');
+        } finally {
+            sheet.remove();
+            state.exporting = false;
+            document.querySelectorAll('#scan-diff [data-act="export-png"], #scan-diff [data-act="export-copy"]').forEach(b => { b.disabled = false; });
         }
     }
 
@@ -788,33 +1366,52 @@
         renderButtons(); renderDiff();
         const st = $('scan-upload-status'); st.hidden = false;
         let ok = 0, fail = 0, same = 0;
+        const updatedButtons = new Set();
         try {
         await checkHelper();
+        if (!state.helper) {
+            await sleep(1500);
+            await checkHelper();
+        }
         if (!state.helper) { st.className = 'auto-status warn'; st.textContent = '업로드는 도우미 프로그램이 대신 보냅니다 — ' + NO_HELPER; return; }
         if (!(state.helper.version >= HELPER_MIN_VERSION)) { st.className = 'auto-status warn'; st.textContent = '도우미 프로그램이 오래되었습니다 — 새로 받아 켜 주세요'; return; }
         const base = helperBase;
         for (let i = 0; i < rows.length; i++) {
             const r = rows[i], record = r.record;
-            st.className = 'auto-status live'; st.textContent = '계정 ' + account.userNo + '에 올리는 중 ' + (i + 1) + ' / ' + rows.length + ' — ' + record.name + ' ' + record.button + 'B ' + record.pattern;
+            const label = record.name + (record.composer ? ' (' + record.composer + ')' : '') + ' ' + record.button + 'B ' + record.pattern;
             if (isDupName(record.name) && !record.composer) {
                 state.results.set(r.key, { ok: false, text: '실패: 같은 제목의 곡을 구분할 작곡가 정보가 없습니다' });
                 fail++; renderProgress(); continue;
             }
-            let res;
-            try { res = await helperCall('/helper/upload', { userNo: account.userNo, token: account.token, record }, base); }
-            catch (e) { res = { ok: false, status: 0, body: '연결이 끊겨 전송 결과를 확인하지 못했습니다. 서버 기록을 다시 비교하세요' }; }
-            let body = null; try { body = JSON.parse(res.body); } catch { /* 글자 그대로 보여준다 */ }
-            if (res.ok && body && body.success === true && typeof body.update === 'boolean') {
+            let res = null, body = null, succeeded = false;
+            for (let attempt = 0; attempt <= NET_RETRY_MAX; attempt++) {
+                st.className = 'auto-status live';
+                st.textContent = '계정 ' + account.userNo + '에 올리는 중 ' + (i + 1) + ' / ' + rows.length + ' — ' + label + (attempt ? ' (재시도 ' + attempt + '/' + NET_RETRY_MAX + ')' : '');
+                try { res = await helperCall('/helper/upload', { userNo: account.userNo, token: account.token, record }, base); }
+                catch (e) { res = { ok: false, status: 0, body: '연결이 끊겨 전송 결과를 확인하지 못했습니다. 서버 기록을 다시 비교하세요' }; }
+                body = null; try { body = JSON.parse(res.body); } catch { /* 글자 그대로 보여준다 */ }
+                if (res.ok && body && body.success === true && typeof body.update === 'boolean') { succeeded = true; break; }
+                // 연결 끊김·429(요청 제한)·5xx(서버 오류)는 일시적일 수 있으므로 잠시 뒤 재시도한다.
+                // V-ARCHIVE 업로드 API는 더 높은 기록만 갱신하므로 같은 기록을 다시 보내도 안전하다.
+                const retryable = !res.status || res.status === 429 || res.status >= 500;
+                if (!retryable || attempt === NET_RETRY_MAX) break;
+                const waitMs = (res.status === 429 ? 3000 : 2000) * Math.pow(2, attempt);
+                st.className = 'auto-status warn';
+                st.textContent = '전송 오류(' + (res.status || '연결 끊김') + ') — ' + Math.round(waitMs / 1000) + '초 후 재시도 (' + (attempt + 1) + '/' + NET_RETRY_MAX + ') · ' + label;
+                await sleep(waitMs);
+            }
+            if (succeeded) {
                 const updated = body.update;
                 state.results.set(r.key, { ok: true, text: updated ? '갱신됨' : '변화 없음' });
-                updated ? ok++ : same++;
+                if (updated) { ok++; updatedButtons.add(record.button); }
+                else same++;
             } else {
                 state.results.set(r.key, { ok: false, text: '실패: ' + ((body && body.message) || res.body || res.error || res.status || '응답 형식 확인 필요') });
                 fail++;
             }
             renderProgress();
-            // 연결 끊김·계정 인증 실패 때 나머지 기록까지 계속 보내지 않는다. 자동 재전송은 하지 않는다.
-            if (!res.status || res.status === 401 || res.status === 403 || res.status === 429) {
+            // 재시도 후에도 연결 끊김·429가 풀리지 않거나 계정 인증 실패(401·403)면 나머지 기록을 계속 보내지 않고 중단한다.
+            if (!succeeded && (!res.status || res.status === 401 || res.status === 403 || res.status === 429)) {
                 st.className = 'auto-status warn';
                 st.textContent = '업로드 중단 — 갱신 ' + ok + ' · 변화 없음 ' + same + ' · 실패 ' + fail + ' · 미전송 ' + (rows.length - i - 1) + ' (결과 칸 확인 후 서버 기록을 다시 비교하세요)';
                 return;
@@ -829,6 +1426,10 @@
         } finally {
             state.uploading = false; renderButtons(); renderDiff();
         }
+        if (ok > 0 && updatedButtons.size && state.server && state.serverDj) {
+            await sleep(300);
+            await loadAfter(Array.from(updatedButtons));
+        }
     }
 
     // ── 연결 ─────────────────
@@ -842,6 +1443,8 @@
             if (!confirm('읽은 곡 ' + state.items.length + '개를 지울까요?')) return;
             state.items.forEach(it => { if (it.table) URL.revokeObjectURL(it.table); });
             state.items = []; state.results.clear(); state.skip.clear();
+            state.after = null;
+            state.exportMsg = ''; state.exportTone = '';
             setStatus('아직 읽은 곡이 없습니다', '');
             renderAll();
         });
@@ -850,7 +1453,8 @@
         $('scan-list').addEventListener('click', onListClick);
         $('scan-list').addEventListener('change', onListChange);
         $('scan-diff').addEventListener('change', onDiffChange);
-        $('scan-compare-btn').addEventListener('click', async () => { if (await loadServer()) renderDiff(); });
+        $('scan-diff').addEventListener('click', onDiffClick);
+        $('scan-compare-btn').addEventListener('click', async () => { state.exportMsg = ''; state.exportTone = ''; if (await loadServer()) renderDiff(); });
         $('scan-checks').addEventListener('click', onHelperClick);
         $('scan-account-state').addEventListener('click', (e) => {
             if (e.target.closest('[data-scan-options]')) {
@@ -860,7 +1464,7 @@
         });
         $('scan-upload-btn').addEventListener('click', () => upload());
         if ($('scan-retry-btn')) $('scan-retry-btn').addEventListener('click', () => upload(true));
-        $('scan-dj-input').addEventListener('change', () => { renderChecks(); renderProgress(); if (state.server && state.serverDj !== opts.dj) { state.server = null; renderDiff(); $('scan-compare-note').textContent = 'DJ 이름이 바뀌었습니다 — 다시 비교하세요'; } });
+        $('scan-dj-input').addEventListener('change', () => { renderChecks(); renderProgress(); if (state.server && state.serverDj !== opts.dj) { state.server = null; state.before = null; state.after = null; renderDiff(); $('scan-compare-note').textContent = 'DJ 이름이 바뀌었습니다 — 다시 비교하세요'; } });
 
         // 이 탭에서 Ctrl+V로 컬렉션 스샷을 붙여넣으면 읽는다 (다른 탭의 붙여넣기는 각자 자기 탭만 본다)
         window.addEventListener('paste', (e) => {

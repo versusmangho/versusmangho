@@ -343,9 +343,8 @@
             cell.digitRatio = Math.max(...r.digits.map(g => g.ratio));
             if (cell.digitRatio > DIGIT_SURE_RATIO) cell.flags.push('숫자');
             const v = parseInt(r.text, 10);
-            if (r.text.length === 7 ? v !== 1000000 : r.text.length < 6) cell.flags.push('자리수');
             cell.score = (v >= 0 && v <= 1000000) ? v : null;
-            if (cell.score === null && !cell.flags.includes('자리수')) cell.flags.push('자리수');
+            if (cell.score === null || (r.text.length > 1 && r.text[0] === '0')) cell.flags.push('자리수');
             const mx = Math.round((929 + 124 * b + 88) * K) - TABLE.x, my = Math.round((356 + 360 + 24 * p) * K) - TABLE.y;
             cell.maxRatio = maxRatio(d, dw, mx, my, Math.round(28 * K), Math.round(22 * K));
             cell.max = cell.maxRatio >= MAX_ON;

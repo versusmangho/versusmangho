@@ -1486,8 +1486,9 @@ function formatTierCopyText(x) {
 
    패드(NM·HD·MX)와 스시(SC)는 난이도 체계가 달라서 같은 자로 재야 비교가 된다.
    버망호에서 쓰는 환산 기준은 패드 12 = 스시 2, 13 = 4, 14 = 6, 15 = 8 —
-   즉 패드 한 칸이 스시 두 칸이고, 스시는 패드 11 자리에서 시작한다.
-   그래서 가로축은 '패드 한 칸'을 단위로 삼고 두 막대를 같은 축 위에 겹쳐 놓는다.
+   즉 패드 12~15 구간은 패드 1레벨이 스시 2레벨에 대응한다.
+   그래서 기본 단위를 1칸(패드 1~11·스시 1~15 각 1레벨)으로 두고,
+   패드 12~15만 1레벨당 2칸으로 늘려 두 막대를 같은 축 위에 겹쳐 놓는다.
    (스시 9~15는 패드에 대응이 없어서 축 오른쪽 끝으로 삐져나간다 — 빗금 친 구간)
 
    · 칸을 누르면 방 공지에 붙여넣을 문구가 복사된다
@@ -1495,16 +1496,16 @@ function formatTierCopyText(x) {
 const TIER_LEVEL_MAX = 15;      // 패드·스시 모두 15레벨까지
 const TIER_SC_ORIGIN = 11;      // 스시 0레벨 자리 = 패드 11 끝 (그래서 스시 2가 패드 12와 같은 자리)
 
-const tierPadX = (lv) => lv;                              // 패드 lv칸의 오른쪽 끝
-const tierScX = (lv) => TIER_SC_ORIGIN + lv / 2;          // 스시 lv칸의 오른쪽 끝
-const TIER_X_MAX = tierScX(TIER_LEVEL_MAX);               // 축 전체 길이 (= 18.5)
+const tierPadX = (lv) => (lv <= TIER_SC_ORIGIN ? lv : TIER_SC_ORIGIN + (lv - TIER_SC_ORIGIN) * 2); // 패드 lv칸의 오른쪽 끝 (1~11은 1칸, 12~15는 2칸)
+const tierScX = (lv) => TIER_SC_ORIGIN + lv;                                                       // 스시 lv칸의 오른쪽 끝 (1레벨당 1칸)
+const TIER_X_MAX = tierScX(TIER_LEVEL_MAX);                                                        // 축 전체 길이 (= 26)
 const tierPct = (x) => (x / TIER_X_MAX) * 100;
 const tierAxisX = (kind, lv) => (kind === 'pad' ? tierPadX(lv) : tierScX(lv));
 
-/* 그 난이도 체계에 자리가 없는 구간(패드는 12 위쪽 절반, 스시는 패드 11 아래쪽)을 빗금으로 덮는다 */
+/* 그 난이도 체계에 자리가 없는 구간(패드는 15 위쪽, 스시는 패드 11 아래쪽)을 빗금으로 덮는다 */
 function tierOutOfBoundsHtml(kind) {
   return kind === 'pad'
-    ? `<div class="tier-oob" style="left:${tierPct(TIER_LEVEL_MAX)}%;right:0"></div>`
+    ? `<div class="tier-oob" style="left:${tierPct(tierPadX(TIER_LEVEL_MAX))}%;right:0"></div>`
     : `<div class="tier-oob" style="left:0;width:${tierPct(TIER_SC_ORIGIN)}%"></div>`;
 }
 
@@ -1531,13 +1532,13 @@ function tierRowHtml(x, idx) {
          `</div>`;
 }
 
-// 눈금 한 줄. 패드는 한 칸, 스시는 반 칸 간격이라 각 칸 가운데에 숫자를 얹는다
+// 눈금 한 줄. 패드 1~11과 스시는 1칸, 패드 12~15는 2칸 간격이라 각 칸 가운데에 숫자를 얹는다
 function tierTicksHtml(kind) {
   let out = '';
   for (let n = 1; n <= TIER_LEVEL_MAX; n++) {
     const center = (tierAxisX(kind, n - 1) + tierAxisX(kind, n)) / 2;
-    // 좁은 화면에서는 한 칸씩(아주 좁으면 네 칸마다) 걸러 숨긴다
-    const parity = ((n % 2 === 1) ? ' t-odd' : ' t-even') + (n % 4 === 0 ? ' t-q4' : '');
+    // 좁은 화면에서는 한 칸씩 걸러 숨긴다
+    const parity = (n % 2 === 1) ? ' t-odd' : ' t-even';
     out += `<span class="tier-tick${parity}" style="left:${tierPct(center)}%">${n}</span>`;
   }
   return out;
