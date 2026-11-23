@@ -188,13 +188,13 @@ function getSongTagsHtml(titleId, currentButton = null, currentDifficulty = null
     }).join('')}</div>`;
 }
 
-/* 일망호 표 칸의 태그 줄. 칸 높이가 고정이라 넘치면 잘리므로 내 메모 → V-ARCHIVE → 로페봇 순으로 둔다 */
+/* 일망호 표 칸의 태그 줄 — 오른쪽에 내 메모 → V-ARCHIVE → 로페봇 순으로 잘리지 않고 모두 표시한다 */
 function generalCellTagsHtml(titleId, btn, diff) {
     const memoTags = getPatternMemo(titleId, btn, diff);
     const vaTags = getVarchivePatternTags(titleId, btn, diff);
     const lopeTags = getLopePatternTags(titleId, btn, diff, vaTags);
     if (!memoTags.length && !vaTags.length && !lopeTags.length) return '';
-    return `<div class="cell-tags flex flex-wrap justify-center gap-1 mt-0.5 overflow-hidden max-h-[38px]">
-        ${memoTags.map(t => `<span class="memo-tag text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap">${escapeHtml(t)}</span>`).join('')}${vaTags.map(t => `<span class="tag-va text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap" title="V-ARCHIVE 태그">${escapeHtml(t)}</span>`).join('')}${lopeTags.map(name => `<span class="tag-lope text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap" title="로페봇 태그">${escapeHtml(name)}</span>`).join('')}
+    return `<div class="cell-tags flex flex-wrap justify-end content-center gap-1">
+        ${memoTags.map(t => `<span class="memo-tag text-xs px-2 py-0.5 rounded font-bold whitespace-nowrap">${escapeHtml(t)}</span>`).join('')}${vaTags.map(t => `<span class="tag-va text-xs px-2 py-0.5 rounded font-bold whitespace-nowrap" title="V-ARCHIVE 태그">${escapeHtml(t)}</span>`).join('')}${lopeTags.map(name => `<span class="tag-lope text-xs px-2 py-0.5 rounded font-bold whitespace-nowrap" title="로페봇 태그">${escapeHtml(name)}</span>`).join('')}
     </div>`;
 }

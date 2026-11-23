@@ -187,7 +187,15 @@
   .floor-scope .grid-value.nodata { font-size: 0.8rem; font-weight: 400; letter-spacing: 0.1em;
   }
   /* 패턴이 있는 칸은 클릭하면 버망호 Copy와 같은 형식으로 복사된다 */
-  .floor-scope .grid-cell.copyable { cursor: pointer;
+  .floor-scope .grid-cell.copyable { cursor: pointer; padding: 12px 12px; gap: 10px;
+  }
+  .floor-scope .grid-cell.has-tags { justify-content: space-between;
+  }
+  .floor-scope .grid-cell-main { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 0 0 auto;
+  }
+  .floor-scope .grid-cell.has-tags .grid-cell-main { align-items: flex-start; text-align: left;
+  }
+  .floor-scope .grid-cell .cell-tags { flex: 1 1 auto; min-width: 0; font-family: 'Noto Sans KR', sans-serif;
   }
   .floor-scope .grid-cell.copyable:hover { filter: brightness(1.15);
   }
@@ -267,6 +275,12 @@
     }
     .floor-scope .track-row .text-right { text-align: left; align-items: flex-start; margin-top: 1rem; width: 100%;
     }
+    .floor-scope .grid-cell.has-tags { flex-direction: column; justify-content: center;
+    }
+    .floor-scope .grid-cell.has-tags .grid-cell-main { align-items: center; text-align: center;
+    }
+    .floor-scope .grid-cell .cell-tags { justify-content: center;
+    }
   }
   /* Help Modal Styles */
   .floor-scope .help-btn-container {
@@ -336,9 +350,9 @@
   .floor-scope .my-record-badge.is-mc { color: #7dd3fc; border-color: rgba(56, 189, 248, 0.5); }
   .floor-scope .my-record-badge.is-pp { color: #fde047; border-color: rgba(250, 204, 21, 0.6); }
   .floor-scope .cell-my-record {
-            position: absolute; top: 4px; left: 5px; z-index: 2; pointer-events: none;
-            font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 700; line-height: 1.1;
-            padding: 2px 5px; border-radius: 4px;
+            display: inline-block; margin-top: 4px; pointer-events: none;
+            font-family: 'Orbitron', sans-serif; font-size: 11.5px; font-weight: 700; line-height: 1.2;
+            padding: 2px 6px; border-radius: 5px; white-space: nowrap;
             background: rgba(0, 0, 0, 0.52); color: #f1f5f9;
   }
   .floor-scope .cell-my-record.is-mc { color: #7dd3fc; }
@@ -1113,21 +1127,21 @@
 <script src="lib/capture-hub.js"></script>
 <script src="lib/tabs.js"></script>
 <script src="lib/notify.js"></script>
-<script src="lib/popup.js?v=20261122-va-tags"></script>
+<script src="lib/popup.js?v=20261124-tag-clip"></script>
 <script src="lib/djmax-room.js?v=20261122-playing-level"></script>
 <script src="lib/incidents.js?v=20261122-int-rect"></script>
 
 <script src="script.js?v=20261123-ux-polish"></script>
 <script src="auto-room.js?v=20261104-diagnostic"></script>
 
-<script src="floor/core.js?v=20261123-ux-polish"></script>
-<script src="floor/memo.js?v=20261123-ux-polish"></script>
-<script src="floor/song-db.js?v=20261122-va-tags"></script>
+<script src="floor/core.js?v=20261124-tag-clip"></script>
+<script src="floor/memo.js?v=20261124-tag-clip"></script>
+<script src="floor/song-db.js?v=20261124-tag-clip"></script>
 <script src="floor/shots.js"></script>
 <script src="floor/match-screen.js"></script>
 <script src="floor/lobby-marks.js?v=20261107-text-mask"></script>
 <script src="floor/auto-capture.js?v=20261107-text-mask"></script>
-<script src="floor/app.js?v=20261123-ux-polish"></script>
+<script src="floor/app.js?v=20261124-tag-clip"></script>
 
 <!-- 성과 스캔 — 층수 측정기의 곡 DB(songDatabase)와 자켓 sig(sigTable)를 쓰므로 그 뒤에 -->
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>

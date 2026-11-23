@@ -109,8 +109,8 @@ function updateGeneralRow(row, data, titleId) {
     let grid = `<div class="general-grid mt-6"><div class="grid-cell grid-header flex items-center justify-center h-10"></div>${diffList.map(d => `<div class="grid-cell grid-header ${dC[d]} text-white flex items-center justify-center h-10">${d}</div>`).join('')}`;
 
     btnList.forEach(btn => {
-        // 왼쪽 버튼 라벨 (4B, 5B...) - 데이터 셀과 높이 통일을 위해 h-24(96px) 적용
-        grid += `<div class="grid-cell grid-row-label ${bC[btn]} text-white flex items-center justify-center h-24">${btn}</div>`;
+        // 왼쪽 버튼 라벨 (4B, 5B...) - 행 높이에 맞춰 늘어나도록 최소 높이만 지정
+        grid += `<div class="grid-cell grid-row-label ${bC[btn]} text-white flex items-center justify-center min-h-[6rem]">${btn}</div>`;
 
         diffList.forEach(diff => {
             const p = data.patterns?.[btn]?.[diff];
@@ -143,13 +143,17 @@ function updateGeneralRow(row, data, titleId) {
             // 인게임 레벨(원문자) - 커뮤니티 층수와 병기
             const levelChar = hasPattern ? circledLevel(l) : '';
 
-            // 데이터 셀 - 고정 높이 h-24(96px) 적용
+            // 데이터 셀 - 왼쪽에 층수(+내 기록), 오른쪽에 태그 목록. 태그가 많아도 잘리지 않도록 최소 높이(min-h-[6rem])로 유연하게 확장
             const copyAttr = hasPattern ? ` data-btn="${btn}" data-diff="${diff}" onclick="copyGeneralCell(this)" title="클릭: 복사 · 우클릭: 내 태그"` : '';
             const myRecHtml = hasPattern ? formatMyRecordHtml(titleId, btn, diff, 'cell') : '';
             const memoBtn = hasPattern ? `<button class="memo-cell-btn" title="패턴 메모 (자작 태그)" onclick="event.stopPropagation(); openMemoFromCell(this)">✎</button>` : '';
-            grid += `<div class="grid-cell${hasPattern ? ' copyable' : ''} relative flex flex-col items-center justify-center ${textColor} ${opacity} h-24" style="${bgColor}"${copyAttr}>
-                ${myRecHtml}${memoBtn}
-                <span class="grid-value${(displayChar === 'NO DATA' || displayChar === 'NO FLOOR') ? ' nodata' : ''}">${levelChar ? `<span class="align-middle opacity-80 ${diff === 'SC' ? 'font-normal' : 'font-light'}">${levelChar}</span> ` : ''}${escapeHtml(displayChar)}</span>
+            const hasTagsCls = pTagsHtml ? ' has-tags' : '';
+            grid += `<div class="grid-cell${hasPattern ? ' copyable' : ''}${hasTagsCls} relative flex items-center justify-center ${textColor} ${opacity} min-h-[6rem]" style="${bgColor}"${copyAttr}>
+                ${memoBtn}
+                <div class="grid-cell-main">
+                    <span class="grid-value${(displayChar === 'NO DATA' || displayChar === 'NO FLOOR') ? ' nodata' : ''}">${levelChar ? `<span class="align-middle opacity-80 ${diff === 'SC' ? 'font-normal' : 'font-light'}">${levelChar}</span> ` : ''}${escapeHtml(displayChar)}</span>
+                    ${myRecHtml}
+                </div>
                 ${pTagsHtml}
             </div>`;
         });
@@ -622,8 +626,8 @@ VMH.Popup.addSection('songs', () => {
     }).join('')}</div></div>`;
 }, { solo: () => currentMode === 'general' });
 
-/* 일망호 표(4B~8B × NM~SC) — 칸마다 인게임 레벨 + 층수 + 태그, 색은 본 화면의 표와 같다. 자켓은 뺀다.
-   태그는 본 화면 칸과 같이 내 메모 → V-ARCHIVE → 로페봇 순이고, 칸이 작아 두 줄을 넘으면 잘린다 */
+/* 일망호 표(4B~8B × NM~SC) — 칸마다 왼쪽에 레벨+층수(+내 기록), 오른쪽에 태그 목록. 색은 본 화면의 표와 같다. 자켓은 뺀다.
+   태그는 본 화면 칸과 같이 내 메모 → V-ARCHIVE → 로페봇 순이다 */
 function popupGeneralChart() {
     const entry = shotHistory.general[shotHistory.general.length - 1];
     const tId = entry?.rows.find(r => r.getAttribute('data-title-id'))?.getAttribute('data-title-id');
@@ -640,10 +644,14 @@ function popupGeneralChart() {
             const p = data.patterns?.[btn]?.[diff];
             if (!p) { grid += '<div class="cell none">—</div>'; return; }
             const fV = p.floor ?? '-';
-            const myRec = popupMyRecordHtml(tId, btn, diff, 'span');
+            const myRec = popupMyRecordHtml(tId, btn, diff, 'div');
             const tags = popupCellTagsHtml(tId, btn, diff);
-            if (fV === '-' || fV === null) { grid += `<div class="cell nofloor">${myRec}<div><span class="lv">${circledLevel(p.level)}</span>NO FLOOR</div>${tags}</div>`; return; }
-            grid += `<div class="cell" style="background:${getDifficultyBgColor(p.level, diff, fV)}">${myRec}<div><span class="lv">${circledLevel(p.level)}</span>${escapeHtml(patternFloorName(p))}</div>${tags}</div>`;
+            const cls = tags ? ' has-tags' : '';
+            if (fV === '-' || fV === null) {
+                grid += `<div class="cell nofloor${cls}"><div class="cell-main"><div class="val"><span class="lv">${circledLevel(p.level)}</span>NO FLOOR</div>${myRec}</div>${tags}</div>`;
+                return;
+            }
+            grid += `<div class="cell${cls}" style="background:${getDifficultyBgColor(p.level, diff, fV)}"><div class="cell-main"><div class="val"><span class="lv">${circledLevel(p.level)}</span>${escapeHtml(patternFloorName(p))}</div>${myRec}</div>${tags}</div>`;
         });
     });
     const bpm = songTagsDatabase[String(tId)]?.bpm?.text;

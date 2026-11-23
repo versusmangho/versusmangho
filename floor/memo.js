@@ -50,7 +50,9 @@ function refreshMemoViews() {
         const tId = row.getAttribute('data-title-id');
         row.querySelectorAll('.grid-cell[data-btn]').forEach(cell => {
             cell.querySelector('.cell-tags')?.remove();
-            cell.insertAdjacentHTML('beforeend', generalCellTagsHtml(tId, cell.dataset.btn, cell.dataset.diff));
+            const html = generalCellTagsHtml(tId, cell.dataset.btn, cell.dataset.diff);
+            cell.classList.toggle('has-tags', !!html);
+            if (html) cell.insertAdjacentHTML('beforeend', html);
         });
     }));
 }
