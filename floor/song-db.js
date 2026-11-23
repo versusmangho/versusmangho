@@ -159,7 +159,7 @@ function refreshMyRecordViews() {
         row.querySelectorAll('.grid-cell[data-btn]').forEach(cell => {
             cell.querySelector('.cell-my-record')?.remove();
             const html = formatMyRecordHtml(tId, cell.dataset.btn, cell.dataset.diff, 'cell');
-            if (html) (cell.querySelector('.grid-cell-main') || cell).insertAdjacentHTML('beforeend', html);
+            if (html) cell.insertAdjacentHTML('afterbegin', html);
         });
     }));
     if (window.VMH?.Popup?.update) window.VMH.Popup.update();

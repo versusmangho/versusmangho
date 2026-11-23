@@ -41,7 +41,7 @@
         chat: true,       // 넘긴 뒤 다음 순서 채팅 안내
         song: true,       // 대결 중 이번 곡의 난이도 안내
         text: '다음 순서: {목록}',
-        textP2: '{봇}픽은 봇입니다 — 다른 분을 골라주세요. 다음 순서: {목록}',
+        textP2: '2픽은 봇입니다 — 다른 분을 골라주세요. 다음 순서: {목록}',
         textAsk: '게임이 종료되었습니다. 제게 방장을 넘겨주십시오',
         textSong: '{라운드} {곡} {패턴} {층수} {태그}',
         roomName: '버망호',   // 다시 만들 방 이름 (비우면 게임이 지어 주는 이름 그대로 둔다)
@@ -92,6 +92,7 @@
             const raw = localStorage.getItem(OPT_KEY);
             if (raw) Object.assign(opts, JSON.parse(raw));
             for (const k of ['handoff', 'ready', 'ask', 'restart', 'focus']) delete opts[k];   // 예전에 끌 수 있던 것 — 이제 늘 켜져 있다
+            if (typeof opts.textP2 === 'string' && opts.textP2.includes('{봇}')) opts.textP2 = opts.textP2.replace(/\{봇\}/g, '2');
         } catch { /* 사생활 보호 모드 등 — 기본값으로 */ }
     }
     function save() {

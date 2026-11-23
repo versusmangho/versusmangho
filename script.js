@@ -860,7 +860,6 @@ function refreshUI() {
     const sorted = getSortedPlayers(currentSort);
     const queue = priorityOrder();
     const ranks = new Map(queue.map((p, i) => [p.nickname, i + 1]));
-    renderNextMatch(queue);
 
     // Update header visuals
     document.querySelector("#player-table-body")?.parentElement.querySelectorAll('thead th').forEach(th => {
@@ -955,20 +954,6 @@ function priorityOrder() {
     syncBotHold();
     updateAverageWaitersStat();
     return getSortedPlayers({ key: 'priority', order: 'desc' }).filter(p => !p.onHold);
-}
-
-/* 표의 정렬과 무관하게 팝업·방장 봇과 같은 순서를 보여준다. 표시만 하며 대진을 고르지 않는다. */
-function renderNextMatch(queue) {
-    const el = document.getElementById('next-match');
-    if (!el) return;
-    const count = document.getElementById('next-match-count');
-    if (count) count.textContent = queue.length ? `대기 ${queue.length}명` : '';
-    const html = queue.length ? queue.slice(0, 2).map((p, i) => {
-        const stats = calculateScore(p);
-        return `<li><span class="next-rank">${i + 1}순위</span><div class="next-player">${playerLabelHtml(p)}</div><span class="next-wait">${stats.W_curr}판 대기</span></li>`;
-    }).join('') + (queue.length === 1 ? '<li class="queue-empty">다음 플레이어를 기다리고 있습니다.</li>' : '')
-        : `<li class="queue-empty">${room.players.length ? '현재 모두 보류 중입니다.' : '플레이어를 추가하거나 게임 화면을 연결하세요.'}</li>`;
-    if (el.innerHTML !== html) el.innerHTML = html;
 }
 
 VMH.Popup.addSection('queue', () => {

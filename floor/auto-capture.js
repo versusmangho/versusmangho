@@ -1,6 +1,34 @@
 /* 게임 화면 자동 인식 — 프레임 한 장을 받아 밴픽/라운드/결과 화면인지 가린다. */
 
+const AUTO_FLOOR_MODE_KEY = 'autoFloorMode';
+let autoFloorMode = false;
+try {
+    if (typeof localStorage !== 'undefined') autoFloorMode = localStorage.getItem(AUTO_FLOOR_MODE_KEY) === '1';
+} catch { /* 저장소를 못 쓰면 기본값(끔) */ }
+
+function setAutoFloorMode(on) {
+    autoFloorMode = !!on;
+    try { if (typeof localStorage !== 'undefined') localStorage.setItem(AUTO_FLOOR_MODE_KEY, autoFloorMode ? '1' : '0'); } catch {}
+    const box = document.getElementById('auto-floor-mode-toggle');
+    if (box) box.checked = autoFloorMode;
+    if (typeof autoCap !== 'undefined') { autoCap.modeSwitchKey = null; autoCap.modeSwitchCount = 0; }
+    updateAutoCaptureUI();
+}
+
+function bindAutoFloorModeToggle() {
+    const box = document.getElementById('auto-floor-mode-toggle');
+    if (!box || typeof box.addEventListener !== 'function') return;
+    box.checked = autoFloorMode;
+    box.addEventListener('change', () => setAutoFloorMode(box.checked));
+}
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindAutoFloorModeToggle, { once: true });
+    else bindAutoFloorModeToggle();
+}
+
 function setAutoStatus(text, tone = 'idle') {
+    const bar = document.getElementById('autoCaptureBar');
+    if (bar && bar.classList) bar.classList.toggle('hidden', !text);
     const el = document.getElementById('autoCaptureStatus');
     const tones = { idle: 'text-slate-400', live: 'text-emerald-400', hit: 'text-blue-400', warn: 'text-yellow-400' };
     el.className = `text-xs font-bold tracking-wide ${tones[tone] || tones.idle}`;
@@ -10,9 +38,10 @@ function setAutoStatus(text, tone = 'idle') {
 function updateAutoCaptureUI() {
     const on = VMH.CaptureHub.receiving('floor');
     const general = currentMode === 'general';
+    const modeSuffix = autoFloorMode ? ' · 모드 자동 전환' : '';
     if (!on && VMH.CaptureHub.isRunning()) setAutoStatus('화면 공유를 매칭 도우미에만 주는 중 — 옵션 탭에서 바꿀 수 있습니다');
-    else if (!on) setAutoStatus(general ? '게임 화면을 연결하면 방장이 고른 곡을 자동으로 인식합니다' : '게임 화면을 연결하면 밴픽 화면을 자동으로 인식합니다');
-    else { autoCap.statusHold = 0; setAutoStatus(general ? '● 자동 인식 중 — 선곡 대기' : '● 자동 인식 중 — 밴픽 화면 대기', 'live'); }
+    else if (!on) setAutoStatus('');
+    else { autoCap.statusHold = 0; setAutoStatus((general ? '● 자동 인식 중 — 선곡 대기' : '● 자동 인식 중 — 밴픽 화면 대기') + modeSuffix, 'live'); }
 }
 
 /* 화면 공유는 페이지에 하나뿐이다 (lib/capture-hub.js). 여기서는 프레임 한 장을 받아
@@ -23,9 +52,37 @@ VMH.CaptureHub.onStatus((text, tone) => { if (tone === 'warn' && VMH.CaptureHub.
 VMH.CaptureHub.onChange(() => {
     // 연결/수신 대상이 바뀌기 전에 떠 둔 비동기 프레임을 나중에 적용하지 않는다.
     floorWorkVersion++;
-    if (!VMH.CaptureHub.receiving('floor')) Object.assign(autoCap, { lastKey: null, pendingKey: null, pendingCount: 0, markPendingKey: null, genCandId: null, genShownId: null });
+    if (!VMH.CaptureHub.receiving('floor')) Object.assign(autoCap, { lastKey: null, pendingKey: null, pendingCount: 0, markPendingKey: null, genCandId: null, genShownId: null, modeSwitchKey: null, modeSwitchCount: 0 });
     updateAutoCaptureUI();
 });
+
+function readVersusBanPick(frame, W, H) {
+    const slots = [];
+    for (let i = 0; i < 5; i++) {
+        const r = versusSlotRect(i, W, H);
+        if (sigTable.length) {
+            // 자켓 시그니처로 가볍게 판정 (해시 방식의 약 1/7 비용). 곡 인식 자체는 밴픽으로 확정된 뒤 해시로 한다
+            const hit = nearestSig(jacketSig(frame, r.x, r.y, r.w, r.h), sigTable);
+            slots.push({ id: hit ? hit.item.id : null, ok: !!hit });
+        } else {
+            const thumb = cropToCanvas(frame, r.x, r.y, r.w, r.h);
+            const m = getSortedMatches(aHashFromCanvas(thumb), dHashFromCanvas(thumb), getColorGridFromCanvas(thumb));
+            slots.push({ id: m[0]?.id ?? null, ok: m.length > 1 && m[0].score <= AUTO_MAX_SCORE && (m[1].score - m[0].score) >= AUTO_MIN_GAP });
+        }
+    }
+    return { slots, okCount: slots.filter(s => s.ok).length };
+}
+
+function resetModeSwitchProbe() {
+    autoCap.modeSwitchKey = null;
+    autoCap.modeSwitchCount = 0;
+}
+
+function advanceModeSwitchProbe(key) {
+    if (key === autoCap.modeSwitchKey) autoCap.modeSwitchCount = (autoCap.modeSwitchCount || 0) + 1;
+    else { autoCap.modeSwitchKey = key; autoCap.modeSwitchCount = 1; }
+    return autoCap.modeSwitchCount >= 2;
+}
 
 /* 라운드/결과 화면이 연속 두 번 같은 내용으로 읽히면(등장 애니메이션 중 오인식 방지) 밴·플레이를 표시 */
 async function autoCaptureMatchScreen(frame, W, H) {
@@ -45,7 +102,7 @@ async function autoCaptureMatchScreen(frame, W, H) {
 
 async function autoCaptureFrame(frame, W, H, info) {
     if (info && info.stale) {
-        Object.assign(autoCap, { pendingKey: null, pendingCount: 0, markPendingKey: null, genCandId: null, genSince: 0 });
+        Object.assign(autoCap, { pendingKey: null, pendingCount: 0, markPendingKey: null, genCandId: null, genSince: 0, modeSwitchKey: null, modeSwitchCount: 0 });
         setAutoStatus('● 화면이 멈춰 있습니다 — 새 화면을 기다리는 중', 'warn');
         return;
     }
@@ -54,26 +111,30 @@ async function autoCaptureFrame(frame, W, H, info) {
     try {
         if (currentMode === 'general') { await generalAutoTick(frame, W, H); return; }
 
-        const slots = [];
-        for (let i = 0; i < 5; i++) {
-            const r = versusSlotRect(i, W, H);
-            if (sigTable.length) {
-                // 자켓 시그니처로 가볍게 판정 (해시 방식의 약 1/7 비용). 곡 인식 자체는 밴픽으로 확정된 뒤 해시로 한다
-                const hit = nearestSig(jacketSig(frame, r.x, r.y, r.w, r.h), sigTable);
-                slots.push({ id: hit ? hit.item.id : null, ok: !!hit });
-            } else {
-                const thumb = cropToCanvas(frame, r.x, r.y, r.w, r.h);
-                const m = getSortedMatches(aHashFromCanvas(thumb), dHashFromCanvas(thumb), getColorGridFromCanvas(thumb));
-                slots.push({ id: m[0]?.id ?? null, ok: m.length > 1 && m[0].score <= AUTO_MAX_SCORE && (m[1].score - m[0].score) >= AUTO_MIN_GAP });
-            }
-        }
-        const okCount = slots.filter(s => s.ok).length;
+        const { slots, okCount } = readVersusBanPick(frame, W, H);
         if (okCount < AUTO_MIN_CONFIDENT) {
             autoCap.pendingKey = null; autoCap.pendingCount = 0;
-            if (await autoCaptureMatchScreen(frame, W, H)) return;
+            if (await autoCaptureMatchScreen(frame, W, H)) { resetModeSwitchProbe(); return; }
+            if (autoFloorMode && isGeneralRoomScreen(frame, W, H)) {
+                const g = readGeneralJacket(frame, W, H);
+                if (g.confident) {
+                    const gId = String(g.matches[0].id);
+                    if (advanceModeSwitchProbe('general:' + gId)) {
+                        resetModeSwitchProbe();
+                        setMode('general');
+                        await generalAutoTick(frame, W, H);
+                        return;
+                    }
+                } else {
+                    resetModeSwitchProbe();
+                }
+            } else {
+                resetModeSwitchProbe();
+            }
             if (!autoCap.statusHold || Date.now() > autoCap.statusHold) setAutoStatus(`● 자동 인식 중 — 밴픽 화면 대기 (일치 ${okCount}/5)${autoAreaNote()}`, 'live');
             return;
         }
+        resetModeSwitchProbe();
 
         const key = slots.map(s => s.id).join(',');
         // 밴픽 화면이 확정되면 이 탭으로 (화면 자동 전환 옵션 — 화면이 바뀔 때 한 번만 넘긴다)
@@ -159,6 +220,22 @@ async function generalAutoTick(frame, W, H) {
     // 이미 표시한 층수 표와 genShownId는 보존하여 복귀 때 같은 곡을 중복 표시하지 않는다.
     if (!isGeneralRoomScreen(frame, W, H)) {
         pauseGeneralCandidate();
+        if (autoFloorMode) {
+            const { slots, okCount } = readVersusBanPick(frame, W, H);
+            if (okCount >= AUTO_MIN_CONFIDENT) {
+                const vKey = slots.map(s => s.id).join(',');
+                if (advanceModeSwitchProbe('versus:' + vKey)) {
+                    resetModeSwitchProbe();
+                    setMode('versus');
+                    autoCap.pendingKey = vKey;
+                    autoCap.pendingCount = AUTO_STABLE_TICKS - 1;
+                    await autoCaptureFrame(frame, W, H);
+                    return;
+                }
+            } else {
+                resetModeSwitchProbe();
+            }
+        }
         autoCap.statusHold = 0;
         const reading = VMH.GeneralLobbyReading;
         if (reading.error) setAutoStatus('대기방 판별 자료를 읽지 못했습니다 — 페이지를 새로고침하세요', 'warn');
@@ -166,6 +243,7 @@ async function generalAutoTick(frame, W, H) {
         else setAutoStatus(`● 자동 인식 중 — 일망호 대기방 대기${autoAreaNote()}`, 'live');
         return;
     }
+    resetModeSwitchProbe();
     const now = Date.now(), g = readGeneralJacket(frame, W, H);
     const idle = () => { if (!autoCap.statusHold || now > autoCap.statusHold) setAutoStatus(`● 자동 인식 중 — 선곡 대기${autoAreaNote()}`, 'live'); };
     if (!g.confident) { pauseGeneralCandidate(); idle(); return; }

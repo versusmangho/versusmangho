@@ -143,17 +143,13 @@ function updateGeneralRow(row, data, titleId) {
             // 인게임 레벨(원문자) - 커뮤니티 층수와 병기
             const levelChar = hasPattern ? circledLevel(l) : '';
 
-            // 데이터 셀 - 왼쪽에 층수(+내 기록), 오른쪽에 태그 목록. 태그가 많아도 잘리지 않도록 최소 높이(min-h-[6rem])로 유연하게 확장
+            // 데이터 셀 - 태그가 많아도 잘리지 않도록 최소 높이(min-h-[6rem])로 유연하게 확장
             const copyAttr = hasPattern ? ` data-btn="${btn}" data-diff="${diff}" onclick="copyGeneralCell(this)" title="클릭: 복사 · 우클릭: 내 태그"` : '';
             const myRecHtml = hasPattern ? formatMyRecordHtml(titleId, btn, diff, 'cell') : '';
             const memoBtn = hasPattern ? `<button class="memo-cell-btn" title="패턴 메모 (자작 태그)" onclick="event.stopPropagation(); openMemoFromCell(this)">✎</button>` : '';
-            const hasTagsCls = pTagsHtml ? ' has-tags' : '';
-            grid += `<div class="grid-cell${hasPattern ? ' copyable' : ''}${hasTagsCls} relative flex items-center justify-center ${textColor} ${opacity} min-h-[6rem]" style="${bgColor}"${copyAttr}>
-                ${memoBtn}
-                <div class="grid-cell-main">
-                    <span class="grid-value${(displayChar === 'NO DATA' || displayChar === 'NO FLOOR') ? ' nodata' : ''}">${levelChar ? `<span class="align-middle opacity-80 ${diff === 'SC' ? 'font-normal' : 'font-light'}">${levelChar}</span> ` : ''}${escapeHtml(displayChar)}</span>
-                    ${myRecHtml}
-                </div>
+            grid += `<div class="grid-cell${hasPattern ? ' copyable' : ''} relative flex flex-col items-center justify-center ${textColor} ${opacity} min-h-[6rem]" style="${bgColor}"${copyAttr}>
+                ${myRecHtml}${memoBtn}
+                <span class="grid-value${(displayChar === 'NO DATA' || displayChar === 'NO FLOOR') ? ' nodata' : ''}">${levelChar ? `<span class="align-middle opacity-80 ${diff === 'SC' ? 'font-normal' : 'font-light'}">${levelChar}</span> ` : ''}${escapeHtml(displayChar)}</span>
                 ${pTagsHtml}
             </div>`;
         });

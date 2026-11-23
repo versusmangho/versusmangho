@@ -359,15 +359,6 @@ header .header-right { gap: 8px; margin-left: 0; justify-content: flex-end; flex
 .quiet-danger { color: #fca5a5; background: transparent; border-color: transparent; }
 .quiet-danger:hover { border-color: rgba(239,68,68,.4); background: rgba(239,68,68,.08); }
 .muted { color: var(--text-secondary); font-size: 12px; }
-.next-match-card { border-color: rgba(59,130,246,.3); }
-.next-match { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding: 0; margin: 0; }
-.next-match > li { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 5px 14px; padding: 4px 0; }
-.next-match > li + li { border-left: 1px solid var(--border-color); padding-left: 16px; }
-.next-rank { grid-row: span 2; color: #93c5fd; font-weight: 700; font-size: 14px; }
-.next-player { min-width: 0; font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }
-.next-player .plate-thumb { display: block; height: auto; width: 100%; max-width: 320px; }
-.next-wait { color: var(--text-secondary); font-size: 12px; }
-.next-match > .queue-empty { color: var(--text-secondary); font-size: 13px; min-height: 64px; display: flex; }
 .queue-rank, .queue-rank-head { width: 52px; text-align: center; }
 .queue-rank span { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; min-height: 28px; }
 .queue-rank-next { color: #93c5fd; background: rgba(59,130,246,.14); border-radius: 8px; }
@@ -401,11 +392,6 @@ button:focus-visible, summary:focus-visible, [role="button"]:focus-visible { out
   header #round-info { display: none; }
   .capture-controls { flex-direction: column; align-items: flex-end; gap: 3px; }
   .capture-indicator { font-size: 11px; }
-  .next-match { gap: 10px; }
-  .next-match > li { grid-template-columns: 1fr; gap: 6px; }
-  .next-rank { grid-row: auto; }
-  .next-match > li + li { padding-left: 10px; }
-  .next-player { font-size: 17px; }
 }
 @media (max-width: 480px) {
   header { column-gap: 6px; }
@@ -1096,8 +1082,4 @@ h2 .help-tip { font-size: 12px; width: 17px; height: 17px; font-weight: 700; }
   header .header-right { grid-column: 1; grid-row: 2; justify-content: space-between; }
   header .tabs { grid-row: 3; }
   .capture-controls { flex-direction: row; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-  .next-match { grid-template-columns: 1fr; }
-  .next-match > li { grid-template-columns: auto minmax(0, 1fr); }
-  .next-rank { grid-row: span 2; }
-  .next-match > li + li { border-left: 0; border-top: 1px solid var(--border-color); padding: 12px 0 0; }
 }

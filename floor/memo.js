@@ -51,7 +51,6 @@ function refreshMemoViews() {
         row.querySelectorAll('.grid-cell[data-btn]').forEach(cell => {
             cell.querySelector('.cell-tags')?.remove();
             const html = generalCellTagsHtml(tId, cell.dataset.btn, cell.dataset.diff);
-            cell.classList.toggle('has-tags', !!html);
             if (html) cell.insertAdjacentHTML('beforeend', html);
         });
     }));

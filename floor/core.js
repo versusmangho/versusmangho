@@ -59,6 +59,8 @@ function setMode(mode) {
     document.getElementById('generalSearchContainer').classList.toggle('hidden', mode !== 'general');
     // 연결은 모드와 상관없이 유지하고, 모드에 따라 보는 화면만 바뀐다 (버망호: 밴픽/라운드, 일망호: 방장 선곡)
     autoCap.genCandId = null;
+    autoCap.modeSwitchKey = null;
+    autoCap.modeSwitchCount = 0;
     updateAutoCaptureUI();
     document.getElementById('songSearchResults').classList.add('hidden');
     document.getElementById('songSearchInput').value = '';
@@ -188,13 +190,13 @@ function getSongTagsHtml(titleId, currentButton = null, currentDifficulty = null
     }).join('')}</div>`;
 }
 
-/* 일망호 표 칸의 태그 줄 — 오른쪽에 내 메모 → V-ARCHIVE → 로페봇 순으로 잘리지 않고 모두 표시한다 */
+/* 일망호 표 칸의 태그 줄 — 내 메모 → V-ARCHIVE → 로페봇 순으로 잘리지 않고 모두 표시한다 */
 function generalCellTagsHtml(titleId, btn, diff) {
     const memoTags = getPatternMemo(titleId, btn, diff);
     const vaTags = getVarchivePatternTags(titleId, btn, diff);
     const lopeTags = getLopePatternTags(titleId, btn, diff, vaTags);
     if (!memoTags.length && !vaTags.length && !lopeTags.length) return '';
-    return `<div class="cell-tags flex flex-wrap justify-end content-center gap-1">
-        ${memoTags.map(t => `<span class="memo-tag text-xs px-2 py-0.5 rounded font-bold whitespace-nowrap">${escapeHtml(t)}</span>`).join('')}${vaTags.map(t => `<span class="tag-va text-xs px-2 py-0.5 rounded font-bold whitespace-nowrap" title="V-ARCHIVE 태그">${escapeHtml(t)}</span>`).join('')}${lopeTags.map(name => `<span class="tag-lope text-xs px-2 py-0.5 rounded font-bold whitespace-nowrap" title="로페봇 태그">${escapeHtml(name)}</span>`).join('')}
+    return `<div class="cell-tags flex flex-wrap justify-center gap-1 mt-1 w-full">
+        ${memoTags.map(t => `<span class="memo-tag text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap">${escapeHtml(t)}</span>`).join('')}${vaTags.map(t => `<span class="tag-va text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap" title="V-ARCHIVE 태그">${escapeHtml(t)}</span>`).join('')}${lopeTags.map(name => `<span class="tag-lope text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap" title="로페봇 태그">${escapeHtml(name)}</span>`).join('')}
     </div>`;
 }
