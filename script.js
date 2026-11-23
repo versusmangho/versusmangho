@@ -1242,8 +1242,8 @@ syncSafeguardText();
 
     const fmt = (v) => String(+v.toFixed(2));
     host.innerHTML = SCORE_WEIGHT_DEFS.map(d => {
-        const pre = d.unit === '판' ? '' : `<span class="weight-unit">${d.unit}</span>`;
-        const post = d.unit === '판' ? '<span class="weight-unit">판</span>' : '';
+        const pre = `<span class="weight-unit weight-unit-pre">${d.unit === '판' ? '' : d.unit}</span>`;
+        const post = `<span class="weight-unit weight-unit-post">${d.unit === '판' ? '판' : ''}</span>`;
         const tip = d.tip ? `<button type="button" class="help-tip" data-tip="${escapeHtml(d.tip)}" aria-label="${d.name} 도움말">?</button>` : '';
         return `<div class="weight-row" data-key="${d.key}">
           <label class="weight-name" for="w-num-${d.key}">${d.name}${tip}</label>
@@ -1625,11 +1625,91 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('newcomer-toggle')?.addEventListener('change', () => refreshUI());
     document.getElementById('safeguard-toggle')?.addEventListener('change', () => refreshUI());
 
-    // 툴팁 클릭 시 라벨 선택 등 부모 이벤트 방지
-    document.addEventListener('click', (e) => {
-        if (e.target.closest('.help-tip')) {
-            e.preventDefault();
-            e.stopPropagation();
+    // 전역 플로팅 툴팁 (.help-tip) — 카드의 backdrop-filter 스태킹 컨텍스트와 붙박이 헤더 가림·화면 끝 잘림을 피한다
+    (function initHelpTooltips() {
+        const pop = document.createElement('div');
+        pop.id = 'vmh-tooltip';
+        pop.className = 'vmh-tooltip';
+        pop.setAttribute('role', 'tooltip');
+        document.body.appendChild(pop);
+
+        let activeBtn = null;
+        let pinnedByClick = false;
+
+        function position(btn) {
+            const text = btn.getAttribute('data-tip');
+            if (!text) return hide();
+            pop.textContent = text;
+            pop.classList.remove('is-below');
+            pop.style.left = '0px';
+            pop.style.top = '0px';
+            pop.classList.add('is-open');
+
+            const rect = btn.getBoundingClientRect();
+            const header = document.querySelector('header');
+            const headerBottom = header ? header.getBoundingClientRect().bottom : 0;
+            const tipRect = pop.getBoundingClientRect();
+            const gap = 8;
+            const margin = 12;
+
+            const spaceAbove = rect.top - headerBottom - gap;
+            const placeBelow = spaceAbove < tipRect.height + 6;
+            const top = placeBelow ? (rect.bottom + gap) : (rect.top - tipRect.height - gap);
+            const rawLeft = rect.left + rect.width / 2 - tipRect.width / 2;
+            const left = Math.max(margin, Math.min(window.innerWidth - tipRect.width - margin, rawLeft));
+            const arrowLeft = Math.max(12, Math.min(tipRect.width - 12, rect.left + rect.width / 2 - left));
+
+            pop.classList.toggle('is-below', placeBelow);
+            pop.style.left = `${Math.round(left)}px`;
+            pop.style.top = `${Math.round(Math.max(margin, top))}px`;
+            pop.style.setProperty('--tip-arrow-x', `${Math.round(arrowLeft)}px`);
         }
-    });
+
+        function show(btn, fromClick = false) {
+            activeBtn = btn;
+            if (fromClick) pinnedByClick = true;
+            position(btn);
+        }
+
+        function hide() {
+            activeBtn = null;
+            pinnedByClick = false;
+            pop.classList.remove('is-open', 'is-below');
+        }
+
+        document.addEventListener('mouseover', (e) => {
+            const btn = e.target.closest('.help-tip');
+            if (btn) show(btn, false);
+        });
+        document.addEventListener('mouseout', (e) => {
+            const btn = e.target.closest('.help-tip');
+            if (btn && btn === activeBtn && !pinnedByClick) {
+                if (!e.relatedTarget || !btn.contains(e.relatedTarget)) hide();
+            }
+        });
+        document.addEventListener('focusin', (e) => {
+            const btn = e.target.closest('.help-tip');
+            if (btn) show(btn, false);
+        });
+        document.addEventListener('focusout', (e) => {
+            const btn = e.target.closest('.help-tip');
+            if (btn && btn === activeBtn && !pinnedByClick) hide();
+        });
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.help-tip');
+            if (btn) {
+                e.preventDefault();
+                e.stopPropagation();
+                if (activeBtn === btn && pinnedByClick) hide();
+                else show(btn, true);
+                return;
+            }
+            if (activeBtn) hide();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && activeBtn) hide();
+        });
+        window.addEventListener('scroll', () => { if (activeBtn) hide(); }, { passive: true, capture: true });
+        window.addEventListener('resize', () => { if (activeBtn) position(activeBtn); }, { passive: true });
+    })();
 });

@@ -174,7 +174,7 @@ function getSongTagsHtml(titleId, currentButton = null, currentDifficulty = null
         let cls = 'bg-slate-800/60 text-slate-300 border-slate-700/50', titleAttr = '';
 
         if (tag.type === 'bpm') {
-            cls = 'bg-blue-900/40 text-blue-300 border-blue-700/50';
+            cls = 'floor-bpm-badge bg-blue-900/40 text-blue-300 border-blue-700/50';
         } else if (tag.type === 'varchive') {
             cls = 'tag-va'; titleAttr = ' title="V-ARCHIVE 태그"';
         } else if (tag.type === 'pattern') {

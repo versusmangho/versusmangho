@@ -157,8 +157,8 @@ function updateGeneralRow(row, data, titleId) {
     grid += `</div>`;
     
     const tagData = songTagsDatabase[String(titleId)];
-    const bpmText = tagData?.bpm?.text ? `<span class="px-2 py-0.5 rounded text-xs font-bold border border-blue-700/50 bg-blue-900/40 text-blue-300 ml-3">BPM:${escapeHtml(tagData.bpm.text)}</span>` : '';
-    const dlcBadge = data.dlcCode ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-800/80 text-slate-300 border border-slate-700/60 font-mono">${escapeHtml(data.dlcCode)}</span>` : '';
+    const bpmText = tagData?.bpm?.text ? `<span class="floor-bpm-badge px-2 py-0.5 rounded text-xs font-bold border border-blue-700/50 bg-blue-900/40 text-blue-300 ml-3">BPM:${escapeHtml(tagData.bpm.text)}</span>` : '';
+    const dlcBadge = data.dlcCode ? `<span class="floor-dlc-badge px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-800/80 text-slate-300 border border-slate-700/60 font-mono">${escapeHtml(data.dlcCode)}</span>` : '';
     const composerText = data.composer ? `<span class="text-slate-400 text-xs font-medium">${escapeHtml(data.composer)}</span>` : '';
 
     row.innerHTML = `
@@ -362,7 +362,7 @@ function handleSongSearchInput(value) {
             songSearchMatches = [];
             box.innerHTML = `<div class="px-5 py-3.5 text-slate-400 text-xs">
                 <p class="mb-2 font-medium text-slate-300">태그로 곡 검색 (V-ARCHIVE · 로페봇 · 내 메모)</p>
-                <div class="flex flex-wrap gap-1.5">${QUICK_SEARCH_TAGS.map(t => `<button type="button" class="px-2 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold" onclick="event.stopPropagation(); applyTagSearchChip('${t}')">#${t}</button>`).join('')}</div>
+                <div class="flex flex-wrap gap-1.5">${QUICK_SEARCH_TAGS.map(t => `<button type="button" class="tag-search-chip" onclick="event.stopPropagation(); applyTagSearchChip('${t}')">#${t}</button>`).join('')}</div>
             </div>`;
             box.classList.remove('hidden');
             return;
@@ -464,7 +464,7 @@ function renderSongSearchResults() {
                 rightHtml = `${sub ? `<span class="text-[11px] text-slate-400 whitespace-nowrap">${escapeHtml(sub)}</span>` : ''}${m.dlcCode ? `<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">${escapeHtml(m.dlcCode)}</span>` : ''}`;
             }
             return `
-            <div class="song-search-item px-5 py-3 cursor-pointer flex items-center justify-between gap-3 border-b border-slate-800/60 last:border-b-0 ${i === songSearchActiveIndex ? 'bg-slate-800/80' : 'hover:bg-slate-800/80'}"
+            <div class="song-search-item px-5 py-3 cursor-pointer flex items-center justify-between gap-3 border-b border-slate-800/60 last:border-b-0 ${i === songSearchActiveIndex ? 'is-active bg-slate-800/80' : 'hover:bg-slate-800/80'}"
                 data-song-id="${escapeHtml(m.id)}" onclick="selectSongFromSearch(this.dataset.songId)">
                 <span class="text-white text-sm font-medium truncate">${escapeHtml(m.name)}</span>
                 <span class="flex items-center gap-2 flex-none">${rightHtml}</span>

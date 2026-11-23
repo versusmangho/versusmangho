@@ -379,7 +379,7 @@
   </style>
 
   <!-- 층수 스타일보다 뒤에 둔다 — .floor-toolbar 같은 조정 규칙이 이겨야 하기 때문 -->
-  <link rel="stylesheet" href="style.css?v=20261122-tips" />
+  <link rel="stylesheet" href="style.css?v=20261123-ux-polish" />
 </head>
 
 <body>
@@ -562,7 +562,7 @@
         <div id="floorTagLegend" class="mb-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
             <span class="inline-flex items-center gap-1"><span class="px-1.5 py-0.5 rounded font-bold border tag-va">V-ARCHIVE</span> 옵션·변속·기준곡</span>
             <span class="inline-flex items-center gap-1"><span class="px-1.5 py-0.5 rounded font-bold border tag-lope">로페봇</span> 패턴 특징</span>
-            <span class="inline-flex items-center gap-1"><span class="px-1.5 py-0.5 rounded font-bold border bg-slate-900/70 text-amber-300 border-amber-500/60">내 메모</span> 개인 태그</span>
+            <span class="inline-flex items-center gap-1"><span class="px-1.5 py-0.5 rounded font-bold border bg-slate-900/70 text-amber-300 border-amber-500/60 memo-tag">내 메모</span> 개인 태그</span>
         </div>
 
         <div id="generalSearchContainer" class="hidden mb-8 relative">
@@ -578,7 +578,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
             </div>
-            <p class="text-slate-300 mb-2 font-medium">스크린샷을 복사한 후 <kbd class="px-2 py-1 rounded text-white text-xs">Ctrl + V</kbd>를 누르세요</p>
+            <p class="text-slate-300 mb-3 leading-relaxed font-medium">스크린샷을 복사한 후 <kbd class="px-2 py-0.5 rounded text-white text-xs align-middle">Ctrl + V</kbd>를 누르세요</p>
             <p class="text-xs text-slate-500 uppercase tracking-widest">16:9·21:9 게임 화면 · 창 모드 테두리와 21:9 양옆 여백은 자동으로 제외</p>
         </div>
 
@@ -636,7 +636,7 @@
                 <input type="text" id="memoInput" maxlength="60" autocomplete="off" placeholder="태그 입력 후 Enter (쉼표로 여러 개)"
                     class="flex-1 min-w-0 px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-700 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-amber-500"
                     onkeydown="handleMemoKeydown(event)">
-                <button class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-sm font-bold transition-all" onclick="addMemoFromInput()">추가</button>
+                <button type="button" class="memo-add-btn" onclick="addMemoFromInput()">추가</button>
             </div>
             <div id="memoSuggestWrap" class="mt-5">
                 <p class="text-xs text-slate-400 font-bold mb-2">자주 쓴 태그 <span class="font-normal text-slate-500">— 클릭해서 추가</span></p>
@@ -645,11 +645,11 @@
             <div class="flex items-center justify-between gap-3 mt-6 pt-4 border-t border-slate-700/60">
                 <p class="text-[11px] text-slate-500">메모는 이 브라우저에만 저장되며 Copy에는 포함되지 않습니다.</p>
                 <div class="flex gap-1.5 flex-none">
-                    <button class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold border border-slate-700" onclick="exportPatternMemos()">내보내기</button>
-                    <label class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold border border-slate-700 cursor-pointer">
+                    <button type="button" class="memo-foot-btn" onclick="exportPatternMemos()">내보내기</button>
+                    <label class="memo-foot-btn">
                         가져오기<input type="file" class="hidden" accept=".json,application/json" onchange="importPatternMemos(this)">
                     </label>
-                    <button class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-red-900/60 text-red-300 text-[11px] font-bold border border-slate-700" onclick="clearPatternMemos()">초기화</button>
+                    <button type="button" class="memo-foot-btn memo-foot-danger" onclick="clearPatternMemos()">초기화</button>
                 </div>
             </div>
         </div>
@@ -1117,22 +1117,22 @@
 <script src="lib/djmax-room.js?v=20261122-playing-level"></script>
 <script src="lib/incidents.js?v=20261122-int-rect"></script>
 
-<script src="script.js?v=20261122-tips"></script>
+<script src="script.js?v=20261123-ux-polish"></script>
 <script src="auto-room.js?v=20261104-diagnostic"></script>
 
-<script src="floor/core.js?v=20261122-va-tags"></script>
-<script src="floor/memo.js?v=20261122-va-tags"></script>
+<script src="floor/core.js?v=20261123-ux-polish"></script>
+<script src="floor/memo.js?v=20261123-ux-polish"></script>
 <script src="floor/song-db.js?v=20261122-va-tags"></script>
 <script src="floor/shots.js"></script>
 <script src="floor/match-screen.js"></script>
 <script src="floor/lobby-marks.js?v=20261107-text-mask"></script>
 <script src="floor/auto-capture.js?v=20261107-text-mask"></script>
-<script src="floor/app.js?v=20261122-va-tags"></script>
+<script src="floor/app.js?v=20261123-ux-polish"></script>
 
 <!-- 성과 스캔 — 층수 측정기의 곡 DB(songDatabase)와 자켓 sig(sigTable)를 쓰므로 그 뒤에 -->
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="scan/reader.js?v=20261122-digits"></script>
-<script src="scan/app.js?v=20261122-va-tags"></script>
+<script src="scan/app.js?v=20261123-ux-polish"></script>
 
 <!-- 자동 방장 봇 — script.js(priorityOrder) · auto-room.js(장부) · scan/app.js(도우미 호출) 다음이어야 한다 -->
 <script src="auto-host.js?v=20261104-empty-slot"></script>
