@@ -7,6 +7,8 @@
   <script src="lib/theme.js?v=20261103-ui"></script>
 
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/wanteddev/wanted-sans@v1.0.3/packages/wanted-sans/fonts/webfonts/variable/split/WantedSansVariable.min.css" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" />
 
   <!-- 층수 측정기 화면이 Tailwind 유틸리티 클래스를 쓴다.
@@ -127,8 +129,8 @@
   }
   .floor-scope #shotCounter {
             margin-top: 0.75rem; text-align: center;
-            font-family: 'Orbitron', sans-serif; font-size: 0.7rem;
-            letter-spacing: 0.15em; color: var(--text-secondary);
+            font-family: var(--font-tag); font-size: 0.75rem; font-weight: 600;
+            letter-spacing: 0.04em; color: var(--text-secondary);
   }
   .floor-scope #screenshotPreview {
             max-width: 320px;
@@ -191,17 +193,14 @@
   }
   .floor-scope .grid-cell.copyable:hover { filter: brightness(1.15);
   }
-  /* Select Styles */
+  /* Select Styles — 브라우저 기본 화살표 하나만 쓰되, 색이 들어간 버튼/난이도 셀렉트는 흰 화살표가 나오도록 다크 스킴 고정 */
   .floor-scope select {
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 0.4rem center;
-            background-size: 0.8rem;
-            padding-right: 1.4rem !important;
             cursor: pointer;
             border: 1px solid rgba(255, 255, 255, 0.1);
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  .floor-scope .btn-select, .floor-scope .diff-select {
+            color-scheme: dark;
   }
   .floor-scope select:hover { filter: brightness(1.1);
   }
@@ -273,15 +272,15 @@
             position: absolute; top: 2rem; left: 2rem; z-index: 50;
   }
   .floor-scope .help-btn {
-            background: #3b82f6 !important;
+            background: var(--accent-blue) !important;
             color: white !important;
-            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.16);
   }
   .floor-scope .help-btn:hover {
-            background: #2563eb !important;
+            background: var(--accent-indigo) !important;
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+            box-shadow: 0 6px 18px rgba(6, 182, 212, 0.45);
   }
   .floor-scope .help-modal {
             display: none; position: fixed; inset: 0; z-index: 100;
@@ -316,33 +315,39 @@
   }
   .floor-scope .help-body code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #facc15;
   }
-  /* 태그 출처별 색 — 로페봇: 살짝 어두운 리빙코랄, V-ARCHIVE: 살짝 어두운 노랑, 내 메모: 어두운 바탕 + 금색 테두리 */
-  .floor-scope .tag-lope { background-color: rgba(166, 70, 61, 0.88); color: #fff5f4; border-color: rgba(255, 133, 120, 0.45);
+  /* 공용 태그 칩 (.vmh-tag) — 버망호 카드·일망호 표·메모 모달·범례 모두 이 규칙 하나를 공유한다 */
+  .floor-scope .vmh-tag,
+  .floor-scope #floorTagLegend > span > span,
+  .floor-scope .memo-chip, .floor-scope .memo-suggest, .floor-scope .tag-search-chip {
+            font-family: var(--font-tag);
+            letter-spacing: -0.01em;
   }
-  .floor-scope .tag-va { background-color: rgba(148, 116, 20, 0.88); color: #fefce8; border-color: rgba(250, 204, 21, 0.45);
+  .floor-scope .vmh-tag,
+  .floor-scope #floorTagLegend > span > span {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 0 6px; line-height: 1; font-weight: 700; white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+            border-radius: 4px; border: 1px solid transparent;
   }
-  .floor-scope .grid-cell .tag-lope { background-color: rgba(158, 62, 54, 0.9); color: #fff5f4; box-shadow: inset 0 0 0 1px rgba(255, 150, 138, 0.45);
+  .floor-scope .vmh-tag--card,
+  .floor-scope #floorTagLegend > span > span { height: 22px; font-size: 11.5px; }
+  .floor-scope .vmh-tag--cell { height: 20px; font-size: 11px; border: 0; }
+  .floor-scope .floor-bpm-badge { background-color: rgba(8, 145, 178, 0.25); color: #67e8f9; border-color: rgba(34, 211, 238, 0.45); }
+  .floor-scope .tag-etc { background-color: rgba(30, 41, 59, 0.7); color: #cbd5e1; border-color: rgba(100, 116, 139, 0.45); }
+  .floor-scope .tag-lope { background-color: rgba(166, 70, 61, 0.88); color: #fff5f4; border-color: rgba(255, 133, 120, 0.45); }
+  .floor-scope .tag-va { background-color: rgba(148, 116, 20, 0.88); color: #fefce8; border-color: rgba(250, 204, 21, 0.45); }
+  .floor-scope .tag-memo { background-color: rgba(14, 116, 144, 0.92); color: #ffffff; border-color: rgba(103, 232, 249, 0.5); }
+  .floor-scope .grid-cell .tag-lope { background-color: rgba(127, 29, 29, 0.88); color: #fff5f4; box-shadow: inset 0 0 0 1px rgba(254, 202, 202, 0.62); }
+  .floor-scope .grid-cell .tag-va { background-color: rgba(140, 108, 16, 0.9); color: #fefce8; box-shadow: inset 0 0 0 1px rgba(254, 240, 138, 0.55); }
+  .floor-scope .grid-cell .memo-tag { background: rgba(14, 116, 144, 0.92); color: #ffffff; box-shadow: inset 0 0 0 1px rgba(165, 243, 252, 0.6); }
+  .floor-scope .my-record-tag { background: rgba(15, 23, 42, 0.88); color: #f8fafc; border-color: rgba(203, 213, 225, 0.5); }
+  .floor-scope .my-record-tag.is-mc { color: #7dd3fc; border-color: rgba(186, 230, 253, 0.75); }
+  .floor-scope .my-record-tag.is-pp { color: #fde047; border-color: rgba(254, 240, 138, 0.8); }
+  .floor-scope .grid-cell .my-record-tag {
+            background: rgba(15, 23, 42, 0.88); box-shadow: inset 0 0 0 1px rgba(203, 213, 225, 0.55);
   }
-  .floor-scope .grid-cell .tag-va { background-color: rgba(140, 108, 16, 0.9); color: #fefce8; box-shadow: inset 0 0 0 1px rgba(254, 240, 138, 0.45);
-  }
-  .floor-scope .grid-cell .memo-tag { background: rgba(0, 0, 0, 0.5); color: #fcd34d; box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.55);
-  }
-  /* 내 V-ARCHIVE 최고 기록 뱃지 */
-  .floor-scope .my-record-badge {
-            display: inline-block; font-family: 'Orbitron', sans-serif; font-size: 0.7rem; font-weight: 700;
-            padding: 2px 8px; border-radius: 6px; letter-spacing: 0.03em;
-            background: rgba(15, 23, 42, 0.72); color: #e2e8f0; border: 1px solid rgba(148, 163, 184, 0.35);
-  }
-  .floor-scope .my-record-badge.is-mc { color: #7dd3fc; border-color: rgba(56, 189, 248, 0.5); }
-  .floor-scope .my-record-badge.is-pp { color: #fde047; border-color: rgba(250, 204, 21, 0.6); }
-  .floor-scope .cell-my-record {
-            position: absolute; top: 4px; left: 5px; z-index: 2; pointer-events: none;
-            font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 700; line-height: 1.1;
-            padding: 2px 5px; border-radius: 4px;
-            background: rgba(0, 0, 0, 0.52); color: #f1f5f9;
-  }
-  .floor-scope .cell-my-record.is-mc { color: #7dd3fc; }
-  .floor-scope .cell-my-record.is-pp { color: #fde047; }
+  .floor-scope .grid-cell .my-record-tag.is-mc { box-shadow: inset 0 0 0 1px rgba(186, 230, 253, 0.85); }
+  .floor-scope .grid-cell .my-record-tag.is-pp { box-shadow: inset 0 0 0 1px rgba(254, 240, 138, 0.85); }
   .floor-scope .memo-cell-btn {
             position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
             display: flex; align-items: center; justify-content: center;
@@ -379,7 +384,7 @@
   </style>
 
   <!-- 층수 스타일보다 뒤에 둔다 — .floor-toolbar 같은 조정 규칙이 이겨야 하기 때문 -->
-  <link rel="stylesheet" href="style.css?v=20261124-auto-mode" />
+  <link rel="stylesheet" href="style.css?v=20261125-goal2" />
 </head>
 
 <body>
@@ -401,7 +406,7 @@
     <button id="popup-btn" class="secondary">🪟 팝업</button>
     <div class="capture-controls">
       <span id="capture-indicator" class="capture-indicator" role="status">연결 안 됨</span>
-      <button id="auto-capture-btn" class="secondary">🎮 게임 화면 연결</button>
+      <button id="auto-capture-btn" class="primary">🎮 게임 화면 연결</button>
     </div>
   </div>
 </header>
@@ -412,7 +417,7 @@
     <h2>플레이어 관리</h2>
     <div class="row player-add-row">
       <input id="nickname-input" type="text" placeholder="닉네임 입력 (Enter로 추가)" />
-      <button id="add-btn">추가</button>
+      <button id="add-btn" class="primary">추가</button>
     </div>
     <div id="manage-msg" class="error"></div>
   </section>
@@ -454,43 +459,6 @@
       </thead>
       <tbody id="player-table-body"></tbody>
     </table>
-  </section>
-
-  <section class="card log-card">
-    <div class="collapsible-header" id="log-toggle-btn" role="button" tabindex="0" aria-expanded="false">
-      <h2 style="border-bottom:0; padding-bottom:0; margin-bottom:0;">로그</h2>
-      <span class="toggle-icon" id="log-toggle-icon">▼</span>
-    </div>
-
-    <div class="collapsible-body" id="log-content" style="display: none;">
-      <div class="log-filters" id="log-filters">
-        <button class="log-filter-btn active" data-filter="all">전체</button>
-        <button class="log-filter-btn" data-filter="match">매치</button>
-        <button class="log-filter-btn" data-filter="inout">입퇴장</button>
-        <button class="log-filter-btn" data-filter="hold">보류/복귀</button>
-      </div>
-      <div id="log-container"></div>
-    </div>
-  </section>
-
-  <section class="card auto-card">
-    <div class="card-head">
-      <h2>🎮 게임 화면 자동 인식</h2>
-      <button class="secondary" data-goto-help="help-auto">도움말</button>
-    </div>
-    <div id="auto-status" class="auto-status idle">게임 화면을 연결하면 입·퇴장과 대진이 자동으로 기록됩니다</div>
-
-    <div class="collapsible-header auto-log-head" id="auto-log-toggle" role="button" tabindex="0" aria-expanded="false">
-      <h3>인식 기록<span id="auto-log-count"></span></h3>
-      <span class="toggle-icon" id="auto-log-icon">▼</span>
-    </div>
-    <div id="auto-activity" class="auto-activity" style="display:none;"></div>
-    <div id="incident-bar" class="incident-bar" tabindex="-1" hidden>
-      <span>⚠ 의심 장면 <b id="incident-count">0</b>건 — 사람 판정이 틀렸을 수 있는 순간의 화면을 모아 두었습니다</span>
-      <button class="secondary" id="incident-dl">내려받기</button>
-      <button class="secondary" id="incident-clear">지우기</button>
-      <details id="incident-details"><summary>저장된 장면 보기</summary><ul id="incident-list"></ul></details>
-    </div>
   </section>
 
   <section class="card analysis-card hide-while-sharing">
@@ -537,6 +505,40 @@
     <canvas id="thumbCanvas" width="16" height="16" style="display:none;"></canvas>
   </section>
 
+  <section class="card log-card">
+    <div class="collapsible-header" id="log-toggle-btn" role="button" tabindex="0" aria-expanded="false">
+      <h2 style="border-bottom:0; padding-bottom:0; margin-bottom:0;">로그</h2>
+      <span class="toggle-icon" id="log-toggle-icon">▼</span>
+    </div>
+
+    <div class="collapsible-body" id="log-content" style="display: none;">
+      <div class="log-filters" id="log-filters">
+        <button class="log-filter-btn active" data-filter="all">전체</button>
+        <button class="log-filter-btn" data-filter="match">매치</button>
+        <button class="log-filter-btn" data-filter="inout">입퇴장</button>
+        <button class="log-filter-btn" data-filter="hold">보류/복귀</button>
+      </div>
+      <div id="log-container"></div>
+    </div>
+  </section>
+
+  <section class="card auto-card auto-card-slim">
+    <div class="auto-slim-bar">
+      <div class="collapsible-header auto-log-head" id="auto-log-toggle" role="button" tabindex="0" aria-expanded="false">
+        <span id="auto-status" class="auto-status idle">게임 화면을 연결하면 입·퇴장과 대진이 자동으로 기록됩니다</span>
+        <span class="auto-log-meta">인식 기록<span id="auto-log-count"></span> <span class="toggle-icon" id="auto-log-icon">▼</span></span>
+      </div>
+      <button class="secondary auto-help-btn" data-goto-help="help-auto">도움말</button>
+    </div>
+    <div id="auto-activity" class="auto-activity" style="display:none;"></div>
+    <div id="incident-bar" class="incident-bar" tabindex="-1" hidden>
+      <span>⚠ 의심 장면 <b id="incident-count">0</b>건 — 사람 판정이 틀렸을 수 있는 순간의 화면을 모아 두었습니다</span>
+      <button class="secondary" id="incident-dl">내려받기</button>
+      <button class="secondary" id="incident-clear">지우기</button>
+      <details id="incident-details"><summary>저장된 장면 보기</summary><ul id="incident-list"></ul></details>
+    </div>
+  </section>
+
 </main>
 </div>
 
@@ -557,7 +559,7 @@
         <div id="floorTagLegend" class="mb-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
             <span class="inline-flex items-center gap-1"><span class="px-1.5 py-0.5 rounded font-bold border tag-va">V-ARCHIVE</span> 옵션·변속·기준곡</span>
             <span class="inline-flex items-center gap-1"><span class="px-1.5 py-0.5 rounded font-bold border tag-lope">로페봇</span> 패턴 특징</span>
-            <span class="inline-flex items-center gap-1"><span class="px-1.5 py-0.5 rounded font-bold border bg-slate-900/70 text-amber-300 border-amber-500/60 memo-tag">내 메모</span> 개인 태그</span>
+            <span class="inline-flex items-center gap-1"><span class="px-1.5 py-0.5 rounded font-bold border tag-memo memo-tag">내 메모</span> 개인 태그</span>
         </div>
 
         <div id="generalSearchContainer" class="hidden mb-8 relative">
@@ -700,7 +702,7 @@
       <b>스캔 시작</b>을 누른 뒤 5초 안에 게임 창을 클릭하세요. 멈추려면 브라우저를 클릭하세요.</p>
     <ul class="scan-checks" id="scan-checks"></ul>
     <div class="row scan-actions">
-      <button id="scan-start-btn">▶ 스캔 시작</button>
+      <button id="scan-start-btn" class="primary">▶ 스캔 시작</button>
       <button id="scan-stop-btn" class="secondary" disabled>■ 멈춤</button>
       <label class="file-btn secondary" title="컬렉션 화면 스크린샷을 여러 장 선택할 수 있습니다">스샷 파일로 읽기<input type="file" id="scan-files" accept="image/*" multiple></label>
       <span class="scan-spacer"></span>
@@ -725,7 +727,7 @@
     <div class="card-head"><h2>서버 비교 · 업로드</h2><button class="secondary" data-goto-help="help-scan">도움말</button></div>
     <p class="scan-task">먼저 <b>서버 기록과 비교</b>를 누르세요. 좋아진 기록 중 올릴 것만 선택하세요.</p>
     <div class="row">
-      <button id="scan-compare-btn">서버 기록과 비교</button>
+      <button id="scan-compare-btn" class="primary">서버 기록과 비교</button>
       <span id="scan-compare-note" class="scan-note"></span>
     </div>
     <div id="scan-diff" class="scan-diff"></div>
@@ -734,7 +736,7 @@
       <span id="scan-account-state" class="scan-note"></span>
       <span class="scan-spacer"></span>
       <button id="scan-retry-btn" class="secondary" hidden>선택한 실패 기록 재시도</button>
-      <button id="scan-upload-btn" disabled>선택한 기록 올리기</button>
+      <button id="scan-upload-btn" class="primary" disabled>선택한 기록 올리기</button>
     </div>
     <p id="scan-upload-summary" class="scan-upload-summary" role="status" hidden></p>
     <div id="scan-upload-status" class="auto-status" hidden></div>
@@ -763,44 +765,54 @@
   </section>
 
   <section class="card options-card" id="opt-auto-host-chat">
-    <h2>채팅</h2>
-    <label class="option-row">
-      <span class="switch"><input type="checkbox" id="auto-host-chat" checked /><span class="slider"></span></span>
-      <span class="option-name">방장을 넘긴 뒤 다음 순서 알리기</span>
-      <button type="button" class="help-tip" data-tip="방장을 위임한 직후 대기 중인 다음 순서를 인게임 채팅으로 안내합니다.&#10;• 사용 가능한 치환자: {목록} (예: 2순위 5픽 · 3순위 2픽)&#10;• 봇이 PLAYER 2에 있으면 '봇이 2픽일 때' 문구로, 대결 후 방장을 못 받았으면 '방장 요청' 문구로 안내합니다." aria-label="도움말">?</button>
-    </label>
-    <div class="option-row option-row-block bot-field">
-      <span class="option-name">다음 순서 문구</span>
-      <input type="text" id="auto-host-text" class="scan-opt-text" autocomplete="off" />
+    <h2>채팅 안내</h2>
+    <div class="bot-setting-group">
+      <label class="option-row">
+        <span class="switch"><input type="checkbox" id="auto-host-chat" checked /><span class="slider"></span></span>
+        <span class="option-name">방장을 넘긴 뒤 다음 순서 알리기</span>
+        <button type="button" class="help-tip" data-tip="방장을 위임한 직후 대기 중인 다음 순서를 인게임 채팅으로 안내합니다.&#10;• 사용 가능한 치환자: {목록} (예: 2순위 5픽 · 3순위 2픽)&#10;• 봇이 PLAYER 2에 있으면 '봇이 2픽일 때' 문구로, 대결 후 방장을 못 받았으면 '방장 요청' 문구로 안내합니다." aria-label="도움말">?</button>
+      </label>
+      <div class="bot-subfields">
+        <div class="bot-field">
+          <span class="bot-field-label">다음 순서 문구</span>
+          <input type="text" id="auto-host-text" autocomplete="off" />
+        </div>
+        <div class="bot-field">
+          <span class="bot-field-label">봇이 2픽일 때</span>
+          <input type="text" id="auto-host-text-p2" autocomplete="off" />
+        </div>
+        <div class="bot-field">
+          <span class="bot-field-label">방장 요청</span>
+          <input type="text" id="auto-host-text-ask" autocomplete="off" />
+        </div>
+      </div>
     </div>
-    <div class="option-row option-row-block bot-field">
-      <span class="option-name">봇이 2픽일 때</span>
-      <input type="text" id="auto-host-text-p2" class="scan-opt-text" autocomplete="off" />
-    </div>
-    <div class="option-row option-row-block bot-field">
-      <span class="option-name">방장 요청</span>
-      <input type="text" id="auto-host-text-ask" class="scan-opt-text" autocomplete="off" />
-    </div>
-    <label class="option-row">
-      <span class="switch"><input type="checkbox" id="auto-host-song" checked /><span class="slider"></span></span>
-      <span class="option-name">대결 중 이번 곡 난이도 알리기</span>
-      <button type="button" class="help-tip" data-tip="라운드·밴픽 화면에서 층수 측정기가 현재 플레이 곡을 인식하면, 그 곡의 난이도와 층수·태그를 인게임 채팅으로 안내합니다.&#10;• 사용 가능한 치환자: {라운드}, {곡}, {패턴}, {층수}, {태그}&#10;• 화면 공유 대상이 '둘 다'로 되어 있어야 층수 측정기에서 곡 정보를 받아올 수 있습니다." aria-label="도움말">?</button>
-    </label>
-    <div class="option-row option-row-block bot-field">
-      <span class="option-name">곡 안내 문구</span>
-      <input type="text" id="auto-host-text-song" class="scan-opt-text" autocomplete="off" />
+    <div class="bot-setting-group">
+      <label class="option-row">
+        <span class="switch"><input type="checkbox" id="auto-host-song" checked /><span class="slider"></span></span>
+        <span class="option-name">대결 중 이번 곡 난이도 알리기</span>
+        <button type="button" class="help-tip" data-tip="라운드·밴픽 화면에서 층수 측정기가 현재 플레이 곡을 인식하면, 그 곡의 난이도와 층수·태그를 인게임 채팅으로 안내합니다.&#10;• 사용 가능한 치환자: {라운드}, {곡}, {패턴}, {층수}, {태그}&#10;• 화면 공유 대상이 '둘 다'로 되어 있어야 층수 측정기에서 곡 정보를 받아올 수 있습니다." aria-label="도움말">?</button>
+      </label>
+      <div class="bot-subfields">
+        <div class="bot-field">
+          <span class="bot-field-label">곡 안내 문구</span>
+          <input type="text" id="auto-host-text-song" autocomplete="off" />
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="card options-card" id="opt-auto-host-room">
     <h2>방 다시 만들기 <button type="button" class="help-tip" data-tip="방장이 나가거나 오류로 방이 해체되어 방 목록 화면으로 나가면, 확인 창을 닫고 아래 방 이름·비밀번호로 버서스 방을 자동으로 다시 만듭니다.&#10;• 방 이름 치환자: {날짜} (예: 1122), {월}, {일}&#10;• 방 이름을 비우면 게임 기본 방 이름을 그대로 쓰고, 비밀번호를 비우면 공개 방으로 생성합니다." aria-label="도움말">?</button></h2>
-    <div class="option-row option-row-block bot-field">
-      <span class="option-name">방 이름</span>
-      <input type="text" id="auto-host-room-name" class="scan-opt-text" placeholder="비우면 게임이 지어 주는 이름 그대로" autocomplete="off" />
-    </div>
-    <div class="option-row option-row-block bot-field">
-      <span class="option-name">비밀번호</span>
-      <input type="text" id="auto-host-room-pw" class="scan-opt-text" placeholder="비우면 잠그지 않습니다" autocomplete="off" />
+    <div class="bot-room-grid">
+      <label class="bot-room-field">
+        <span class="bot-field-label">방 이름</span>
+        <input type="text" id="auto-host-room-name" placeholder="비우면 게임이 지어 주는 이름 그대로" autocomplete="off" />
+      </label>
+      <label class="bot-room-field">
+        <span class="bot-field-label">비밀번호</span>
+        <input type="text" id="auto-host-room-pw" placeholder="비우면 잠그지 않습니다" autocomplete="off" />
+      </label>
     </div>
   </section>
 </main>
@@ -1107,34 +1119,34 @@
 
 
 <!-- 공용 라이브러리 → 매칭 본체 → 매칭 자동 인식 → 층수 측정기 순서로 읽혀야 한다 -->
-<script src="lib/util.js"></script>
+<script src="lib/util.js?v=20261125-modular"></script>
 <script src="lib/imghash.js"></script>
 <script src="lib/screen-capture.js"></script>
 <script src="lib/capture-hub.js"></script>
-<script src="lib/tabs.js"></script>
+<script src="lib/tabs.js?v=20261125-polish2"></script>
 <script src="lib/notify.js"></script>
-<script src="lib/popup.js?v=20261124-tag-clip2"></script>
+<script src="lib/popup.js?v=20261125-goal1"></script>
 <script src="lib/djmax-room.js?v=20261122-playing-level"></script>
 <script src="lib/incidents.js?v=20261122-int-rect"></script>
 
-<script src="script.js?v=20261124-auto-mode"></script>
-<script src="auto-room.js?v=20261104-diagnostic"></script>
+<script src="script.js?v=20261125-modular"></script>
+<script src="auto-room.js?v=20261125-modular"></script>
 
-<script src="floor/core.js?v=20261124-tag-clip2"></script>
-<script src="floor/memo.js?v=20261124-tag-clip2"></script>
-<script src="floor/song-db.js?v=20261124-tag-clip2"></script>
+<script src="floor/core.js?v=20261125-modular"></script>
+<script src="floor/memo.js?v=20261125-modular"></script>
+<script src="floor/song-db.js?v=20261125-unified-tags"></script>
 <script src="floor/shots.js"></script>
 <script src="floor/match-screen.js"></script>
 <script src="floor/lobby-marks.js?v=20261107-text-mask"></script>
 <script src="floor/auto-capture.js?v=20261124-auto-mode"></script>
-<script src="floor/app.js?v=20261124-tag-clip2"></script>
+<script src="floor/app.js?v=20261125-modular"></script>
 
 <!-- 성과 스캔 — 층수 측정기의 곡 DB(songDatabase)와 자켓 sig(sigTable)를 쓰므로 그 뒤에 -->
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="scan/reader.js?v=20261122-digits"></script>
-<script src="scan/app.js?v=20261123-ux-polish"></script>
+<script src="scan/app.js?v=20261125-modular"></script>
 
 <!-- 자동 방장 봇 — script.js(priorityOrder) · auto-room.js(장부) · scan/app.js(도우미 호출) 다음이어야 한다 -->
-<script src="auto-host.js?v=20261124-p2-text"></script>
+<script src="auto-host.js?v=20261125-modular"></script>
 </body>
 </html>

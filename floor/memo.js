@@ -88,19 +88,18 @@ function renderMemoEditor() {
     const p = getSongDataSync(titleId).patterns?.[button]?.[difficulty];
     document.getElementById('memoSongName').textContent = name || `ID ${titleId}`;
 
-    const chip = (cls, text, style = '') => `<span class="px-2 py-0.5 rounded-md text-xs font-black text-white ${cls}"${style ? ` style="${style}"` : ''}>${text}</span>`;
-    document.getElementById('memoPatternInfo').innerHTML = chip(BTN_COLORS[button] || 'bg-slate-700', button) + chip(DIFF_COLORS[difficulty] || 'bg-slate-700', difficulty)
-        + (p ? chip('', escapeHtml(`${circledLevel(p.level)} ${patternFloorName(p)}`.trim()), `background-color: ${getDifficultyBgColor(p.level, difficulty, p.floor ?? '-')}`) : '');
+    document.getElementById('memoPatternInfo').innerHTML = renderPatternBadgeHtml(button, BTN_COLORS[button] || 'bg-slate-700')
+        + renderPatternBadgeHtml(difficulty, DIFF_COLORS[difficulty] || 'bg-slate-700')
+        + (p ? renderPatternBadgeHtml(escapeHtml(`${circledLevel(p.level)} ${patternFloorName(p)}`.trim()), '', `background-color: ${getDifficultyBgColor(p.level, difficulty, p.floor ?? '-')}`) : '');
 
-    // 참고용: V-ARCHIVE·로페봇이 이미 붙여둔 태그
-    const refTags = getSongTagList(titleId, button, difficulty).filter(t => t.type !== 'custom');
-    document.getElementById('memoRefTags').innerHTML = refTags.map(t => {
-        const cls = t.type === 'varchive' ? 'tag-va'
-            : t.type === 'pattern' ? 'tag-lope'
-            : t.type === 'bpm' ? 'floor-bpm-badge bg-blue-900/40 text-blue-300 border-blue-700/50'
-            : 'bg-slate-800/60 text-slate-400 border-slate-700/50';
-        return `<span class="px-1.5 py-0.5 rounded text-[11px] font-bold border ${cls}">[${escapeHtml(t.text)}]</span>`;
-    }).join('');
+    // 참고용: V-ARCHIVE·로페봇이 이미 붙여둔 태그 (공용 태그 렌더러 사용)
+    document.getElementById('memoRefTags').innerHTML = renderPatternTags(titleId, button, difficulty, {
+        preset: 'cell',
+        includeMyRecord: false,
+        includeMemo: false,
+        includeBpm: true,
+        brackets: true
+    });
 
     const tags = getPatternMemo(titleId, button, difficulty);
     document.getElementById('memoTagList').innerHTML = tags.length

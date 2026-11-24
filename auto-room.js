@@ -904,18 +904,7 @@
     /* 인식 기록은 접어둔다 — 평소엔 상태 한 줄이면 충분하고, 뭘 읽었는지 궁금할 때만 펼친다.
        (기록 자체가 화면에만 남는 것이라 접힘 상태도 굳이 저장하지 않는다) */
     function initActivityToggle() {
-        const head = $('auto-log-toggle'), body = $('auto-activity'), icon = $('auto-log-icon');
-        if (!head || !body || !icon) return;
-        const toggle = () => {
-            const open = body.style.display === 'none';
-            body.style.display = open ? 'flex' : 'none';
-            icon.textContent = open ? '▲' : '▼';
-            head.setAttribute('aria-expanded', open ? 'true' : 'false');
-        };
-        head.addEventListener('click', toggle);
-        head.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
-        });
+        window.VMH?.UI?.bindCollapsible($('auto-log-toggle'), $('auto-activity'), $('auto-log-icon'), { openDisplay: 'flex' });
     }
 
     /* 의심 장면 막대 — 모인 게 있을 때만 보인다 */
@@ -975,7 +964,8 @@
         if (btn) {
             btn.textContent = running ? '연결 해제' : '🎮 게임 화면 연결';
             btn.classList.toggle('danger', running);
-            btn.classList.toggle('secondary', !running);
+            btn.classList.toggle('primary', !running);
+            btn.classList.remove('secondary');
         }
         applyLock(on);
         if (!running) window.VMH.Tabs.forgetScene();

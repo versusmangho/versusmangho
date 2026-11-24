@@ -491,12 +491,11 @@
         const ok = (b) => b ? '<span class="ok">●</span>' : '<span class="no">●</span>';
         const h = state.helper;
         helperListeners.forEach(cb => { try { cb(); } catch (e) { console.error('[Scan]', e); } });
-        const check = (ready, name, text) => '<li>' + ok(ready) + '<span class="scan-check-name">' + name + '</span><div>' + text + '</div></li>';
-        $('scan-checks').innerHTML = [
-            check(!!h && h.version >= HELPER_MIN_VERSION, '도우미', helperHtml('자동 스캔과 업로드에 필요합니다.', true)),
-            check(Hub.isRunning(), '게임 화면', Hub.isRunning() ? '연결됨' : '헤더의 <b>게임 화면 연결</b>을 누르세요.'),
-            check(dbReady(), '곡 정보', dbReady() ? '준비됨' : '불러오는 중…')
-        ].join('');
+        global.VMH.UI.renderCheckList($('scan-checks'), [
+            { ready: !!h && h.version >= HELPER_MIN_VERSION, name: '도우미', html: helperHtml('자동 스캔과 업로드에 필요합니다.', true) },
+            { ready: Hub.isRunning(), name: '게임 화면', html: Hub.isRunning() ? '연결됨' : '헤더의 <b>게임 화면 연결</b>을 누르세요.' },
+            { ready: dbReady(), name: '곡 정보', html: dbReady() ? '준비됨' : '불러오는 중…' }
+        ]);
     }
 
     function renderButtons() {

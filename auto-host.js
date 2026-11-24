@@ -801,13 +801,10 @@
     /* ── 옵션 UI ───────────────── */
     const $ = (id) => document.getElementById(id);
 
-    // 준비 목록 — 도우미·게임 화면·봇 지정 3단계를 깔끔한 목록으로 보여준다. 봇을 켜기 전에도 보인다
+    // 준비 목록 — 도우미·게임 화면·봇 지정 3단계를 공용 체크리스트로 표시한다. 봇을 켜기 전에도 보인다
     function renderChecks() {
         const el = $('auto-host-helper'), S = Scan();
         if (!el || !S || !S.helperHtml) return;
-        const ok = (b) => b ? '<span class="ok">●</span>' : '<span class="no">●</span>';
-        const check = (ready, name, html) =>
-            '<li>' + ok(ready) + '<span class="scan-check-name">' + name + '</span><div class="scan-check-desc">' + html + '</div></li>';
 
         const helperReady = !!S.state.helper && S.state.helper.version >= 9 && S.state.helper.windows;
         const running = Hub.isRunning(), seen = Hub.receiving('room');
@@ -831,11 +828,11 @@
             botHtml = '매칭 표에서 봇으로 쓸 계정에 <b>봇 지정</b>을 누르세요 <button type="button" class="secondary scan-inline-btn" data-act="goto-match">매칭 표로 이동</button>';
         }
 
-        el.innerHTML = [
-            check(helperReady, '도우미', S.helperHtml('봇이 게임에 키를 누르려면 필요합니다.', true)),
-            check(seen, '게임 화면', screenHtml),
-            check(!!botNick, '봇 지정', botHtml)
-        ].join('');
+        window.VMH.UI.renderCheckList(el, [
+            { ready: helperReady, name: '도우미', html: S.helperHtml('봇이 게임에 키를 누르려면 필요합니다.', true) },
+            { ready: seen, name: '게임 화면', html: screenHtml },
+            { ready: !!botNick, name: '봇 지정', html: botHtml }
+        ]);
     }
 
     function render() {

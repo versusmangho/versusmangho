@@ -27,18 +27,30 @@ const LOPE_SONGS_URL = 'https://xn--2o2bk9ff9x.com/data/songs.json';
 const LOPE_IMG_BASE = 'https://img.xn--2o2bk9ff9x.com/';
 const VA_IMG_BASE = 'https://v-archive.net/s3/images/jackets/';
 
-// 버튼/난이도 색 — 드롭다운, 일망호 표, 메모 편집창이 같이 쓴다
+// 버튼/난이도 색 — 드롭다운, 일망호 표, 메모 편집창, 팝업이 같이 쓴다
 const BTN_COLORS = { '4B': 'bg-emerald-600', '5B': 'bg-sky-600', '6B': 'bg-amber-600', '8B': 'bg-indigo-600' };
 const DIFF_COLORS = { 'SC': 'bg-purple-600', 'MX': 'bg-rose-600', 'HD': 'bg-orange-600', 'NM': 'bg-yellow-500' };
+const BTN_HEX = { '4B': '#059669', '5B': '#0284c7', '6B': '#d97706', '8B': '#4f46e5' };
+const DIFF_HEX = { NM: '#eab308', HD: '#ea580c', MX: '#e11d48', SC: '#9333ea' };
+
+/* 버튼·난이도 셀렉트 쌍 공용 렌더러 (버망호 5열 카드 · 일반 리스트 공용) */
+function renderPatternSelectsHtml(btn, diff, extraCls = '') {
+    const bL = ['4B', '5B', '6B', '8B'], dL = ['NM', 'HD', 'MX', 'SC'];
+    const base = `rounded-md font-black text-white bg-slate-800 border-none outline-none shadow-sm ${extraCls}`.trim();
+    const opts = (list, cur) => list.map(v => `<option value="${v}" ${v === cur ? 'selected' : ''}>${v}</option>`).join('');
+    return `<select class="btn-select ${base}" onchange="event.stopPropagation(); handleCorrection(this)">${opts(bL, btn)}</select>`
+         + `<select class="diff-select ${base}" onchange="event.stopPropagation(); handleCorrection(this)">${opts(dL, diff)}</select>`;
+}
+
+/* 버튼·난이도·층수 배지 칩 공용 렌더러 (메모 모달 등) */
+function renderPatternBadgeHtml(text, cls = '', style = '') {
+    return `<span class="px-2 py-0.5 rounded-md text-xs font-black text-white ${cls}"${style ? ` style="${style}"` : ''}>${text}</span>`;
+}
 
 /* 층수 측정기 설명도 도움말 탭에 있다 (예전에는 이 탭 안의 모달이었다) */
 function toggleHelp(show) {
     if (show === false) return;
-    VMH.Tabs.show('help');
-    requestAnimationFrame(() => {
-        const el = document.getElementById('help-floor');
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    VMH.UI.jumpToHelp('help-floor');
 }
 
 function setMode(mode) {
@@ -63,7 +75,13 @@ function setMode(mode) {
     autoCap.modeSwitchCount = 0;
     updateAutoCaptureUI();
     document.getElementById('songSearchResults').classList.add('hidden');
-    document.getElementById('songSearchInput').value = '';
+    const searchInput = document.getElementById('songSearchInput');
+    if (searchInput) {
+        searchInput.value = '';
+        if (mode === 'general' && VMH.Tabs?.active === 'floor') {
+            requestAnimationFrame(() => searchInput.focus());
+        }
+    }
 
     window.lastProcessedImg = null; lastImageHash = null;
     // 모드별로 히스토리를 따로 들고 있어서, 돌아오면 보던 스샷과 밴픽이 그대로 살아난다
@@ -168,35 +186,91 @@ function getSongTagList(titleId, currentButton = null, currentDifficulty = null)
     return displayTags;
 }
 
-function getSongTagsHtml(titleId, currentButton = null, currentDifficulty = null, justifyClass = currentMode === 'versus' ? 'justify-center' : 'justify-start') {
-    const displayTags = getSongTagList(titleId, currentButton, currentDifficulty);
-    if (displayTags.length === 0) return '';
+/* ── 공용 태그 렌더러 ─────────────────
+   버망호 카드 · 일망호 표 · 메모 편집 참고 태그 · 팝업(버망호/일망호) 모두 이 한 곳을 거친다.
+   태그 순서·글꼴·높이·색상 클래스가 한 군데서만 결정되므로 화면마다 어긋나지 않는다. */
+const TAG_KIND_META = {
+    myrec: { cls: 'my-record-tag', popupCls: 'myrec', title: '' },
+    memo:  { cls: 'tag-memo memo-tag', popupCls: 'memo', title: '내 메모 태그' },
+    bpm:   { cls: 'floor-bpm-badge', popupCls: 'bpm', title: '' },
+    va:    { cls: 'tag-va', popupCls: 'va', title: 'V-ARCHIVE 태그' },
+    lope:  { cls: 'tag-lope', popupCls: 'lope', title: '로페봇 태그' },
+    etc:   { cls: 'tag-etc', popupCls: 'etc', title: '' },
+};
 
-    return `<div class="flex flex-wrap gap-1 ${justifyClass} mt-1.5">${displayTags.map(tag => {
-        let cls = 'bg-slate-800/60 text-slate-300 border-slate-700/50', titleAttr = '';
-
-        if (tag.type === 'bpm') {
-            cls = 'floor-bpm-badge bg-blue-900/40 text-blue-300 border-blue-700/50';
-        } else if (tag.type === 'varchive') {
-            cls = 'tag-va'; titleAttr = ' title="V-ARCHIVE 태그"';
-        } else if (tag.type === 'pattern') {
-            cls = 'tag-lope'; titleAttr = ' title="로페봇 태그"';
-        } else if (tag.type === 'custom') {
-            cls = 'bg-slate-900/70 text-amber-300 border-amber-500/60 memo-tag'; // memo-tag: Copy에서 빠지는 표시
-            titleAttr = ' title="내 메모 태그"';
-        }
-
-        return `<span class="px-1.5 py-0.5 rounded text-xs font-bold border ${cls}"${titleAttr}>[${escapeHtml(tag.text)}]</span>`;
-    }).join('')}</div>`;
+function getMyRecordTagItem(titleId, btn, diff) {
+    if (typeof getMyRecord !== 'function') return null;
+    const rec = getMyRecord(titleId, btn, diff);
+    if (!rec) return null;
+    const isPP = rec.score >= 100;
+    const text = isPP ? 'PP' : `${rec.score.toFixed(2)}%${rec.maxCombo ? ' ★' : ''}`;
+    const mod = isPP ? 'is-pp' : (rec.maxCombo ? 'is-mc' : '');
+    const title = `내 V-ARCHIVE 최고 기록: ${rec.score.toFixed(2)}%${rec.maxCombo ? ' (MAX COMBO)' : ''}`;
+    return { kind: 'myrec', text, mod, title };
 }
 
-/* 일망호 표 칸의 태그 줄 — 내 메모 → V-ARCHIVE → 로페봇 순으로 잘리지 않고 모두 표시한다 */
-function generalCellTagsHtml(titleId, btn, diff) {
-    const memoTags = getPatternMemo(titleId, btn, diff);
+function collectPatternTags(titleId, btn = null, diff = null, opts = {}) {
+    const { includeMyRecord = true, includeMemo = true, includeBpm = false, includeLope = true } = opts;
+    const items = [];
+    if (includeMyRecord) {
+        const recItem = getMyRecordTagItem(titleId, btn, diff);
+        if (recItem) items.push(recItem);
+    }
+    if (includeBpm) {
+        const list = getSongTagList(titleId, btn, diff);
+        for (const t of list) {
+            if (t.type === 'custom' && !includeMemo) continue;
+            if (t.type === 'pattern' && !includeLope) continue;
+            const kind = t.type === 'bpm' ? 'bpm'
+                : t.type === 'varchive' ? 'va'
+                : t.type === 'pattern' ? 'lope'
+                : t.type === 'custom' ? 'memo' : 'etc';
+            items.push({ kind, text: t.text, mod: '', title: TAG_KIND_META[kind].title });
+        }
+        return items;
+    }
+    if (includeMemo) {
+        getPatternMemo(titleId, btn, diff).forEach(t => items.push({ kind: 'memo', text: t, mod: '', title: TAG_KIND_META.memo.title }));
+    }
     const vaTags = getVarchivePatternTags(titleId, btn, diff);
-    const lopeTags = getLopePatternTags(titleId, btn, diff, vaTags);
-    if (!memoTags.length && !vaTags.length && !lopeTags.length) return '';
-    return `<div class="cell-tags flex flex-wrap justify-center gap-1 mt-1 w-full">
-        ${memoTags.map(t => `<span class="memo-tag text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap">${escapeHtml(t)}</span>`).join('')}${vaTags.map(t => `<span class="tag-va text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap" title="V-ARCHIVE 태그">${escapeHtml(t)}</span>`).join('')}${lopeTags.map(name => `<span class="tag-lope text-[11px] px-1.5 py-0.5 rounded-sm whitespace-nowrap" title="로페봇 태그">${escapeHtml(name)}</span>`).join('')}
-    </div>`;
+    vaTags.forEach(t => items.push({ kind: 'va', text: t, mod: '', title: TAG_KIND_META.va.title }));
+    if (includeLope) {
+        getLopePatternTags(titleId, btn, diff, vaTags).forEach(name => items.push({ kind: 'lope', text: name, mod: '', title: TAG_KIND_META.lope.title }));
+    }
+    return items;
+}
+
+function renderTagChip(item, preset = 'card', brackets = false) {
+    const meta = TAG_KIND_META[item.kind] || TAG_KIND_META.etc;
+    const label = (brackets && item.kind !== 'myrec') ? `[${escapeHtml(item.text)}]` : escapeHtml(item.text);
+    const titleAttr = item.title ? ` title="${escapeHtml(item.title)}"` : '';
+    if (preset === 'popup') {
+        return `<span class="t ${meta.popupCls}${item.mod ? ' ' + item.mod : ''}">${label}</span>`;
+    }
+    return `<span class="vmh-tag vmh-tag--${preset} ${meta.cls}${item.mod ? ' ' + item.mod : ''}"${titleAttr}>${label}</span>`;
+}
+
+function renderPatternTags(titleId, btn = null, diff = null, opts = {}) {
+    const { preset = 'card', brackets = false, wrapClass = '' } = opts;
+    const items = collectPatternTags(titleId, btn, diff, opts);
+    if (!items.length) return '';
+    const inner = items.map(item => renderTagChip(item, preset, brackets)).join('');
+    return wrapClass ? `<div class="${wrapClass}">${inner}</div>` : inner;
+}
+
+function getSongTagsHtml(titleId, currentButton = null, currentDifficulty = null, justifyClass = currentMode === 'versus' ? 'justify-center' : 'justify-start') {
+    return renderPatternTags(titleId, currentButton, currentDifficulty, {
+        preset: 'card',
+        includeBpm: true,
+        brackets: true,
+        wrapClass: `flex flex-wrap items-center gap-1 ${justifyClass} mt-1.5`
+    });
+}
+
+/* 일망호 표 칸의 태그 줄 — 내 기록 → 내 메모 → V-ARCHIVE → 로페봇 순으로 잘리지 않고 모두 표시한다 */
+function generalCellTagsHtml(titleId, btn, diff) {
+    return renderPatternTags(titleId, btn, diff, {
+        preset: 'cell',
+        wrapClass: 'cell-tags flex flex-wrap items-center justify-center gap-1 mt-1 w-full'
+    });
 }

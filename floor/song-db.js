@@ -133,33 +133,19 @@ function getMyRecord(titleId, btn, diff) {
     return myVarchiveRecords.get(`${parseInt(titleId)}|${btn}|${diff}`) || null;
 }
 
-function formatMyRecordHtml(titleId, btn, diff, mode = 'card') {
-    const rec = getMyRecord(titleId, btn, diff);
-    if (!rec) return '';
-    const isPP = rec.score >= 100;
-    const scoreText = isPP ? 'PP' : `${rec.score.toFixed(2)}%`;
-    const maxMark = (!isPP && rec.maxCombo) ? ' ★' : '';
-    const cls = isPP ? 'is-pp' : (rec.maxCombo ? 'is-mc' : '');
-    const title = `내 V-ARCHIVE 최고 기록: ${rec.score.toFixed(2)}%${rec.maxCombo ? ' (MAX COMBO)' : ''}`;
-    if (mode === 'cell') {
-        return `<span class="cell-my-record ${cls}" title="${escapeHtml(title)}">${scoreText}${maxMark}</span>`;
-    }
-    return `<span class="my-record-badge ${cls}" title="${escapeHtml(title)}">MY ${scoreText}${maxMark}</span>`;
-}
-
 function refreshMyRecordViews() {
     if (typeof shotHistory === 'undefined') return;
     shotHistory.versus.forEach(entry => entry.rows.forEach(row => {
-        const slot = row.querySelector('.my-record-slot');
+        const tC = row.querySelector('.tags-container');
         const bS = row.querySelector('.btn-select'), dS = row.querySelector('.diff-select');
-        if (slot && bS && dS) slot.innerHTML = formatMyRecordHtml(row.getAttribute('data-title-id'), bS.value, dS.value, 'card');
+        if (tC && bS && dS) tC.innerHTML = getSongTagsHtml(row.getAttribute('data-title-id'), bS.value, dS.value);
     }));
     shotHistory.general.forEach(entry => entry.rows.forEach(row => {
         const tId = row.getAttribute('data-title-id');
         row.querySelectorAll('.grid-cell[data-btn]').forEach(cell => {
-            cell.querySelector('.cell-my-record')?.remove();
-            const html = formatMyRecordHtml(tId, cell.dataset.btn, cell.dataset.diff, 'cell');
-            if (html) cell.insertAdjacentHTML('afterbegin', html);
+            cell.querySelector('.cell-tags')?.remove();
+            const html = generalCellTagsHtml(tId, cell.dataset.btn, cell.dataset.diff);
+            if (html) cell.insertAdjacentHTML('beforeend', html);
         });
     }));
     if (window.VMH?.Popup?.update) window.VMH.Popup.update();

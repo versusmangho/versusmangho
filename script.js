@@ -497,18 +497,14 @@ function setImage(img, ph, src, onReady) {
     if (ph) ph.style.display = 'none';
 }
 
-if(ui.anaToggle) {
-    ui.anaToggle.onclick = () => {
-        const hide = ui.anaContent.style.display === 'none';
-        ui.anaContent.style.display = hide ? 'block' : 'none';
-        ui.anaToggle.querySelector('.toggle-icon').innerText = hide ? '▲' : '▼';
-        saveState(); // <--- saveState() 호출 추가
-    }
+if (ui.anaToggle && ui.anaContent) {
+    VMH.UI.bindCollapsible(ui.anaToggle, ui.anaContent, ui.anaToggle.querySelector('.toggle-icon'), {
+        onToggle: () => saveState()
+    });
 }
 
-// 스토리지 및 상태 관리
-const SafeStorage={available:false,getItem:function(k){try{return window.localStorage.getItem(k)}catch{return null}},setItem:function(k,v){try{window.localStorage.setItem(k,v);return true}catch{return false}}};
-try{const k="__t";window.localStorage.setItem(k,"1");window.localStorage.removeItem(k);SafeStorage.available=true;}catch { /* feature detect */ }
+// 스토리지 및 상태 관리 (공용 VMH.Storage 별칭)
+const SafeStorage = VMH.Storage;
 const STORAGE_KEY = "roomStateV3";
 
 
@@ -910,6 +906,8 @@ function refreshUI() {
     if (window.VMH && window.VMH.AutoHost && typeof window.VMH.AutoHost.render === "function") {
         window.VMH.AutoHost.render();
     }
+    if (ui.undoBtn) ui.undoBtn.disabled = undoStack.length === 0;
+    if (ui.redoBtn) ui.redoBtn.disabled = redoStack.length === 0;
 }
 
 /* 보류 켜기/끄기. 끌 때는 보류한 라운드만큼 대기를 보정한다 (보류 버튼과 봇 지정이 같이 쓴다) */
@@ -1184,6 +1182,14 @@ if(ui.resetBtn) ui.resetBtn.onclick = () => {
         refreshUI();
     }
 };
+// 성과 스캔 단계 바 클릭 → 해당 카드로 바로 이동
+document.querySelectorAll('#scan-flow li[data-scan-step]').forEach(li => {
+    const targets = { scan: 'scan-card', review: 'scan-review-card', compare: 'scan-upload-card', upload: 'scan-upload-card' };
+    li.addEventListener('click', () => {
+        const el = document.getElementById(targets[li.dataset.scanStep]);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+});
 if(ui.undoBtn) ui.undoBtn.onclick = () => {
     if (undoStack.length === 0) { alert("되돌릴 기록이 없습니다."); return; }
     redoStack.push(JSON.parse(JSON.stringify(room))); room = undoStack.pop(); selected = []; refreshUI();
@@ -1318,31 +1324,17 @@ document.addEventListener('click', (e) => {
 
     const toHelp = e.target.closest('[data-goto-help]');
     if (toHelp) {
-        VMH.Tabs.show('help');
-        // 탭이 보이게 된 다음에 움직여야 자리가 제대로 잡힌다
-        requestAnimationFrame(() => scrollToHelpSection(toHelp.dataset.gotoHelp));
+        VMH.UI.jumpToHelp(toHelp.dataset.gotoHelp);
     }
 });
 
 // 매칭 로그 접기/펼치기
-(function initLogToggle(){
-    const btn = document.getElementById('log-toggle-btn');
-    const content = document.getElementById('log-content');
-    const icon = document.getElementById('log-toggle-icon');
-    if(!btn || !content || !icon) return;
-
-    const toggle = () => {
-        const hide = content.style.display !== 'none' ? true : false;
-        content.style.display = hide ? 'none' : 'block';
-        icon.innerText = hide ? '▼' : '▲';
-        saveState();
-    };
-
-    btn.addEventListener('click', toggle);
-    btn.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
-    });
-})();
+VMH.UI.bindCollapsible(
+    document.getElementById('log-toggle-btn'),
+    document.getElementById('log-content'),
+    document.getElementById('log-toggle-icon'),
+    { onToggle: () => saveState() }
+);
 
 // 플레이어 현황 "더 많은 정보 보기" 토글
 (function initMoreColumns(){

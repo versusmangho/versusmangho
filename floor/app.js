@@ -145,10 +145,9 @@ function updateGeneralRow(row, data, titleId) {
 
             // 데이터 셀 - 태그가 많아도 잘리지 않도록 최소 높이(min-h-[6rem])로 유연하게 확장
             const copyAttr = hasPattern ? ` data-btn="${btn}" data-diff="${diff}" onclick="copyGeneralCell(this)" title="클릭: 복사 · 우클릭: 내 태그"` : '';
-            const myRecHtml = hasPattern ? formatMyRecordHtml(titleId, btn, diff, 'cell') : '';
             const memoBtn = hasPattern ? `<button class="memo-cell-btn" title="패턴 메모 (자작 태그)" onclick="event.stopPropagation(); openMemoFromCell(this)">✎</button>` : '';
             grid += `<div class="grid-cell${hasPattern ? ' copyable' : ''} relative flex flex-col items-center justify-center ${textColor} ${opacity} min-h-[6rem]" style="${bgColor}"${copyAttr}>
-                ${myRecHtml}${memoBtn}
+                ${memoBtn}
                 <span class="grid-value${(displayChar === 'NO DATA' || displayChar === 'NO FLOOR') ? ' nodata' : ''}">${levelChar ? `<span class="align-middle opacity-80 ${diff === 'SC' ? 'font-normal' : 'font-light'}">${levelChar}</span> ` : ''}${escapeHtml(displayChar)}</span>
                 ${pTagsHtml}
             </div>`;
@@ -246,14 +245,8 @@ function updateRow(row, info) {
                 </div>
             </div>
             <div class="flex items-center space-x-1 w-full">
-                <select class="btn-select flex-1 px-1 py-1 rounded-md text-xs font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">
-                    ${bL.map(b => `<option value="${b}" ${b===info.button?'selected':''}>${b}</option>`).join('')}
-                </select>
-                <select class="diff-select flex-1 px-1 py-1 rounded-md text-xs font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">
-                    ${dL.map(d => `<option value="${d}" ${d===info.difficulty?'selected':''}>${d}</option>`).join('')}
-                </select>
+                ${renderPatternSelectsHtml(info.button, info.difficulty, 'flex-1 px-1 py-1 text-xs')}
             </div>
-            <div class="my-record-slot w-full flex justify-center empty:hidden">${formatMyRecordHtml(info.titleId, info.button, info.difficulty, 'card')}</div>
             <div class="tags-container w-full min-h-[40px] flex-1">${getSongTagsHtml(info.titleId, info.button, info.difficulty)}</div>
             <div class="flex items-center space-x-1 w-full pt-1">
                 <button class="recheck-btn flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs py-1.5 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button>
@@ -263,7 +256,7 @@ function updateRow(row, info) {
         `;
     } else {
         row.className = 'track-row p-5 rounded-2xl flex items-center justify-between opacity-100 shadow-xl relative glass';
-        row.innerHTML = `<div class="flex items-center space-x-5">${jacketHtml(info, 'w-20 h-20 flex-none rounded-xl border border-slate-800 shadow-md', '1.75rem')}<div><h3 class="font-bold text-white text-xl leading-tight mb-1">${escapeHtml(info.name)}</h3><div class="tags-container">${getSongTagsHtml(info.titleId, info.button, info.difficulty)}</div><div class="flex items-center space-x-1.5 mt-2.5"><select class="btn-select px-2 py-1 rounded-md text-[11px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">${bL.map(b => `<option value="${b}" ${b===info.button?'selected':''}>${b}</option>`).join('')}</select><select class="diff-select px-2 py-1 rounded-md text-[11px] font-black text-white bg-slate-800 border-none outline-none shadow-sm" onchange="event.stopPropagation(); handleCorrection(this)">${dL.map(d => `<option value="${d}" ${d===info.difficulty?'selected':''}>${d}</option>`).join('')}</select><button class="recheck-btn ml-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button></div></div></div><div class="text-right flex flex-col items-end"><p class="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Floor Intensity</p><div class="floor-area transition-all duration-300 flex items-center" style="border-radius: 12px; padding: 6px 12px; background-color: ${getDifficultyBgColor(info.level, info.difficulty, info.floor)}"><p class="floor-value text-3xl font-black text-white">${circledLevel(info.level)} ${escapeHtml(info.floorName)}</p></div></div>`;
+        row.innerHTML = `<div class="flex items-center space-x-5">${jacketHtml(info, 'w-20 h-20 flex-none rounded-xl border border-slate-800 shadow-md', '1.75rem')}<div><h3 class="font-bold text-white text-xl leading-tight mb-1">${escapeHtml(info.name)}</h3><div class="tags-container">${getSongTagsHtml(info.titleId, info.button, info.difficulty)}</div><div class="flex items-center space-x-1.5 mt-2.5">${renderPatternSelectsHtml(info.button, info.difficulty, 'px-2 py-1 text-[11px]')}<button class="recheck-btn ml-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] px-2.5 py-1 rounded-md uppercase font-bold tracking-tighter" onclick="event.stopPropagation(); handleRecheck(this)">Recheck</button></div></div></div><div class="text-right flex flex-col items-end"><p class="text-[10px] text-slate-500 uppercase font-black tracking-widest mb-1">Floor Intensity</p><div class="floor-area transition-all duration-300 flex items-center" style="border-radius: 12px; padding: 6px 12px; background-color: ${getDifficultyBgColor(info.level, info.difficulty, info.floor)}"><p class="floor-value text-3xl font-black text-white">${circledLevel(info.level)} ${escapeHtml(info.floorName)}</p></div></div>`;
     }
     updateSelectColors(row.querySelector('.btn-select'), row.querySelector('.diff-select'));
     renderRoundBadge(row); // Recheck으로 카드를 다시 그려도 라운드 표시 유지
@@ -279,7 +272,7 @@ function copyRowInfo(btn) {
     const floor = levelChar ? `${levelChar} ${floorName}` : floorName;
     
     const tagsContainer = row.querySelector('.tags-container');
-    const tags = tagsContainer ? Array.from(tagsContainer.querySelectorAll('span:not(.memo-tag)')).map(s => s.innerText).join(' ') : '';
+    const tags = tagsContainer ? Array.from(tagsContainer.querySelectorAll('span:not(.memo-tag):not(.my-record-tag)')).map(s => s.innerText).join(' ') : '';
     
     const text = `${title} ${button} ${diff} ${floor}${tags ? ' ' + tags : ''}`;
     copyTextWithMessage(text);
@@ -313,7 +306,6 @@ function copyTextWithMessage(text) {
 function handleCorrection(el) {
     const row = el.closest('.track-row'), bS = row.querySelector('.btn-select'), dS = row.querySelector('.diff-select'), btn = bS.value, diff = dS.value;
     updateSelectColors(bS, dS); const tId = row.getAttribute('data-title-id'), d = getSongDataSync(tId);
-    const rS = row.querySelector('.my-record-slot'); if (rS) rS.innerHTML = formatMyRecordHtml(tId, btn, diff, 'card');
     const tC = row.querySelector('.tags-container'); if (tC) tC.innerHTML = getSongTagsHtml(tId, btn, diff);
     const p = d.patterns?.[btn]?.[diff], fE = row.querySelector('.floor-value'), fA = row.querySelector('.floor-area');
     if (fE) {
@@ -582,7 +574,7 @@ VMH.Floor = {
             title: best.querySelector('h3')?.innerText || '',
             pattern: [best.querySelector('.btn-select')?.value, best.querySelector('.diff-select')?.value].filter(Boolean).join(' '),
             floor: (lv ? lv + ' ' : '') + floorName,
-            tags: tagBox ? Array.from(tagBox.querySelectorAll('span:not(.memo-tag)')).map(s => s.innerText).join(' ') : ''
+            tags: tagBox ? Array.from(tagBox.querySelectorAll('span:not(.memo-tag):not(.my-record-tag)')).map(s => s.innerText).join(' ') : ''
         };
     }
 };
@@ -592,15 +584,6 @@ VMH.Floor = {
    카드 DOM이 곧 상태라(보고 있는 스샷이 달라 화면에서 떼어져 있어도) 거기서 그대로 읽는다.
    자켓 주소와 층수 칸 색도 카드에 있는 것을 그대로 쓴다(자켓은 로페봇으로 물러난 뒤의 주소).
    일망호 모드에서는 가장 최근에 읽은 곡의 층수 표만 혼자 띄운다(solo — 매칭 순서는 빠진다). */
-function popupMyRecordHtml(titleId, btn, diff, tag = 'div') {
-    const rec = getMyRecord(titleId, btn, diff);
-    if (!rec) return '';
-    const isPP = rec.score >= 100;
-    const text = isPP ? 'PP' : `${rec.score.toFixed(2)}%${rec.maxCombo ? ' ★' : ''}`;
-    const cls = isPP ? ' is-pp' : (rec.maxCombo ? ' is-mc' : '');
-    return `<${tag} class="myrec${cls}">${text}</${tag}>`;
-}
-
 VMH.Popup.addSection('songs', () => {
     if (currentMode === 'general') return popupGeneralChart();
     const entry = shotHistory.versus[shotHistory.versus.length - 1];
@@ -612,53 +595,38 @@ VMH.Popup.addSection('songs', () => {
         const bg = r.querySelector('.floor-area')?.style.backgroundColor || 'rgba(71, 85, 105, 0.85)';
         const src = r.querySelector('.aspect-square img')?.src;
         const jacket = src ? `<img class="jacket" src="${escapeHtml(src)}" alt="">` : '<div class="jacket none">?</div>';
-        const myRec = popupMyRecordHtml(tId, btn, diff, 'div');
-        const vaTags = getVarchivePatternTags(tId, btn, diff);
-        const tagHtml = vaTags.length ? `<div class="song-tags">${vaTags.map(t => `<span class="t va">${escapeHtml(t)}</span>`).join('')}</div>` : '';
+        const tagHtml = renderPatternTags(tId, btn, diff, { preset: 'popup', includeMemo: false, includeLope: false, wrapClass: 'song-tags' });
         return `<div class="song${r.classList.contains('banned') ? ' banned' : ''}">${jacket}`
              + `<div class="pat">${escapeHtml(`${btn} ${diff}`)}</div>`
              + `<span class="floor" style="background:${bg}">${circledLevel(r.dataset.level)} ${escapeHtml(r.dataset.floorName || '')}</span>`
-             + myRec + tagHtml + `</div>`;
+             + tagHtml + `</div>`;
     }).join('')}</div></div>`;
 }, { solo: () => currentMode === 'general' });
 
-/* 일망호 표(4B~8B × NM~SC) — 칸마다 왼쪽에 레벨+층수(+내 기록), 오른쪽에 태그 목록. 색은 본 화면의 표와 같다. 자켓은 뺀다.
-   태그는 본 화면 칸과 같이 내 메모 → V-ARCHIVE → 로페봇 순이다 */
+/* 일망호 표(4B~8B × NM~SC) — 칸마다 왼쪽 위에 레벨+층수, 옆→아래로 태그 목록. 색은 본 화면의 표와 같다. 자켓은 뺀다.
+   태그는 공용 렌더러(renderPatternTags)로 내 기록 → 내 메모 → V-ARCHIVE → 로페봇 순으로 그린다 */
 function popupGeneralChart() {
     const entry = shotHistory.general[shotHistory.general.length - 1];
     const tId = entry?.rows.find(r => r.getAttribute('data-title-id'))?.getAttribute('data-title-id');
     const data = tId ? getSongDataSync(tId) : null;
     if (!data?.success) return `<div class="sec chart"><h2>층수 표</h2><p class="empty">${tId ? '이 곡은 층수 정보가 없습니다' : '방장이 곡을 고르면 여기에 층수 표가 뜹니다'}</p></div>`;
     const btns = ['4B', '5B', '6B', '8B'], diffs = ['NM', 'HD', 'MX', 'SC'];
-    // 팝업 창엔 Tailwind가 없어서 BTN_COLORS·DIFF_COLORS(클래스 이름)와 같은 색을 값으로 적는다
-    const head = { '4B': '#059669', '5B': '#0284c7', '6B': '#d97706', '8B': '#4f46e5' };
-    const dHead = { NM: '#eab308', HD: '#ea580c', MX: '#e11d48', SC: '#9333ea' };
-    let grid = '<div></div>' + diffs.map(d => `<div class="hd" style="background:${dHead[d]}">${d}</div>`).join('');
+    let grid = '<div></div>' + diffs.map(d => `<div class="hd" style="background:${DIFF_HEX[d]}">${d}</div>`).join('');
     btns.forEach(btn => {
-        grid += `<div class="hd" style="background:${head[btn]}">${btn}</div>`;
+        grid += `<div class="hd" style="background:${BTN_HEX[btn]}">${btn}</div>`;
         diffs.forEach(diff => {
             const p = data.patterns?.[btn]?.[diff];
             if (!p) { grid += '<div class="cell none">—</div>'; return; }
             const fV = p.floor ?? '-';
-            const myRec = popupMyRecordHtml(tId, btn, diff, 'div');
-            const tags = popupCellTagsHtml(tId, btn, diff);
+            const tags = renderPatternTags(tId, btn, diff, { preset: 'popup', wrapClass: 'tags' });
             const cls = tags ? ' has-tags' : '';
             if (fV === '-' || fV === null) {
-                grid += `<div class="cell nofloor${cls}"><div class="cell-main"><div class="val"><span class="lv">${circledLevel(p.level)}</span>NO FLOOR</div>${myRec}</div>${tags}</div>`;
+                grid += `<div class="cell nofloor${cls}"><div class="cell-main"><div class="val"><span class="lv">${circledLevel(p.level)}</span>NO FLOOR</div></div>${tags}</div>`;
                 return;
             }
-            grid += `<div class="cell${cls}" style="background:${getDifficultyBgColor(p.level, diff, fV)}"><div class="cell-main"><div class="val"><span class="lv">${circledLevel(p.level)}</span>${escapeHtml(patternFloorName(p))}</div>${myRec}</div>${tags}</div>`;
+            grid += `<div class="cell${cls}" style="background:${getDifficultyBgColor(p.level, diff, fV)}"><div class="cell-main"><div class="val"><span class="lv">${circledLevel(p.level)}</span>${escapeHtml(patternFloorName(p))}</div></div>${tags}</div>`;
         });
     });
     const bpm = songTagsDatabase[String(tId)]?.bpm?.text;
     return `<div class="sec chart"><h2>${escapeHtml(data.name)}${bpm ? `<span class="bpm">BPM ${escapeHtml(bpm)}</span>` : ''}</h2><div class="grid">${grid}</div></div>`;
-}
-
-/* generalCellTagsHtml(core.js)과 같은 태그를 팝업용 마크업으로 */
-function popupCellTagsHtml(titleId, btn, diff) {
-    const memo = getPatternMemo(titleId, btn, diff);
-    const va = getVarchivePatternTags(titleId, btn, diff);
-    const lope = getLopePatternTags(titleId, btn, diff, va);
-    if (!memo.length && !va.length && !lope.length) return '';
-    return `<div class="tags">${memo.map(t => `<span class="t memo">${escapeHtml(t)}</span>`).join('')}${va.map(t => `<span class="t va">${escapeHtml(t)}</span>`).join('')}${lope.map(name => `<span class="t lope">${escapeHtml(name)}</span>`).join('')}</div>`;
 }
