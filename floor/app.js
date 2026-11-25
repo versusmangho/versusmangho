@@ -146,7 +146,7 @@ function updateGeneralRow(row, data, titleId) {
             // 데이터 셀 - 태그가 많아도 잘리지 않도록 최소 높이(min-h-[6rem])로 유연하게 확장
             const copyAttr = hasPattern ? ` data-btn="${btn}" data-diff="${diff}" onclick="copyGeneralCell(this)" title="클릭: 복사 · 우클릭: 내 태그"` : '';
             const memoBtn = hasPattern ? `<button class="memo-cell-btn" title="패턴 메모 (자작 태그)" onclick="event.stopPropagation(); openMemoFromCell(this)">✎</button>` : '';
-            grid += `<div class="grid-cell${hasPattern ? ' copyable' : ''} relative flex flex-col items-center justify-center ${textColor} ${opacity} min-h-[6rem]" style="${bgColor}"${copyAttr}>
+            grid += `<div class="grid-cell${hasPattern ? ' copyable' : ''} relative flex flex-col items-center justify-start ${textColor} ${opacity} min-h-[6rem]" style="${bgColor}"${copyAttr}>
                 ${memoBtn}
                 <span class="grid-value${(displayChar === 'NO DATA' || displayChar === 'NO FLOOR') ? ' nodata' : ''}">${levelChar ? `<span class="align-middle opacity-80 ${diff === 'SC' ? 'font-normal' : 'font-light'}">${levelChar}</span> ` : ''}${escapeHtml(displayChar)}</span>
                 ${pTagsHtml}

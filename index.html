@@ -194,8 +194,8 @@
   /* 데이터 없는 칸은 실제 층수 값과 같은 크기로 찍히면 빈 칸이 데이터보다 커 보인다 */
   .floor-scope .grid-value.nodata { font-size: 0.8rem; font-weight: 400; letter-spacing: 0.1em;
   }
-  /* 패턴이 있는 칸은 클릭하면 버망호 Copy와 같은 형식으로 복사된다 */
-  .floor-scope .grid-cell.copyable { cursor: pointer; padding: 20px 8px 10px;
+  /* 패턴이 있는 칸은 클릭하면 버망호 Copy와 같은 형식으로 복사된다 (상단 정렬로 전 열의 층수·첫 태그 줄 y좌표를 맞춘다) */
+  .floor-scope .grid-cell.copyable { cursor: pointer; padding: 16px 8px 12px;
   }
   .floor-scope .grid-cell.copyable:hover { filter: brightness(1.15);
   }
@@ -390,7 +390,7 @@
   </style>
 
   <!-- 층수 스타일보다 뒤에 둔다 — .floor-toolbar 같은 조정 규칙이 이겨야 하기 때문 -->
-  <link rel="stylesheet" href="style.css?v=20261125-goal2" />
+  <link rel="stylesheet" href="style.css?v=20261125-audit-fix" />
 </head>
 
 <body>
@@ -926,11 +926,11 @@
       <span class="option-name">스캔 끝나면 자동으로 서버 비교·업로드</span>
       <button type="button" class="help-tip" data-tip="스캔이 목록 끝까지 정상 완료되면 자동으로 V-ARCHIVE 서버 기록을 불러와 비교한 뒤, 판독이 확실한 갱신 기록만 바로 업로드합니다.&#10;• 자켓·점수·중복 등 '확인 필요' 표시가 붙은 항목은 자동으로 제외되므로, 끝난 뒤 검토해서 직접 올리면 됩니다.&#10;• DJ 이름과 account.txt가 모두 설정돼 있어야 자동 업로드까지 진행됩니다." aria-label="도움말">?</button>
     </label>
-    <div class="option-row option-row-block">
+    <div class="option-row option-row-block scan-num-row">
       <span class="option-name">곡 넘긴 뒤 기다리는 시간 <button type="button" class="help-tip" data-tip="스캔 중 아래 방향키로 다음 곡으로 넘긴 뒤, 게임 화면의 자켓·점수가 완전히 바뀔 때까지 기다리는 시간(ms)입니다.&#10;• 기본값은 60ms이며, PC 사양이나 프레임에 따라 이전 곡 화면이 덜 바뀌어 중복/오인식이 잦으면 100~200ms 정도로 늘려 주세요." aria-label="도움말">?</button></span>
       <span class="weight-num-wrap"><input type="number" id="scan-delay-input" class="weight-num" min="60" max="3000" step="1" /> ms</span>
     </div>
-    <div class="option-row option-row-block">
+    <div class="option-row option-row-block scan-num-row">
       <span class="option-name">키 누름 시간 <button type="button" class="help-tip" data-tip="도우미(helper.py)가 게임 창에 키를 보낼 때 키를 누르고 있는 유지 시간(ms)입니다.&#10;• 기본값은 40ms이며, 게임이 키 입력을 가끔 씹는다면 50~80ms로 조금 늘려 보세요." aria-label="도움말">?</button></span>
       <span class="weight-num-wrap"><input type="number" id="scan-hold-input" class="weight-num" min="10" max="500" step="5" /> ms</span>
     </div>
@@ -1131,7 +1131,7 @@
 <script src="lib/capture-hub.js"></script>
 <script src="lib/tabs.js?v=20261125-polish2"></script>
 <script src="lib/notify.js"></script>
-<script src="lib/popup.js?v=20261125-goal1"></script>
+<script src="lib/popup.js?v=20261125-audit-fix"></script>
 <script src="lib/djmax-room.js?v=20261122-playing-level"></script>
 <script src="lib/incidents.js?v=20261122-int-rect"></script>
 
@@ -1145,7 +1145,7 @@
 <script src="floor/match-screen.js"></script>
 <script src="floor/lobby-marks.js?v=20261107-text-mask"></script>
 <script src="floor/auto-capture.js?v=20261124-auto-mode"></script>
-<script src="floor/app.js?v=20261125-modular"></script>
+<script src="floor/app.js?v=20261125-audit-fix"></script>
 
 <!-- 성과 스캔 — 층수 측정기의 곡 DB(songDatabase)와 자켓 sig(sigTable)를 쓰므로 그 뒤에 -->
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>

@@ -440,8 +440,8 @@ button:focus-visible, summary:focus-visible, [role="button"]:focus-visible { out
 .floor-scope, .floor-scope *, .floor-scope *::before, .floor-scope *::after { box-sizing: border-box; }
 .floor-scope button { display: inline-flex; height: auto; background: transparent; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; }
 .floor-scope input, .floor-scope select, .floor-scope textarea { font: inherit; }
-.floor-scope h1, .floor-scope h2, .floor-scope h3, .floor-scope p { margin: 0; }
-.floor-scope ul, .floor-scope ol { margin: 0; padding: 0; list-style: none; }
+:where(.floor-scope) :where(h1, h2, h3, p) { margin: 0; }
+:where(.floor-scope) :where(ul, ol) { margin: 0; padding: 0; list-style: none; }
 .floor-scope img, .floor-scope svg { display: block; }
 .floor-scope img { max-width: 100%; height: auto; }
 .floor-scope table { border-collapse: collapse; }
@@ -607,12 +607,12 @@ h2 .help-tip { font-size: 12px; width: 17px; height: 17px; font-weight: 700; }
 .seg input:focus-visible + span { outline: 2px solid var(--accent-blue); outline-offset: 2px; }
 
 /* 가중치 편집기 */
-.weight-formula { margin: 0 0 12px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--bg-sunken); border: 1px solid var(--border-color); font-size: 13px; color: #cbd5e1; line-height: 1.6; }
+.weight-formula { margin: 0 0 12px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--bg-sunken); border: 1px solid var(--border-color); font-size: 13px; color: var(--text-primary); line-height: 1.6; }
 .weight-formula b { font-family: var(--font-num); color: var(--accent-bright); }
 .weight-editor { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; }
 .weight-row { display: grid; grid-template-columns: 110px 1fr auto 60px; gap: 12px; align-items: center; padding: 6px 10px; border-radius: var(--radius-sm); }
 .weight-row.changed { background: rgba(6, 182, 212, 0.08); }
-.weight-name { font-size: 13px; font-weight: 700; color: #cbd5e1; }
+.weight-name { font-size: 13px; font-weight: 700; color: var(--text-primary); }
 .weight-range { width: 100%; accent-color: var(--accent-blue); }
 .weight-num-wrap { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-dim); }
 .weight-row .weight-num-wrap { display: inline-grid; grid-template-columns: 14px 64px 16px; align-items: center; gap: 4px; }
@@ -649,6 +649,7 @@ h2 .help-tip { font-size: 12px; width: 17px; height: 17px; font-weight: 700; }
 .scan-note { font-size: 13px; color: var(--text-secondary); }
 .scan-empty { margin: 8px 0; font-size: 13px; color: var(--text-dim); }
 .scan-opt-text { max-width: 280px; }
+.scan-num-row .option-name { min-width: 14.5em; }
 /* 방장 봇 탭 — 토글 종속 입력칸은 왼쪽 강조선 하위 그룹으로, 방 이름/비밀번호는 2열로 정리 */
 .bot-setting-group + .bot-setting-group { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-color); }
 .bot-subfields {
@@ -1122,7 +1123,9 @@ h2 .help-tip { font-size: 12px; width: 17px; height: 17px; font-weight: 700; }
 :root[data-theme="light"] .floor-scope .memo-suggest { color: var(--text-secondary); }
 :root[data-theme="light"] .floor-scope kbd { background: var(--bg-sunken); color: var(--text-primary); }
 :root[data-theme="light"] .tier-entry .tier-name { color: #334155; }
-:root[data-theme="light"] .tier-track { background-color: var(--bg-sunken); background-image: repeating-linear-gradient(to right, rgba(30,55,90,.1) 0 1px, transparent 1px calc(100% / 18.5)); }
+:root[data-theme="light"] .tier-track { background-color: var(--bg-sunken); background-image: repeating-linear-gradient(to right, rgba(15,23,42,.14) 0 1px, transparent 1px calc(100% / 26)); }
+:root[data-theme="light"] .tier-oob { background: repeating-linear-gradient(45deg, rgba(100,116,139,.18) 0 3px, transparent 3px 7px); }
+:root[data-theme="light"] .tier-none { color: var(--text-secondary); }
 :root[data-theme="light"] .tier-entry[data-tier="GRAND MASTER"] .tier-name { color: #86198f; }
 :root[data-theme="light"] .tier-entry[data-tier="MASTER"] .tier-name { color: #9f1239; }
 :root[data-theme="light"] .tier-entry[data-tier="DIAMOND"] .tier-name { color: #075985; }
